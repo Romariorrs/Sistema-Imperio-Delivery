@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Login Vendedor{% endblock %}
+{% block content %}
+<div class="card" style="max-width:420px;margin:40px auto;">
+    <h2>Login Vendedor</h2>
+    <form method="post">
+        {% csrf_token %}
+        <label>Usuário</label>
+        <input type="text" name="username" required>
+        <label>Senha</label>
+        <input type="password" name="password" required>
+        <button class="btn" type="submit">Entrar</button>
+    </form>
+</div>
+{% endblock %}

@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Clientes{% endblock %}
+{% block content %}
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+    <h2>Clientes</h2>
+    <div style="display:flex;gap:8px;">
+        <a class="btn secondary" href="{% url 'client_export' %}">Exportar CSV</a>
+        <a class="btn" href="{% url 'client_create' %}">Novo Cliente</a>
+    </div>
+</div>
+<div class="card">
+    <table>
+        <thead>
+            <tr>
+                <th>Nome</th>
+                <th>CPF/CNPJ</th>
+                <th>Telefone</th>
+                <th>Email</th>
+                <th>Valor padrão</th>
+                <th>Status</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for client in clients %}
+            <tr>
+                <td>{{ client.name }}</td>
+                <td>{{ client.cpf_cnpj }}</td>
+                <td>{{ client.phone }}</td>
+                <td>{{ client.email }}</td>
+                <td>R$ {{ client.default_amount|floatformat:2 }}</td>
+                <td>
+                    {% if client.active %}
+                        <span class="badge success">Ativo</span>
+                    {% else %}
+                        <span class="badge danger">Inativo</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <a class="btn secondary" href="{% url 'client_update' client.id %}">Editar</a>
+                    <a class="btn secondary" href="{% url 'invoice_single_client' client.id %}">Cobrar</a>
+                    <form method="post" action="{% url 'client_delete' client.id %}" style="display:inline;">
+                        {% csrf_token %}
+                        <button class="btn danger" type="submit" onclick="return confirm('Excluir cliente {{ client.name }}?');">Excluir</button>
+                    </form>
+                </td>
+            </tr>
+        {% empty %}
+            <tr><td colspan="7">Nenhum cliente cadastrado.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

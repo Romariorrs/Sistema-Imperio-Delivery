@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Dashboard Vendedor{% endblock %}
+{% block content %}
+<h1>Dashboard do Vendedor</h1>
+<div class="grid">
+    <div class="card">
+        <div class="muted">Total de boletos enviados</div>
+        <h2>{{ total_boletos }}</h2>
+    </div>
+    <div class="card">
+        <div class="muted">Valor total em boletos</div>
+        <h2>R$ {{ valor_total|floatformat:2 }}</h2>
+    </div>
+    <div class="card">
+        <div class="muted">Comissão (apenas pagos)</div>
+        <h2>R$ {{ comissao_estimada|floatformat:2 }}</h2>
+    </div>
+</div>
+<div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
+    <a class="btn" href="{% url 'seller_client_create' %}">Cadastrar cliente</a>
+    <a class="btn" href="{% url 'seller_billing_create' %}">Gerar boleto</a>
+    <a class="btn secondary" href="{% url 'seller_logout' %}">Sair</a>
+</div>
+{% endblock %}

@@ -1,0 +1,10 @@
+Django>=4.2
+requests>=2.31.0
+selenium>=4.22.0
+pyngrok>=7.2.0
+webdriver-manager>=4.0.0
+python-dotenv>=1.0.1
+gunicorn>=22.0.0
+whitenoise>=6.7.0
+dj-database-url>=2.1.0
+psycopg2-binary>=2.9.9

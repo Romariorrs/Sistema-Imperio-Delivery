@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Cobrança{% endblock %}
+{% block content %}
+<div class="card" style="max-width:640px;">
+    <h2>Gerar cobrança</h2>
+    <p>Cliente: <strong>{{ client.name }}</strong> | Valor padrão: R$ {{ client.default_amount|floatformat:2 }}</p>
+    <form method="post">
+        {% csrf_token %}
+        <label>Valor</label>
+        <input type="number" step="0.01" name="amount" value="{{ client.default_amount }}">
+        <label>Vencimento</label>
+        <input type="date" name="due_date" value="{{ billing.due_date|default:None|date:'Y-m-d' }}">
+        <button class="btn" type="submit">Gerar cobrança</button>
+    </form>
+    {% if payment_link %}
+        <div style="margin-top:14px;">
+            <div class="badge success">Link gerado</div>
+            <p><a href="{{ payment_link }}" target="_blank">{{ payment_link }}</a></p>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

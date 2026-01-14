@@ -1,0 +1,71 @@
+﻿{% extends "base.html" %}
+{% block title %}WhatsApp{% endblock %}
+{% block content %}
+<div class="card" style="max-width:720px;">
+    <h2>WhatsApp (Evolution API)</h2>
+    <p>Status: <span style="color:#4bd6b0;font-weight:700;">conectado à Evolution API</span></p>
+    <p style="color:var(--muted); margin-bottom:12px;">A sessão é gerenciada externamente pela Evolution API; não é necessário iniciar ou exibir QR aqui.</p>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        <button class="btn secondary" id="btn-send">Enviar fila agora</button>
+        <button class="btn secondary" id="btn-reset">Resetar sessão</button>
+        <span id="send-msg" style="color:var(--muted);"></span>
+    </div>
+</div>
+<form id="csrf-form">{% csrf_token %}</form>
+<script>
+const btnSend = document.getElementById('btn-send');
+const btnReset = document.getElementById('btn-reset');
+const sendMsg = document.getElementById('send-msg');
+const csrfToken = document.querySelector('#csrf-form input[name=csrfmiddlewaretoken]').value;
+let sendInterval = null;
+
+btnSend.addEventListener('click', async () => {
+    sendMsg.textContent = 'Iniciando envio...';
+    try {
+        const res = await fetch('{% url "whatsapp_send_now" %}', {
+            method: 'POST',
+            headers: {'X-CSRFToken': csrfToken},
+        });
+        const data = await res.json();
+        sendMsg.textContent = data.message || 'Envio iniciado';
+        if (data.started) {
+            if (sendInterval) clearInterval(sendInterval);
+            sendInterval = setInterval(checkWorker, 2000);
+        }
+    } catch (err) {
+        sendMsg.textContent = 'Erro: ' + err.message;
+    }
+});
+
+async function checkWorker() {
+    try {
+        const res = await fetch('{% url "whatsapp_worker_status" %}');
+        const data = await res.json();
+        if (!data.running) {
+            sendMsg.textContent = 'Envio concluído.';
+            clearInterval(sendInterval);
+            sendInterval = null;
+        } else {
+            sendMsg.textContent = 'Envio em andamento...';
+        }
+    } catch (err) {
+        sendMsg.textContent = 'Erro ao consultar envio: ' + err.message;
+        clearInterval(sendInterval);
+        sendInterval = null;
+    }
+}
+
+btnReset.addEventListener('click', async () => {
+    sendMsg.textContent = 'Reiniciando sessão...';
+    try {
+        await fetch('{% url "whatsapp_reset" %}', {
+            method: 'POST',
+            headers: {'X-CSRFToken': csrfToken},
+        });
+        sendMsg.textContent = 'Sessão reiniciada.';
+    } catch (err) {
+        sendMsg.textContent = 'Erro ao resetar: ' + err.message;
+    }
+});
+</script>
+{% endblock %}

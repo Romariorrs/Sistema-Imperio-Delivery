@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Boleto Gerado{% endblock %}
+{% block content %}
+<div class="card" style="max-width:640px;">
+    <h2>Boleto gerado</h2>
+    <p><strong>Cliente:</strong> {{ client.name }}</p>
+    <p><strong>Valor:</strong> R$ {{ billing.amount|floatformat:2 }}</p>
+    <p><strong>Vencimento:</strong> {{ billing.due_date }}</p>
+    <p><strong>Link:</strong> <a href="{{ payment_link }}" target="_blank">{{ payment_link }}</a></p>
+    <a class="btn" href="{% url 'seller_dashboard' %}">Voltar</a>
+</div>
+{% endblock %}

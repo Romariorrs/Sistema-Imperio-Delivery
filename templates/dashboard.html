@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<h1 style="margin-bottom:16px;">Resumo geral</h1>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;">
+    <div class="card" style="border:1px solid rgba(43,179,227,0.2);">
+        <div class="muted" style="letter-spacing:1px;">EM CAIXA</div>
+        <h2 style="margin:6px 0;">R$ {{ total_received|floatformat:2 }}</h2>
+        <div class="muted">Total de faturas pagas</div>
+    </div>
+    <div class="card" style="border:1px solid rgba(75,214,176,0.2);">
+        <div class="muted" style="letter-spacing:1px;">A RECEBER</div>
+        <h2 style="margin:6px 0;">R$ {{ total_to_receive|floatformat:2 }}</h2>
+        <div class="muted">Faturas pendentes não pagas</div>
+    </div>
+    <div class="card" style="background:linear-gradient(135deg, rgba(45,91,227,0.3), rgba(40,209,165,0.25));border:1px solid rgba(45,91,227,0.35);">
+        <div class="muted" style="letter-spacing:1px;">ENVIOS WHATSAPP (30 DIAS)</div>
+        <div style="display:flex;gap:18px;align-items:center;margin-top:4px;">
+            <div><div class="muted" style="font-size:12px;">Enviados</div><h2 style="margin:2px 0;">{{ total_sent }}</h2></div>
+            <div><div class="muted" style="font-size:12px;">Pendentes</div><h2 style="margin:2px 0;">{{ total_pending_queue }}</h2></div>
+            <div><div class="muted" style="font-size:12px;">Erros</div><h2 style="margin:2px 0;color:#ff6b6b;">{{ total_error_queue }}</h2></div>
+        </div>
+    </div>
+</div>
+
+<div class="card" style="margin-top:18px;">
+    <h3>Comissoes de vendedores</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Vendedor</th>
+                <th>Boletos</th>
+                <th>Total em boletos</th>
+                <th>Pagos</th>
+                <th>Comissao a receber</th>
+                <th>Comissao pendente</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for row in seller_commissions %}
+            <tr>
+                <td>{{ row.seller.name }}</td>
+                <td>{{ row.total_count }}</td>
+                <td>R$ {{ row.total_sum|floatformat:2 }}</td>
+                <td>R$ {{ row.paid_sum|floatformat:2 }}</td>
+                <td>R$ {{ row.commission_due|floatformat:2 }}</td>
+                <td>R$ {{ row.commission_pending|floatformat:2 }}</td>
+            </tr>
+        {% empty %}
+            <tr><td colspan="6">Nenhum vendedor ativo.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="card" style="margin-top:18px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+        <h3>Clientes inadimplentes</h3>
+        <div style="display:flex;gap:8px;">
+            <form method="post" action="{% url 'reset_finance' %}" onsubmit="return confirm('Deseja zerar cobranças e fila?');">
+                {% csrf_token %}
+                <button class="btn secondary" type="submit">Zerar financeiro</button>
+            </form>
+            <a href="{% url 'send_mass_messages' %}" class="btn secondary">Reenviar cobranças</a>
+        </div>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th>Cliente</th>
+                <th>Valor</th>
+                <th>Vencimento</th>
+                <th>Status</th>
+                <th>Ação</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for bill in overdue_clients %}
+            <tr>
+                <td>{{ bill.client.name }}</td>
+                <td>R$ {{ bill.amount|floatformat:2 }}</td>
+                <td>{{ bill.due_date }}</td>
+                <td><span class="badge danger">Atrasado</span></td>
+                <td><a class="btn secondary" href="{% url 'invoice_single_client' bill.client.id %}">Reenviar</a></td>
+            </tr>
+        {% empty %}
+            <tr><td colspan="5">Nenhum inadimplente.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% endblock %}

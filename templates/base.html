@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Imperio Delivey{% endblock %}</title>
+    <style>
+        :root {
+            --bg: #0c111d;
+            --surface: #10192b;
+            --surface-2: #0f1725;
+            --border: #1d2a3f;
+            --primary: #4bd6b0;
+            --primary-2: #2bb3e3;
+            --text: #e8eefc;
+            --muted: #9fb2d7;
+            --danger: #ff6b6b;
+            --accent: linear-gradient(135deg, #2d5be3, #28d1a5);
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: "Poppins", "Segoe UI", Arial, sans-serif;
+            background: radial-gradient(circle at 20% 20%, rgba(43,179,227,0.08), transparent 35%), var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+        a { color: var(--primary); text-decoration: none; }
+        nav {
+            padding: 14px 24px;
+            background: linear-gradient(90deg, rgba(16,25,43,0.95), rgba(16,21,35,0.92));
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        nav .brand { font-weight: 600; letter-spacing: 0.5px; color: var(--text); }
+        nav a {
+            color: var(--muted);
+            padding: 8px 12px;
+            border-radius: 10px;
+            transition: all .2s ease;
+        }
+        nav a:hover { color: var(--text); background: rgba(255,255,255,0.06); }
+        nav .spacer { flex: 1; }
+        .container { padding: 24px; }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 16px;
+        }
+        .card {
+            background: linear-gradient(150deg, rgba(32,48,78,0.8), rgba(15,23,37,0.9));
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 18px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+        }
+        h1, h2, h3, h4 { margin: 0 0 10px; font-weight: 600; }
+        table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+        th, td { padding: 10px 8px; border-bottom: 1px solid var(--border); text-align: left; color: var(--muted); }
+        th { color: var(--text); font-weight: 600; }
+        .btn {
+            display: inline-block;
+            padding: 10px 14px;
+            border-radius: 10px;
+            background: var(--accent);
+            color: #0b111e;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            transition: transform .1s ease, box-shadow .2s ease;
+            box-shadow: 0 10px 30px rgba(43,179,227,0.25);
+        }
+        .btn:hover { transform: translateY(-1px); }
+        .btn.secondary { background: rgba(255,255,255,0.06); color: var(--text); box-shadow: none; }
+        .btn.danger {
+            background: rgba(255,107,107,0.12);
+            color: var(--danger);
+            box-shadow: none;
+            border: 1px solid rgba(255,107,107,0.35);
+        }
+        .badge { padding: 4px 10px; border-radius: 999px; font-size: 12px; background: rgba(255,255,255,0.08); }
+        .badge.danger { background: rgba(255,107,107,0.1); color: var(--danger); }
+        .badge.success { background: rgba(75,214,176,0.15); color: var(--primary); }
+        form { display: grid; gap: 12px; }
+        label { color: var(--muted); font-size: 14px; }
+        input, select, textarea {
+            width: 100%;
+            padding: 12px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            background: var(--surface);
+            color: var(--text);
+        }
+        select[multiple] {
+            min-height: 120px;
+            background: linear-gradient(135deg, rgba(43,179,227,0.06), rgba(16,23,35,0.95));
+            border: 1px solid rgba(43,179,227,0.3);
+        }
+        .chips {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-top: 6px;
+        }
+        .chip {
+            background: rgba(43,179,227,0.18);
+            border: 1px solid rgba(43,179,227,0.35);
+            padding: 6px 10px;
+            border-radius: 999px;
+            color: var(--text);
+            font-size: 12px;
+        }
+        .messages { margin-bottom: 12px; }
+        .messages .msg {
+            padding: 10px 12px;
+            border-radius: 10px;
+            margin-bottom: 8px;
+            background: rgba(43,179,227,0.08);
+            border: 1px solid rgba(43,179,227,0.2);
+        }
+        .messages .msg.error { background: rgba(255,107,107,0.08); border-color: rgba(255,107,107,0.4); }
+        .messages .msg.success { background: rgba(75,214,176,0.08); border-color: rgba(75,214,176,0.3); }
+    </style>
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    {% if user.is_authenticated %}
+    <nav>
+        <div class="brand">Imperio Delivey</div>
+        {% if user.is_superuser or user.is_staff %}
+            <a href="{% url 'dashboard' %}">Dashboard</a>
+            <a href="{% url 'client_list' %}">Clientes</a>
+            <a href="{% url 'monthly_billing_page' %}">Mensalidades</a>
+            <a href="{% url 'template_list' %}">Templates</a>
+            <a href="{% url 'send_mass_messages' %}">Mensagens</a>
+            <a href="{% url 'whatsapp_status' %}">WhatsApp</a>
+            <a href="{% url 'admin_users' %}">Admin</a>
+        {% elif user.seller_profile %}
+            <a href="{% url 'seller_dashboard' %}">Vendedor</a>
+            <a href="{% url 'seller_client_create' %}">Novo Cliente</a>
+            <a href="{% url 'seller_billing_create' %}">Gerar boleto</a>
+        {% endif %}
+        <div class="spacer"></div>
+        {% if user.seller_profile and not user.is_staff and not user.is_superuser %}
+            <a href="{% url 'seller_logout' %}">Sair</a>
+        {% else %}
+            <a href="{% url 'logout' %}">Sair</a>
+        {% endif %}
+    </nav>
+    {% endif %}
+    <div class="container">
+        {% if messages %}
+            <div class="messages">
+            {% for message in messages %}
+                <div class="msg {% if message.tags %}{{ message.tags }}{% endif %}">{{ message }}</div>
+            {% endfor %}
+            </div>
+        {% endif %}
+        {% block content %}{% endblock %}
+    </div>
+</body>
+</html>

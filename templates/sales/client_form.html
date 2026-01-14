@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Novo Cliente{% endblock %}
+{% block content %}
+<div class="card" style="max-width:640px;">
+    <h2>Novo Cliente</h2>
+    <form method="post">
+        {% csrf_token %}
+        {% for field in form %}
+            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {% if field.errors %}<div class="msg error">{{ field.errors|striptags }}</div>{% endif %}
+        {% endfor %}
+        <button class="btn" type="submit">Salvar</button>
+    </form>
+</div>
+{% endblock %}

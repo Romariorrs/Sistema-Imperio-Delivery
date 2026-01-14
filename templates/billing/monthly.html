@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Mensalidades{% endblock %}
+{% block content %}
+<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+    <div>
+        <h2>Mensalidades</h2>
+        <div class="muted" style="margin-top:4px;">Regra: vencimento 30 dias apos cadastro, aviso 2 dias antes.</div>
+    </div>
+    <div class="chips">
+        <span class="chip">Fila pendente: {{ queue_pending }}</span>
+        <span class="chip">Fila erro: {{ queue_error }}</span>
+    </div>
+</div>
+
+<div class="grid" style="margin-top:12px;">
+    <div class="card" style="border:1px solid rgba(45,91,227,0.35);">
+        <div class="muted" style="letter-spacing:1px;">VENCENDO EM 2 DIAS</div>
+        <h2 style="margin:6px 0;">{{ due_soon_clients }}</h2>
+        <div class="muted">Clientes com vencimento proximo</div>
+    </div>
+    <div class="card" style="border:1px solid rgba(75,214,176,0.25);">
+        <div class="muted" style="letter-spacing:1px;">PAGOS NO MES</div>
+        <h2 style="margin:6px 0;">{{ paid_clients }}</h2>
+        <div class="muted">Clientes com mensalidade paga</div>
+    </div>
+    <div class="card" style="border:1px solid rgba(255,255,255,0.12);">
+        <div class="muted" style="letter-spacing:1px;">PENDENTES NO MES</div>
+        <h2 style="margin:6px 0;">{{ pending_clients }}</h2>
+        <div class="muted">Clientes aguardando pagamento</div>
+    </div>
+    <div class="card" style="border:1px solid rgba(255,107,107,0.35);">
+        <div class="muted" style="letter-spacing:1px;">EM ATRASO</div>
+        <h2 style="margin:6px 0;color:var(--danger);">{{ overdue_clients_count }}</h2>
+        <div class="muted">Clientes com mensalidade atrasada</div>
+    </div>
+</div>
+
+<div class="card" style="margin-top:16px;">
+    <h3>Clientes vencendo em 2 dias</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Cliente</th>
+                <th>Telefone</th>
+                <th>Vencimento</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for item in due_soon_list %}
+            <tr>
+                <td>{{ item.client.name }}</td>
+                <td>{{ item.client.phone|default:"-" }}</td>
+                <td>{{ item.due_date }}</td>
+                <td><span class="badge success">Previsto</span></td>
+            </tr>
+        {% empty %}
+            <tr><td colspan="4">Nenhum vencimento previsto para daqui 2 dias.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="card" style="margin-top:16px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+        <h3>Gerenciar envios</h3>
+        <div class="muted">Os boletos sao enviados no dia do vencimento.</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;margin-top:8px;">
+        <span class="muted">Legenda:</span>
+        <span class="badge success">Boleto do dia</span>
+        <span class="badge danger">Atrasado</span>
+    </div>
+    <form method="post" action="{% url 'run_monthly_billing' %}">
+        {% csrf_token %}
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;align-items:end;">
+            <div>
+                <label>Intervalo de envio (seg)</label>
+                <input type="number" name="delay" value="4" step="0.5" min="0">
+            </div>
+        </div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:12px;align-items:center;">
+            <label style="display:flex;gap:6px;align-items:center;">
+                <input type="checkbox" name="create_new" checked>
+                <span class="badge success">Boleto do dia</span>
+                Gerar boletos do dia
+            </label>
+            <label style="display:flex;gap:6px;align-items:center;">
+                <input type="checkbox" name="send_reminders">
+                <span class="badge danger">Atrasado</span>
+                Enviar lembretes de atrasados
+            </label>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
+            <button class="btn secondary" type="submit" name="action" value="generate">Gerar boletos</button>
+            <button class="btn" type="submit" name="action" value="generate_send" onclick="return confirm('Gerar boletos de hoje e enviar WhatsApp agora?');">Gerar e enviar WhatsApp</button>
+            <button class="btn secondary" type="submit" name="action" value="send_queue" onclick="return confirm('Enviar fila WhatsApp agora?');">Enviar fila WhatsApp</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block title %}Macros - Coleta local{% endblock %}
+{% block extra_head %}
+<style>
+    .macro-page { display: grid; gap: 14px; }
+    .macro-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+    .macro-title-wrap { display: flex; align-items: center; gap: 8px; }
+    .macro-tag { font-size: 11px; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 3px 8px; }
+    .macro-nav { display: flex; gap: 8px; flex-wrap: wrap; }
+    .macro-nav .tab {
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 8px 12px;
+        color: var(--muted);
+        background: rgba(255,255,255,0.02);
+    }
+    .macro-nav .tab.active {
+        color: #07111f;
+        border-color: transparent;
+        background: var(--accent);
+        font-weight: 600;
+    }
+    .macro-muted { color: var(--muted); margin: 0; }
+    .macro-steps { display: grid; gap: 8px; margin: 12px 0; }
+    .macro-step { display: flex; gap: 10px; align-items: center; color: var(--muted); }
+    .macro-step b {
+        width: 22px; height: 22px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center;
+        background: rgba(43, 179, 227, 0.16); border: 1px solid rgba(43, 179, 227, 0.35); color: var(--text); font-size: 12px;
+    }
+    .macro-main-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+    .macro-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+    .macro-kpi { border: 1px solid var(--border); border-radius: 12px; padding: 12px; background: rgba(15, 23, 37, 0.5); }
+    .macro-kpi-label { color: var(--muted); font-size: 12px; margin-bottom: 4px; }
+    .macro-kpi-value { font-size: 20px; font-weight: 600; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="macro-page">
+    <div class="macro-header">
+        <div class="macro-title-wrap">
+            <h2 style="margin:0;">Macros - Coleta local</h2>
+            <span class="macro-tag">v4</span>
+        </div>
+        <div class="macro-nav">
+            <a class="tab {% if active_tab == 'database' %}active{% endif %}" href="{% url 'macro_list' %}">Banco de dados</a>
+            <a class="tab {% if active_tab == 'collect' %}active{% endif %}" href="{% url 'macro_collect' %}">Coleta local</a>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3 style="margin:0 0 8px;">Coleta por botoes</h3>
+        <p class="macro-muted">Tudo separado da tela de banco de dados para ficar mais simples.</p>
+        <div class="macro-steps">
+            <div class="macro-step"><b>1</b><span>Baixe e execute o Coletor (EXE ou macOS) no computador da coleta.</span></div>
+            <div class="macro-step"><b>2</b><span>Clique em Abrir painel local e depois em Abrir pagina alvo.</span></div>
+            <div class="macro-step"><b>3</b><span>Faca login/filtro no portal e clique em Comecar coleta no painel local.</span></div>
+        </div>
+        <div class="macro-main-actions">
+            <a class="btn" href="{{ local_agent_url }}?api_url={{ api_import_url|urlencode }}&target_url={{ macro_target_url|urlencode }}" target="_blank" rel="noopener">Abrir painel local</a>
+            <a class="btn secondary" href="{% url 'macro_download_local_agent_exe' %}">Baixar Coletor (EXE)</a>
+            <a class="btn secondary" href="{% url 'macro_download_local_agent_mac' %}">Baixar Coletor (macOS)</a>
+        </div>
+        {% if not local_agent_exe_available %}
+            <p style="margin:10px 0 0;color:#ffb86b;">EXE ainda nao disponivel neste servidor.</p>
+        {% endif %}
+        <details style="margin-top:12px;">
+            <summary style="cursor:pointer;color:var(--muted);">Mostrar detalhes tecnicos</summary>
+            <code style="display:block;word-break:break-all;margin-top:8px;">{{ api_import_url }}</code>
+            {% if token_configured %}
+                <p style="margin:8px 0 0;color:var(--muted);">Token de API configurado no sistema.</p>
+            {% else %}
+                <p style="margin:8px 0 0;color:#ff6b6b;">MACRO_API_TOKEN nao configurado no .env.</p>
+            {% endif %}
+        </details>
+    </div>
+
+    <div class="macro-kpis">
+        <div class="macro-kpi">
+            <div class="macro-kpi-label">Leads no banco</div>
+            <div class="macro-kpi-value">{{ total_records }}</div>
+        </div>
+        <div class="macro-kpi">
+            <div class="macro-kpi-label">Ultima captura</div>
+            <div class="macro-kpi-value">
+                {% if last_capture_at %}
+                    {{ last_capture_at|date:"d/m/Y H:i" }}
+                {% else %}
+                    --
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3 style="margin:0 0 8px;">Historico de execucoes</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Inicio</th>
+                    <th>Tipo</th>
+                    <th>Status</th>
+                    <th>Recebidos</th>
+                    <th>Novos</th>
+                    <th>Atualizados</th>
+                    <th>IP</th>
+                    <th>Mensagem</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for run in recent_runs %}
+                <tr>
+                    <td>{{ run.started_at|date:"d/m/Y H:i" }}</td>
+                    <td>{{ run.get_run_type_display }}</td>
+                    <td>{{ run.get_status_display }}</td>
+                    <td>{{ run.total_received }}</td>
+                    <td>{{ run.created_count }}</td>
+                    <td>{{ run.updated_count }}</td>
+                    <td>{{ run.request_ip|default:"-" }}</td>
+                    <td>{{ run.message|default:"-" }}</td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="8">Sem execucoes ainda.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

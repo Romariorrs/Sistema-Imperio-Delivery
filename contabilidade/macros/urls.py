@@ -2,6 +2,7 @@ from django.urls import path
 
 from .views import (
     macro_api_import,
+    macro_collect,
     macro_download_local_agent_bat,
     macro_download_local_agent_exe,
     macro_download_local_agent_mac,
@@ -14,6 +15,7 @@ from .views import (
 
 urlpatterns = [
     path("", macro_list, name="macro_list"),
+    path("coleta/", macro_collect, name="macro_collect"),
     path("download/local-agent.exe", macro_download_local_agent_exe, name="macro_download_local_agent_exe"),
     path("download/local-agent-mac.zip", macro_download_local_agent_mac, name="macro_download_local_agent_mac"),
     path("download/local-agent.py", macro_download_local_agent_py, name="macro_download_local_agent_py"),

@@ -11,7 +11,7 @@ from django.core.cache import cache
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.core.paginator import Paginator
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
@@ -119,16 +119,46 @@ def _rows_from_json_payload(payload) -> Iterable[dict]:
 @login_required
 @user_passes_test(_staff_access)
 def macro_list(request):
-    queryset = _apply_filters(request)
-    paginator = Paginator(queryset, 100)
+    all_queryset = MacroLead.objects.all()
+    filtered_queryset = _apply_filters(request, queryset=all_queryset)
+    paginator = Paginator(filtered_queryset, 100)
     page_obj = paginator.get_page(request.GET.get("page"))
     query_params = request.GET.copy()
     query_params.pop("page", None)
 
-    exe_path = Path(settings.MACRO_LOCAL_AGENT_EXE_PATH)
+    stats = all_queryset.aggregate(
+        total_records=Count("id"),
+        total_cities=Count("city", distinct=True, filter=~Q(city="")),
+        phones_filled=Count("id", filter=~Q(representative_phone_norm="")),
+        phones_unique=Count("representative_phone_norm", distinct=True, filter=~Q(representative_phone_norm="")),
+        total_categories=Count("company_category", distinct=True, filter=~Q(company_category="")),
+    )
+    city_breakdown = (
+        all_queryset.exclude(city="")
+        .values("city")
+        .annotate(total=Count("id"))
+        .order_by("-total", "city")[:10]
+    )
+    category_breakdown = (
+        all_queryset.exclude(company_category="")
+        .values("company_category")
+        .annotate(total=Count("id"))
+        .order_by("-total", "company_category")[:10]
+    )
+    status_breakdown = (
+        all_queryset.exclude(contract_status="")
+        .values("contract_status")
+        .annotate(total=Count("id"))
+        .order_by("-total", "contract_status")[:10]
+    )
+    last_capture_at = all_queryset.order_by("-last_seen_at").values_list("last_seen_at", flat=True).first()
+    recent_runs = MacroRun.objects.all()[:12]
+    last_success_run = MacroRun.objects.filter(status="success").first()
+
     context = {
+        "active_tab": "database",
         "page_obj": page_obj,
-        "total_count": queryset.count(),
+        "filtered_count": filtered_queryset.count(),
         "cities": MacroLead.objects.exclude(city="").values_list("city", flat=True).distinct().order_by("city"),
         "contract_statuses": MacroLead.objects.exclude(contract_status="")
         .values_list("contract_status", flat=True)
@@ -142,11 +172,34 @@ def macro_list(request):
         "macro_target_url": settings.MACRO_TARGET_URL,
         "token_configured": bool(settings.MACRO_API_TOKEN),
         "filter_querystring": query_params.urlencode(),
+        "recent_runs": recent_runs,
+        "local_agent_url": settings.MACRO_LOCAL_AGENT_URL,
+        "stats": stats,
+        "last_capture_at": last_capture_at,
+        "last_success_run": last_success_run,
+        "city_breakdown": city_breakdown,
+        "category_breakdown": category_breakdown,
+        "status_breakdown": status_breakdown,
+    }
+    return render(request, "macros/list.html", context)
+
+
+@login_required
+@user_passes_test(_staff_access)
+def macro_collect(request):
+    exe_path = Path(settings.MACRO_LOCAL_AGENT_EXE_PATH)
+    context = {
+        "active_tab": "collect",
+        "api_import_url": request.build_absolute_uri(reverse("macro_api_import")),
+        "macro_target_url": settings.MACRO_TARGET_URL,
+        "token_configured": bool(settings.MACRO_API_TOKEN),
         "recent_runs": MacroRun.objects.all()[:12],
         "local_agent_url": settings.MACRO_LOCAL_AGENT_URL,
         "local_agent_exe_available": exe_path.exists(),
+        "total_records": MacroLead.objects.count(),
+        "last_capture_at": MacroLead.objects.order_by("-last_seen_at").values_list("last_seen_at", flat=True).first(),
     }
-    return render(request, "macros/list.html", context)
+    return render(request, "macros/collect.html", context)
 
 
 @login_required

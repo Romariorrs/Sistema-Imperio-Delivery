@@ -81,6 +81,8 @@ class MacroScreenTests(TestCase):
     def test_macro_page_requires_staff(self):
         resp = self.client.get(reverse("macro_list"))
         self.assertEqual(resp.status_code, 200)
+        collect_resp = self.client.get(reverse("macro_collect"))
+        self.assertEqual(collect_resp.status_code, 200)
 
     def test_export_xlsx_works(self):
         MacroLead.objects.create(

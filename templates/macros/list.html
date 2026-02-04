@@ -1,24 +1,43 @@
 {% extends "base.html" %}
-{% block title %}Macros{% endblock %}
+{% block title %}Macros - Banco de dados{% endblock %}
 {% block extra_head %}
 <style>
     .macro-page { display: grid; gap: 14px; }
-    .macro-topbar { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
-    .macro-title { margin: 0; display: flex; align-items: center; gap: 8px; }
-    .macro-tag { font-size: 11px; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 3px 8px; }
-    .macro-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-    .macro-muted { color: var(--muted); margin: 0; }
-    .macro-steps { display: grid; gap: 8px; margin: 12px 0; }
-    .macro-step { display: flex; gap: 10px; align-items: center; color: var(--muted); }
-    .macro-step b {
-        width: 22px; height: 22px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center;
-        background: rgba(43, 179, 227, 0.16); border: 1px solid rgba(43, 179, 227, 0.35); color: var(--text); font-size: 12px;
+    .macro-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
     }
-    .macro-main-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
-    .macro-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
-    .macro-kpi { border: 1px solid var(--border); border-radius: 12px; padding: 12px; background: rgba(15, 23, 37, 0.5); }
+    .macro-title-wrap { display: flex; align-items: center; gap: 8px; }
+    .macro-tag { font-size: 11px; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 3px 8px; }
+    .macro-nav { display: flex; gap: 8px; flex-wrap: wrap; }
+    .macro-nav .tab {
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 8px 12px;
+        color: var(--muted);
+        background: rgba(255,255,255,0.02);
+    }
+    .macro-nav .tab.active {
+        color: #07111f;
+        border-color: transparent;
+        background: var(--accent);
+        font-weight: 600;
+    }
+    .macro-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .macro-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+    .macro-kpi {
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 12px;
+        background: linear-gradient(160deg, rgba(45,91,227,0.10), rgba(15,23,37,0.75));
+    }
     .macro-kpi-label { color: var(--muted); font-size: 12px; margin-bottom: 4px; }
-    .macro-kpi-value { font-size: 20px; font-weight: 600; }
+    .macro-kpi-value { font-size: 24px; font-weight: 600; line-height: 1.1; }
+    .macro-kpi-note { color: var(--muted); font-size: 12px; margin-top: 4px; }
+    .macro-insights { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
     .macro-filter-form { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr auto; gap: 10px; align-items: end; }
     .macro-pagination { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
     @media (max-width: 980px) { .macro-filter-form { grid-template-columns: 1fr; } }
@@ -26,60 +45,111 @@
 {% endblock %}
 {% block content %}
 <div class="macro-page">
-    <div class="macro-topbar">
-        <h2 class="macro-title">Macros - Leads coletados <span class="macro-tag">v3</span></h2>
-        <div class="macro-actions">
-            <a class="btn secondary" href="{% url 'macro_export_csv' %}?{{ filter_querystring }}">Exportar CSV</a>
-            <a class="btn secondary" href="{% url 'macro_export_xlsx' %}?{{ filter_querystring }}">Exportar XLSX</a>
-            <form method="post" action="{% url 'macro_import_csv' %}" enctype="multipart/form-data" style="display:flex;gap:8px;align-items:center;">
-                {% csrf_token %}
-                <input type="file" name="file" accept=".csv" required style="max-width:180px;">
-                <button class="btn secondary" type="submit">Importar CSV</button>
-            </form>
+    <div class="macro-header">
+        <div class="macro-title-wrap">
+            <h2 style="margin:0;">Macros - Banco de dados</h2>
+            <span class="macro-tag">v4</span>
+        </div>
+        <div class="macro-nav">
+            <a class="tab {% if active_tab == 'database' %}active{% endif %}" href="{% url 'macro_list' %}">Banco de dados</a>
+            <a class="tab {% if active_tab == 'collect' %}active{% endif %}" href="{% url 'macro_collect' %}">Coleta local</a>
         </div>
     </div>
 
-    <div class="card">
-        <h3 style="margin:0 0 8px;">Coleta local</h3>
-        <p class="macro-muted">Tela simplificada: so o que voce usa no dia a dia.</p>
-        <div class="macro-steps">
-            <div class="macro-step"><b>1</b><span>Baixe e execute o Coletor (EXE) no computador que vai coletar.</span></div>
-            <div class="macro-step"><b>2</b><span>Clique em Abrir painel local e faca login/filtro no portal alvo.</span></div>
-            <div class="macro-step"><b>3</b><span>Clique em Comecar coleta no painel local.</span></div>
-        </div>
-        <div class="macro-main-actions">
-            <a class="btn" href="{{ local_agent_url }}?api_url={{ api_import_url|urlencode }}&target_url={{ macro_target_url|urlencode }}" target="_blank" rel="noopener">Abrir painel local</a>
-            <a class="btn secondary" href="{% url 'macro_download_local_agent_exe' %}">Baixar Coletor (EXE)</a>
-            <a class="btn secondary" href="{% url 'macro_download_local_agent_mac' %}">Baixar Coletor (macOS)</a>
-        </div>
-        {% if not local_agent_exe_available %}
-            <p style="margin:10px 0 0;color:#ffb86b;">EXE ainda nao disponivel neste servidor.</p>
-        {% endif %}
-        <details style="margin-top:12px;">
-            <summary style="cursor:pointer;color:var(--muted);">Mostrar detalhes tecnicos</summary>
-            <code style="display:block;word-break:break-all;margin-top:8px;">{{ api_import_url }}</code>
-            {% if token_configured %}
-                <p style="margin:8px 0 0;color:var(--muted);">Token de API configurado no sistema.</p>
-            {% else %}
-                <p style="margin:8px 0 0;color:#ff6b6b;">MACRO_API_TOKEN nao configurado no .env.</p>
-            {% endif %}
-        </details>
+    <div class="macro-actions">
+        <a class="btn secondary" href="{% url 'macro_export_csv' %}?{{ filter_querystring }}">Exportar CSV</a>
+        <a class="btn secondary" href="{% url 'macro_export_xlsx' %}?{{ filter_querystring }}">Exportar XLSX</a>
+        <form method="post" action="{% url 'macro_import_csv' %}" enctype="multipart/form-data" style="display:flex;gap:8px;align-items:center;">
+            {% csrf_token %}
+            <input type="file" name="file" accept=".csv" required style="max-width:180px;">
+            <button class="btn secondary" type="submit">Importar CSV</button>
+        </form>
     </div>
 
     <div class="macro-kpis">
         <div class="macro-kpi">
             <div class="macro-kpi-label">Total de registros</div>
-            <div class="macro-kpi-value">{{ total_count }}</div>
+            <div class="macro-kpi-value">{{ stats.total_records }}</div>
+            <div class="macro-kpi-note">Leads salvos no banco</div>
         </div>
         <div class="macro-kpi">
-            <div class="macro-kpi-label">Ultima execucao</div>
+            <div class="macro-kpi-label">Quantidade de cidades</div>
+            <div class="macro-kpi-value">{{ stats.total_cities }}</div>
+            <div class="macro-kpi-note">Cidades diferentes</div>
+        </div>
+        <div class="macro-kpi">
+            <div class="macro-kpi-label">Telefones preenchidos</div>
+            <div class="macro-kpi-value">{{ stats.phones_filled }}</div>
+            <div class="macro-kpi-note">Com numero informado</div>
+        </div>
+        <div class="macro-kpi">
+            <div class="macro-kpi-label">Telefones unicos</div>
+            <div class="macro-kpi-value">{{ stats.phones_unique }}</div>
+            <div class="macro-kpi-note">Sem repeticao</div>
+        </div>
+        <div class="macro-kpi">
+            <div class="macro-kpi-label">Categorias cadastradas</div>
+            <div class="macro-kpi-value">{{ stats.total_categories }}</div>
+            <div class="macro-kpi-note">Tipos de culinaria/empresa</div>
+        </div>
+        <div class="macro-kpi">
+            <div class="macro-kpi-label">Ultimo dia puxado</div>
             <div class="macro-kpi-value">
-                {% if recent_runs %}
-                    {{ recent_runs.0.started_at|date:"d/m H:i" }}
+                {% if last_capture_at %}
+                    {{ last_capture_at|date:"d/m/Y H:i" }}
                 {% else %}
                     --
                 {% endif %}
             </div>
+            <div class="macro-kpi-note">
+                {% if last_success_run %}
+                    Ultima execucao: {{ last_success_run.started_at|date:"d/m/Y H:i" }}
+                {% else %}
+                    Sem execucao registrada
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="macro-insights">
+        <div class="card">
+            <h3 style="margin:0;">Top cidades</h3>
+            <table>
+                <thead><tr><th>Cidade</th><th>Quantidade</th></tr></thead>
+                <tbody>
+                {% for row in city_breakdown %}
+                    <tr><td>{{ row.city }}</td><td>{{ row.total }}</td></tr>
+                {% empty %}
+                    <tr><td colspan="2">Sem dados.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="card">
+            <h3 style="margin:0;">Top culinarias/categorias</h3>
+            <table>
+                <thead><tr><th>Categoria</th><th>Quantidade</th></tr></thead>
+                <tbody>
+                {% for row in category_breakdown %}
+                    <tr><td>{{ row.company_category }}</td><td>{{ row.total }}</td></tr>
+                {% empty %}
+                    <tr><td colspan="2">Sem dados.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="card">
+            <h3 style="margin:0;">Status do contrato</h3>
+            <table>
+                <thead><tr><th>Status</th><th>Quantidade</th></tr></thead>
+                <tbody>
+                {% for row in status_breakdown %}
+                    <tr><td>{{ row.contract_status }}</td><td>{{ row.total }}</td></tr>
+                {% empty %}
+                    <tr><td colspan="2">Sem dados.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
         </div>
     </div>
 
@@ -118,6 +188,7 @@
     </div>
 
     <div class="card">
+        <h3 style="margin:0 0 8px;">Consulta detalhada</h3>
         <form method="get" class="macro-filter-form">
             <div>
                 <label>Busca geral</label>
@@ -159,7 +230,7 @@
 
     <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
-            <h3 style="margin:0;">Total encontrado: {{ total_count }}</h3>
+            <h3 style="margin:0;">Resultados filtrados: {{ filtered_count }}</h3>
             <div style="color:#9fb2d7;">Pagina {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</div>
         </div>
         <table>
@@ -190,7 +261,7 @@
                     <td>{{ item.last_seen_at|date:"d/m/Y H:i" }}</td>
                 </tr>
             {% empty %}
-                <tr><td colspan="9">Nenhum dado importado ainda.</td></tr>
+                <tr><td colspan="9">Nenhum dado encontrado.</td></tr>
             {% endfor %}
             </tbody>
         </table>

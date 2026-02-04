@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     "contabilidade.messaging",
     "contabilidade.whatsapp",
     "contabilidade.sales",
+    "contabilidade.macros",
 ]
 
 MIDDLEWARE = [
@@ -122,3 +123,16 @@ CSRF_TRUSTED_ORIGINS = [o.strip() for o in csrf_trusted_raw.split(",") if o.stri
 if NGROK_DOMAIN:
     CSRF_TRUSTED_ORIGINS.append(f"https://{NGROK_DOMAIN}")
     ALLOWED_HOSTS.append(NGROK_DOMAIN)
+
+MACRO_API_TOKEN = os.getenv("MACRO_API_TOKEN", "").strip()
+MACRO_TARGET_URL = os.getenv(
+    "MACRO_TARGET_URL",
+    "https://gattaran.didi-food.com/v2/gtr_crm/leads/list/all",
+).strip()
+MACRO_IMPORT_API_URL = os.getenv("MACRO_IMPORT_API_URL", "").strip()
+macro_ips_raw = os.getenv("MACRO_API_ALLOWED_IPS", "").strip()
+MACRO_API_ALLOWED_IPS = [ip.strip() for ip in macro_ips_raw.split(",") if ip.strip()]
+try:
+    MACRO_API_RATE_LIMIT_PER_MINUTE = int(os.getenv("MACRO_API_RATE_LIMIT_PER_MINUTE", "60"))
+except ValueError:
+    MACRO_API_RATE_LIMIT_PER_MINUTE = 60

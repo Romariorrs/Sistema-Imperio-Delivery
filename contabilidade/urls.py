@@ -15,6 +15,7 @@ urlpatterns = [
     path("billing/run-monthly/", run_monthly_billing_view, name="run_monthly_billing"),
     path("messaging/", include("contabilidade.messaging.urls")),
     path("whatsapp/", include("contabilidade.whatsapp.urls")),
+    path("macros/", include("contabilidade.macros.urls")),
     path("api/asaas/webhook/", asaas_webhook, name="asaas_webhook_api"),
     path("seller/", include("contabilidade.sales.urls")),
     path("admin-users/", admin_users, name="admin_users"),

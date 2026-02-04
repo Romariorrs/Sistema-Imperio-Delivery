@@ -24,9 +24,13 @@
     </p>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
         <a class="btn" href="{{ local_agent_url }}?api_url={{ api_import_url|urlencode }}&target_url={{ macro_target_url|urlencode }}" target="_blank" rel="noopener">Abrir painel local</a>
+        <a class="btn secondary" href="{% url 'macro_download_local_agent_exe' %}">Baixar Coletor (EXE)</a>
         <a class="btn secondary" href="{% url 'macro_download_local_agent_py' %}">Baixar local_macro_agent.py</a>
         <a class="btn secondary" href="{% url 'macro_download_local_agent_bat' %}">Baixar iniciar_coletor_local.bat</a>
     </div>
+    {% if not local_agent_exe_available %}
+        <p style="margin:0 0 8px;color:#ffb86b;">EXE ainda nao disponivel neste servidor. Use os arquivos .py + .bat como fallback.</p>
+    {% endif %}
     <p style="margin:0 0 8px;color:#9fb2d7;">
         API usada para receber os dados:
     </p>

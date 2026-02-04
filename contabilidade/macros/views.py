@@ -124,6 +124,7 @@ def macro_list(request):
     query_params = request.GET.copy()
     query_params.pop("page", None)
 
+    exe_path = Path(settings.MACRO_LOCAL_AGENT_EXE_PATH)
     context = {
         "page_obj": page_obj,
         "total_count": queryset.count(),
@@ -142,6 +143,7 @@ def macro_list(request):
         "filter_querystring": query_params.urlencode(),
         "recent_runs": MacroRun.objects.all()[:12],
         "local_agent_url": settings.MACRO_LOCAL_AGENT_URL,
+        "local_agent_exe_available": exe_path.exists(),
     }
     return render(request, "macros/list.html", context)
 
@@ -312,6 +314,18 @@ def macro_download_local_agent_bat(request):
     )
     response = HttpResponse(bat_content, content_type="text/plain; charset=utf-8")
     response["Content-Disposition"] = 'attachment; filename="iniciar_coletor_local.bat"'
+    return response
+
+
+@login_required
+@user_passes_test(_staff_access)
+def macro_download_local_agent_exe(request):
+    exe_path = Path(settings.MACRO_LOCAL_AGENT_EXE_PATH)
+    if not exe_path.exists():
+        return HttpResponse("Arquivo ColetorMacro.exe nao encontrado.", status=404)
+    content = exe_path.read_bytes()
+    response = HttpResponse(content, content_type="application/octet-stream")
+    response["Content-Disposition"] = 'attachment; filename="ColetorMacro.exe"'
     return response
 
 

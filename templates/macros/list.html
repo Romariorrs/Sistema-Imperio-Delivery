@@ -2,7 +2,7 @@
 {% block title %}Macros{% endblock %}
 {% block content %}
 <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
-    <h2>Macros - Leads coletados</h2>
+    <h2>Macros - Leads coletados <span style="font-size:12px;color:#9fb2d7;">(v2)</span></h2>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
         <a class="btn secondary" href="{% url 'macro_export_csv' %}?{{ filter_querystring }}">Exportar CSV</a>
         <a class="btn secondary" href="{% url 'macro_export_xlsx' %}?{{ filter_querystring }}">Exportar XLSX</a>

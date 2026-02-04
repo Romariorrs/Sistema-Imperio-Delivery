@@ -149,7 +149,7 @@ def _html_page(params):
     <p style="color:#9fb2d7;margin-top:10px;">Depois do primeiro login, a sessao fica salva neste computador.</p>
   </div>
   <div class="card">
-    <form method="post" action="/start">
+    <form id="startForm" method="post" action="/start">
       <label>API URL (do seu sistema)</label>
       <input name="api_url" value="{api_url}" required>
       <label>API Token</label>
@@ -176,10 +176,35 @@ def _html_page(params):
     </form>
   </div>
   <div class="card">
+    <h3>Mensagens</h3>
+    <pre id="msgBox">Pronto para iniciar.</pre>
+  </div>
+  <div class="card">
     <h3>Status</h3>
     <pre id="statusBox">Carregando...</pre>
   </div>
   <script>
+    const form = document.getElementById('startForm');
+    const msgBox = document.getElementById('msgBox');
+
+    form.addEventListener('submit', async (ev) => {{
+      ev.preventDefault();
+      const data = new URLSearchParams(new FormData(form));
+      msgBox.textContent = 'Iniciando coleta...';
+      try {{
+        const resp = await fetch('/start', {{
+          method: 'POST',
+          headers: {{ 'Content-Type': 'application/x-www-form-urlencoded' }},
+          body: data.toString()
+        }});
+        const payload = await resp.json();
+        msgBox.textContent = JSON.stringify(payload, null, 2);
+      }} catch (err) {{
+        msgBox.textContent = 'Erro ao iniciar coleta: ' + err;
+      }}
+      updateStatus();
+    }});
+
     function updateStatus() {{
       fetch('/status')
         .then(r => r.json())

@@ -2,6 +2,7 @@ import csv
 import io
 import json
 import secrets
+from pathlib import Path
 from typing import Iterable
 
 from django.conf import settings
@@ -140,6 +141,7 @@ def macro_list(request):
         "token_configured": bool(settings.MACRO_API_TOKEN),
         "filter_querystring": query_params.urlencode(),
         "recent_runs": MacroRun.objects.all()[:12],
+        "local_agent_url": settings.MACRO_LOCAL_AGENT_URL,
     }
     return render(request, "macros/list.html", context)
 
@@ -274,6 +276,43 @@ def macro_import_csv(request):
         ),
     )
     return redirect("macro_list")
+
+
+@login_required
+@user_passes_test(_staff_access)
+def macro_download_local_agent_py(request):
+    agent_path = Path(settings.BASE_DIR) / "local_macro_agent.py"
+    if not agent_path.exists():
+        return HttpResponse("Arquivo local_macro_agent.py nao encontrado.", status=404)
+
+    content = agent_path.read_text(encoding="utf-8")
+    response = HttpResponse(content, content_type="text/x-python")
+    response["Content-Disposition"] = 'attachment; filename="local_macro_agent.py"'
+    return response
+
+
+@login_required
+@user_passes_test(_staff_access)
+def macro_download_local_agent_bat(request):
+    bat_content = (
+        "@echo off\r\n"
+        "setlocal\r\n"
+        "cd /d \"%~dp0\"\r\n"
+        "if exist .venv\\Scripts\\python.exe (\r\n"
+        "  .venv\\Scripts\\python.exe local_macro_agent.py\r\n"
+        ") else (\r\n"
+        "  where py >nul 2>nul\r\n"
+        "  if %ERRORLEVEL%==0 (\r\n"
+        "    py -3 local_macro_agent.py\r\n"
+        "  ) else (\r\n"
+        "    python local_macro_agent.py\r\n"
+        "  )\r\n"
+        ")\r\n"
+        "pause\r\n"
+    )
+    response = HttpResponse(bat_content, content_type="text/plain; charset=utf-8")
+    response["Content-Disposition"] = 'attachment; filename="iniciar_coletor_local.bat"'
+    return response
 
 
 @csrf_exempt

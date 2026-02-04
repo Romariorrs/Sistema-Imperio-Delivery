@@ -15,9 +15,20 @@
 </div>
 
 <div class="card" style="margin-bottom:14px;">
-    <h3 style="margin-bottom:8px;">Executar macro</h3>
+    <h3 style="margin-bottom:8px;">Coleta por botoes (sem PowerShell)</h3>
     <p style="margin:0 0 8px;color:#9fb2d7;">
-        A macro roda localmente no seu computador para voce fazer login e filtro na tela. Depois ela envia os dados para esta API:
+        1) No seu computador, de duplo clique em <b>iniciar_coletor_local.bat</b> (ou baixe os arquivos abaixo).
+    </p>
+    <p style="margin:0 0 8px;color:#9fb2d7;">
+        2) Clique em "Abrir painel local" e use os botoes para abrir a pagina alvo, filtrar e iniciar coleta.
+    </p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+        <a class="btn" href="{{ local_agent_url }}?api_url={{ api_import_url|urlencode }}&target_url={{ macro_target_url|urlencode }}" target="_blank" rel="noopener">Abrir painel local</a>
+        <a class="btn secondary" href="{% url 'macro_download_local_agent_py' %}">Baixar local_macro_agent.py</a>
+        <a class="btn secondary" href="{% url 'macro_download_local_agent_bat' %}">Baixar iniciar_coletor_local.bat</a>
+    </div>
+    <p style="margin:0 0 8px;color:#9fb2d7;">
+        API usada para receber os dados:
     </p>
     <code style="display:block;word-break:break-all;margin-bottom:8px;">{{ api_import_url }}</code>
     {% if token_configured %}
@@ -25,13 +36,6 @@
     {% else %}
         <p style="margin:0 0 8px;color:#ff6b6b;">MACRO_API_TOKEN nao configurado no .env.</p>
     {% endif %}
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
-        <a class="btn" href="{{ macro_target_url }}" target="_blank" rel="noopener">Abrir pagina alvo</a>
-    </div>
-    <pre style="margin:0;background:#0f1725;border:1px solid #1d2a3f;border-radius:12px;padding:10px;white-space:pre-wrap;">
-$env:API_URL='{{ api_import_url }}'
-$env:API_TOKEN='SEU_TOKEN'
-python manage.py run_gattaran_macro --manual-login --api-url $env:API_URL --api-token $env:API_TOKEN</pre>
 </div>
 
 <div class="card" style="margin-bottom:12px;">

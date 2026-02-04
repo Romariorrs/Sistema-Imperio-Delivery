@@ -102,3 +102,11 @@ class MacroScreenTests(TestCase):
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             resp["Content-Type"],
         )
+
+    def test_download_local_agent_files(self):
+        py_resp = self.client.get(reverse("macro_download_local_agent_py"))
+        bat_resp = self.client.get(reverse("macro_download_local_agent_bat"))
+        self.assertEqual(py_resp.status_code, 200)
+        self.assertEqual(bat_resp.status_code, 200)
+        self.assertIn("attachment; filename=", py_resp["Content-Disposition"])
+        self.assertIn("attachment; filename=", bat_resp["Content-Disposition"])

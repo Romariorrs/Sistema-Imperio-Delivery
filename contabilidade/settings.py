@@ -130,6 +130,7 @@ MACRO_TARGET_URL = os.getenv(
     "https://gattaran.didi-food.com/v2/gtr_crm/leads/list/all",
 ).strip()
 MACRO_IMPORT_API_URL = os.getenv("MACRO_IMPORT_API_URL", "").strip()
+MACRO_LOCAL_AGENT_URL = os.getenv("MACRO_LOCAL_AGENT_URL", "http://127.0.0.1:8765/").strip()
 macro_ips_raw = os.getenv("MACRO_API_ALLOWED_IPS", "").strip()
 MACRO_API_ALLOWED_IPS = [ip.strip() for ip in macro_ips_raw.split(",") if ip.strip()]
 try:

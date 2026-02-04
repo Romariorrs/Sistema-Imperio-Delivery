@@ -4,6 +4,7 @@ from .views import (
     macro_api_import,
     macro_download_local_agent_bat,
     macro_download_local_agent_exe,
+    macro_download_local_agent_mac,
     macro_download_local_agent_py,
     macro_export_csv,
     macro_export_xlsx,
@@ -14,6 +15,7 @@ from .views import (
 urlpatterns = [
     path("", macro_list, name="macro_list"),
     path("download/local-agent.exe", macro_download_local_agent_exe, name="macro_download_local_agent_exe"),
+    path("download/local-agent-mac.zip", macro_download_local_agent_mac, name="macro_download_local_agent_mac"),
     path("download/local-agent.py", macro_download_local_agent_py, name="macro_download_local_agent_py"),
     path("download/local-agent.bat", macro_download_local_agent_bat, name="macro_download_local_agent_bat"),
     path("export/", macro_export_csv, name="macro_export_csv"),

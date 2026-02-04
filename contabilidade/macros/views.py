@@ -3,6 +3,7 @@ import io
 import json
 import secrets
 from pathlib import Path
+import zipfile
 from typing import Iterable
 
 from django.conf import settings
@@ -314,6 +315,56 @@ def macro_download_local_agent_bat(request):
     )
     response = HttpResponse(bat_content, content_type="text/plain; charset=utf-8")
     response["Content-Disposition"] = 'attachment; filename="iniciar_coletor_local.bat"'
+    return response
+
+
+@login_required
+@user_passes_test(_staff_access)
+def macro_download_local_agent_mac(request):
+    base_dir = Path(settings.BASE_DIR)
+    agent_path = base_dir / "local_macro_agent.py"
+    collector_path = base_dir / "contabilidade" / "macros" / "collector.py"
+
+    if not agent_path.exists() or not collector_path.exists():
+        return HttpResponse("Arquivos do coletor nao encontrados.", status=404)
+
+    mac_launcher = """#!/bin/bash
+set -e
+cd "$(dirname "$0")"
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "python3 nao encontrado. Instale via Homebrew: brew install python"
+  exit 1
+fi
+python3 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install selenium webdriver-manager requests
+python local_macro_agent.py
+"""
+    readme = """Coletor Local para macOS
+
+1) Extraia este .zip em uma pasta.
+2) No Finder, clique com o botao direito em iniciar_coletor_mac.command e escolha Abrir.
+3) Se o macOS bloquear, va em Ajustes > Privacidade e Seguranca > Abrir Mesmo Assim.
+4) O coletor abrira em http://127.0.0.1:8765
+"""
+
+    content = io.BytesIO()
+    with zipfile.ZipFile(content, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("local_macro_agent.py", agent_path.read_text(encoding="utf-8"))
+        zf.writestr("contabilidade/__init__.py", "")
+        zf.writestr("contabilidade/macros/__init__.py", "")
+        zf.writestr(
+            "contabilidade/macros/collector.py",
+            collector_path.read_text(encoding="utf-8"),
+        )
+        info = zipfile.ZipInfo("iniciar_coletor_mac.command")
+        info.external_attr = 0o755 << 16
+        zf.writestr(info, mac_launcher)
+        zf.writestr("README_MAC.txt", readme)
+
+    response = HttpResponse(content.getvalue(), content_type="application/zip")
+    response["Content-Disposition"] = 'attachment; filename="ColetorMacro-macOS.zip"'
     return response
 
 

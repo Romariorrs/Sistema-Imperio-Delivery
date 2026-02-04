@@ -50,6 +50,7 @@
         <div class="macro-main-actions">
             <a class="btn" href="{{ local_agent_url }}?api_url={{ api_import_url|urlencode }}&target_url={{ macro_target_url|urlencode }}" target="_blank" rel="noopener">Abrir painel local</a>
             <a class="btn secondary" href="{% url 'macro_download_local_agent_exe' %}">Baixar Coletor (EXE)</a>
+            <a class="btn secondary" href="{% url 'macro_download_local_agent_mac' %}">Baixar Coletor (macOS)</a>
         </div>
         {% if not local_agent_exe_available %}
             <p style="margin:10px 0 0;color:#ffb86b;">EXE ainda nao disponivel neste servidor.</p>

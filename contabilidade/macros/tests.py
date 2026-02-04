@@ -5,7 +5,7 @@ from django.core.cache import cache
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 
-from contabilidade.macros.models import MacroLead
+from contabilidade.macros.models import MacroLead, MacroRun
 from contabilidade.macros.services import upsert_rows
 
 
@@ -117,3 +117,71 @@ class MacroScreenTests(TestCase):
         self.assertEqual(bat_resp.status_code, 200)
         self.assertIn("attachment; filename=", py_resp["Content-Disposition"])
         self.assertIn("attachment; filename=", bat_resp["Content-Disposition"])
+
+    def test_delete_filtered_leads(self):
+        MacroLead.objects.create(
+            source="api",
+            city="Rio de Janeiro",
+            target_region="R1",
+            establishment_name="Loja RJ",
+            representative_name="Ana",
+            contract_status="Ativo",
+            representative_phone="21999998888",
+            representative_phone_norm="5521999998888",
+            company_category="Brasileira",
+            address="Rua A",
+            unique_key="del-1",
+        )
+        MacroLead.objects.create(
+            source="api",
+            city="Sao Paulo",
+            target_region="R2",
+            establishment_name="Loja SP",
+            representative_name="Joao",
+            contract_status="Ativo",
+            representative_phone="11999998888",
+            representative_phone_norm="5511999998888",
+            company_category="Pizza",
+            address="Rua B",
+            unique_key="del-2",
+        )
+        resp = self.client.post(
+            reverse("macro_delete_filtered"),
+            data={"city": "Rio de Janeiro", "confirm_text": "EXCLUIR"},
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(MacroLead.objects.count(), 1)
+        self.assertEqual(MacroLead.objects.first().city, "Sao Paulo")
+
+    def test_delete_all_and_runs(self):
+        MacroLead.objects.create(
+            source="api",
+            city="Campinas",
+            target_region="R3",
+            establishment_name="Loja C",
+            representative_name="Maria",
+            contract_status="Pendente",
+            representative_phone="19999998888",
+            representative_phone_norm="5519999998888",
+            company_category="Lanches",
+            address="Rua C",
+            unique_key="del-3",
+        )
+        MacroRun.objects.create(
+            run_type="csv",
+            status="success",
+            source="csv",
+            message="ok",
+        )
+        run_resp = self.client.post(
+            reverse("macro_delete_runs"),
+            data={"confirm_text": "LIMPAR HISTORICO", "next": "collect"},
+        )
+        all_resp = self.client.post(
+            reverse("macro_delete_all"),
+            data={"confirm_text": "APAGAR TUDO", "next": "collect"},
+        )
+        self.assertEqual(run_resp.status_code, 302)
+        self.assertEqual(all_resp.status_code, 302)
+        self.assertEqual(MacroRun.objects.count(), 0)
+        self.assertEqual(MacroLead.objects.count(), 0)

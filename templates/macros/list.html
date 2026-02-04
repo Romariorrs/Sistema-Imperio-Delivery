@@ -40,6 +40,12 @@
     .macro-insights { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
     .macro-filter-form { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr auto; gap: 10px; align-items: end; }
     .macro-pagination { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+    .macro-danger-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 10px; }
+    .macro-danger-box { border: 1px dashed rgba(255, 107, 107, 0.45); border-radius: 12px; padding: 10px; }
+    .macro-danger-title { margin: 0 0 6px; color: #ffb3b3; font-size: 13px; font-weight: 600; }
+    .macro-danger-help { margin: 0 0 8px; color: var(--muted); font-size: 12px; }
+    .macro-inline-form { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .macro-inline-form input { width: auto; min-width: 140px; }
     @media (max-width: 980px) { .macro-filter-form { grid-template-columns: 1fr; } }
 </style>
 {% endblock %}
@@ -64,6 +70,45 @@
             <input type="file" name="file" accept=".csv" required style="max-width:180px;">
             <button class="btn secondary" type="submit">Importar CSV</button>
         </form>
+    </div>
+
+    <div class="card">
+        <h3 style="margin:0 0 8px;">Gestao de dados</h3>
+        <div class="macro-danger-grid">
+            <div class="macro-danger-box">
+                <div class="macro-danger-title">Excluir dados filtrados</div>
+                <p class="macro-danger-help">Usa os filtros atuais da tela. Digite <b>EXCLUIR</b>.</p>
+                <form method="post" action="{% url 'macro_delete_filtered' %}" class="macro-inline-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="q" value="{{ request.GET.q }}">
+                    <input type="hidden" name="city" value="{{ request.GET.city }}">
+                    <input type="hidden" name="contract_status" value="{{ request.GET.contract_status }}">
+                    <input type="hidden" name="company_category" value="{{ request.GET.company_category }}">
+                    <input type="text" name="confirm_text" placeholder="EXCLUIR" required>
+                    <button class="btn danger" type="submit" onclick="return confirm('Excluir os dados filtrados agora?')">Excluir filtrados</button>
+                </form>
+            </div>
+            <div class="macro-danger-box">
+                <div class="macro-danger-title">Excluir toda base de leads</div>
+                <p class="macro-danger-help">Apaga todo o banco de Macro. Digite <b>APAGAR TUDO</b>.</p>
+                <form method="post" action="{% url 'macro_delete_all' %}" class="macro-inline-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="database">
+                    <input type="text" name="confirm_text" placeholder="APAGAR TUDO" required>
+                    <button class="btn danger" type="submit" onclick="return confirm('Tem certeza que deseja apagar toda a base de leads?')">Apagar base</button>
+                </form>
+            </div>
+            <div class="macro-danger-box">
+                <div class="macro-danger-title">Limpar historico de execucoes</div>
+                <p class="macro-danger-help">Remove os registros de execucao. Digite <b>LIMPAR HISTORICO</b>.</p>
+                <form method="post" action="{% url 'macro_delete_runs' %}" class="macro-inline-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="database">
+                    <input type="text" name="confirm_text" placeholder="LIMPAR HISTORICO" required>
+                    <button class="btn danger" type="submit" onclick="return confirm('Limpar todo o historico de execucoes?')">Limpar historico</button>
+                </form>
+            </div>
+        </div>
     </div>
 
     <div class="macro-kpis">

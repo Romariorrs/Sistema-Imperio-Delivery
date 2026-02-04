@@ -2,9 +2,11 @@ import csv
 import io
 import json
 import secrets
+from datetime import timedelta
 from pathlib import Path
 import zipfile
 from typing import Iterable
+from urllib.parse import urlencode
 
 from django.conf import settings
 from django.core.cache import cache
@@ -26,13 +28,14 @@ def _staff_access(user):
     return user.is_staff or user.is_superuser
 
 
-def _apply_filters(request, queryset=None):
+def _apply_filters(request=None, queryset=None, params=None):
     queryset = queryset or MacroLead.objects.all()
-    q = (request.GET.get("q") or "").strip()
+    params = params or (request.GET if request is not None else {})
+    q = (params.get("q") or "").strip()
     q_digits = "".join(char for char in q if char.isdigit())
-    city = (request.GET.get("city") or "").strip()
-    contract_status = (request.GET.get("contract_status") or "").strip()
-    company_category = (request.GET.get("company_category") or "").strip()
+    city = (params.get("city") or "").strip()
+    contract_status = (params.get("contract_status") or "").strip()
+    company_category = (params.get("company_category") or "").strip()
 
     if q:
         text_filter = (
@@ -55,6 +58,22 @@ def _apply_filters(request, queryset=None):
     if company_category:
         queryset = queryset.filter(company_category=company_category)
     return queryset.order_by("-last_seen_at", "-id")
+
+
+def _safe_macro_redirect(post_data):
+    target = (post_data.get("next") or "").strip()
+    if target == "collect":
+        return redirect("macro_collect")
+    return redirect("macro_list")
+
+
+def _filtered_delete_redirect(params):
+    base = reverse("macro_list")
+    cleaned = {k: (params.get(k) or "").strip() for k in ("q", "city", "contract_status", "company_category")}
+    cleaned = {k: v for k, v in cleaned.items() if v}
+    if not cleaned:
+        return redirect("macro_list")
+    return redirect(f"{base}?{urlencode(cleaned)}")
 
 
 def _staff_or_token(request):
@@ -187,6 +206,9 @@ def macro_list(request):
 @login_required
 @user_passes_test(_staff_access)
 def macro_collect(request):
+    last_success_run = MacroRun.objects.filter(status="success").first()
+    last_error_run = MacroRun.objects.filter(status="error").first()
+    runs_24h = MacroRun.objects.filter(started_at__gte=timezone.now() - timedelta(hours=24))
     exe_path = Path(settings.MACRO_LOCAL_AGENT_EXE_PATH)
     context = {
         "active_tab": "collect",
@@ -198,6 +220,10 @@ def macro_collect(request):
         "local_agent_exe_available": exe_path.exists(),
         "total_records": MacroLead.objects.count(),
         "last_capture_at": MacroLead.objects.order_by("-last_seen_at").values_list("last_seen_at", flat=True).first(),
+        "last_success_run": last_success_run,
+        "last_error_run": last_error_run,
+        "runs_24h_total": runs_24h.count(),
+        "runs_24h_error": runs_24h.filter(status="error").count(),
     }
     return render(request, "macros/collect.html", context)
 
@@ -332,6 +358,49 @@ def macro_import_csv(request):
         ),
     )
     return redirect("macro_list")
+
+
+@login_required
+@user_passes_test(_staff_access)
+def macro_delete_filtered(request):
+    if request.method != "POST":
+        return redirect("macro_list")
+    if (request.POST.get("confirm_text") or "").strip().upper() != "EXCLUIR":
+        messages.error(request, 'Para excluir dados filtrados, digite "EXCLUIR".')
+        return _filtered_delete_redirect(request.POST)
+
+    queryset = _apply_filters(queryset=MacroLead.objects.all(), params=request.POST)
+    deleted_count, _ = queryset.delete()
+    messages.success(request, f"{deleted_count} registro(s) filtrado(s) excluido(s) com sucesso.")
+    return redirect("macro_list")
+
+
+@login_required
+@user_passes_test(_staff_access)
+def macro_delete_all(request):
+    if request.method != "POST":
+        return redirect("macro_list")
+    if (request.POST.get("confirm_text") or "").strip().upper() != "APAGAR TUDO":
+        messages.error(request, 'Para excluir toda a base, digite "APAGAR TUDO".')
+        return _safe_macro_redirect(request.POST)
+
+    deleted_count, _ = MacroLead.objects.all().delete()
+    messages.success(request, f"Base limpa com sucesso. {deleted_count} registro(s) removido(s).")
+    return _safe_macro_redirect(request.POST)
+
+
+@login_required
+@user_passes_test(_staff_access)
+def macro_delete_runs(request):
+    if request.method != "POST":
+        return redirect("macro_collect")
+    if (request.POST.get("confirm_text") or "").strip().upper() != "LIMPAR HISTORICO":
+        messages.error(request, 'Para limpar o historico, digite "LIMPAR HISTORICO".')
+        return _safe_macro_redirect(request.POST)
+
+    deleted_count, _ = MacroRun.objects.all().delete()
+    messages.success(request, f"Historico limpo. {deleted_count} execucao(oes) removida(s).")
+    return _safe_macro_redirect(request.POST)
 
 
 @login_required

@@ -9,7 +9,7 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
-from contabilidade.macros.collector import run_with_metrics
+from contabilidade.macros.collector import build_driver, run_with_metrics
 
 
 STATE_LOCK = threading.Lock()
@@ -21,6 +21,8 @@ STATE = {
     "last_result": {},
     "last_error": "",
 }
+BROWSER_LOCK = threading.Lock()
+BROWSER_DRIVER = None
 
 DEFAULT_TARGET_URL = "https://gattaran.didi-food.com/v2/gtr_crm/leads/list/all"
 DEFAULT_PROFILE_DIR = os.path.join(
@@ -57,6 +59,49 @@ def _update_state(**kwargs):
         STATE.update(kwargs)
 
 
+def _apply_profile_env(config):
+    profile_dir = (config.get("profile_dir") or "").strip() or DEFAULT_PROFILE_DIR
+    os.makedirs(profile_dir, exist_ok=True)
+    os.environ["USE_CHROME_PROFILE"] = "1"
+    os.environ["CHROME_USER_DATA_DIR"] = profile_dir
+    os.environ["CHROME_PROFILE_DIR"] = "Default"
+    return profile_dir
+
+
+def _get_browser_driver():
+    with BROWSER_LOCK:
+        return BROWSER_DRIVER
+
+
+def _set_browser_driver(driver):
+    global BROWSER_DRIVER
+    with BROWSER_LOCK:
+        BROWSER_DRIVER = driver
+
+
+def _ensure_browser_session(config, open_target: bool = True):
+    profile_dir = _apply_profile_env(config)
+    target_url = (config.get("target_url") or "").strip() or DEFAULT_TARGET_URL
+    driver = _get_browser_driver()
+
+    if driver is not None:
+        try:
+            _ = driver.current_url
+        except Exception:
+            driver = None
+            _set_browser_driver(None)
+
+    if driver is None:
+        driver = build_driver(headless=False)
+        _set_browser_driver(driver)
+        open_target = True
+
+    if open_target:
+        driver.get(target_url)
+
+    return driver, profile_dir, target_url
+
+
 def _run_collection_job(config):
     _update_state(
         running=True,
@@ -67,11 +112,15 @@ def _run_collection_job(config):
         last_error="",
     )
     try:
-        profile_dir = (config.get("profile_dir") or "").strip() or DEFAULT_PROFILE_DIR
-        os.makedirs(profile_dir, exist_ok=True)
-        os.environ["USE_CHROME_PROFILE"] = "1"
-        os.environ["CHROME_USER_DATA_DIR"] = profile_dir
-        os.environ["CHROME_PROFILE_DIR"] = "Default"
+        existing = _get_browser_driver()
+        if existing is not None:
+            try:
+                _ = existing.current_url
+            except Exception:
+                existing = None
+                _set_browser_driver(None)
+        if existing is None:
+            raise RuntimeError("Sessao do navegador nao encontrada. Clique em 'Abrir pagina alvo' primeiro.")
 
         result = run_with_metrics(
             headless=_parse_bool(config.get("headless"), False),
@@ -82,6 +131,9 @@ def _run_collection_job(config):
             api_url=(config.get("api_url") or "").strip(),
             api_token=(config.get("api_token") or "").strip(),
             target_url=(config.get("target_url") or "").strip() or DEFAULT_TARGET_URL,
+            existing_driver=existing,
+            navigate_to_target=False,
+            close_driver=False,
         )
         _update_state(
             running=False,
@@ -108,10 +160,26 @@ def _start_job(config):
         return False, "Informe API URL."
     if not (config.get("api_token") or "").strip():
         return False, "Informe API Token."
+    existing = _get_browser_driver()
+    if existing is None:
+        return False, "Clique em 'Abrir pagina alvo' primeiro."
+    try:
+        _ = existing.current_url
+    except Exception:
+        _set_browser_driver(None)
+        return False, "Sessao do navegador foi fechada. Clique em 'Abrir pagina alvo' novamente."
 
     thread = threading.Thread(target=_run_collection_job, args=(config,), daemon=True)
     thread.start()
     return True, "Coleta iniciada."
+
+
+def _prepare_job(config):
+    try:
+        _, profile_dir, target_url = _ensure_browser_session(config, open_target=True)
+        return True, f"Navegador preparado em {target_url} com perfil {profile_dir}"
+    except Exception:
+        return False, traceback.format_exc(limit=6)
 
 
 def _html_page(params):
@@ -149,7 +217,7 @@ def _html_page(params):
     <p style="color:#9fb2d7;margin-top:10px;">Depois do primeiro login, a sessao fica salva neste computador.</p>
   </div>
   <div class="card">
-    <form id="startForm" method="post" action="/start">
+    <form id="startForm">
       <label>API URL (do seu sistema)</label>
       <input name="api_url" value="{api_url}" required>
       <label>API Token</label>
@@ -170,8 +238,8 @@ def _html_page(params):
       </div>
       <label><input type="checkbox" name="manual_login" value="1" {manual_login_checked} style="width:auto;"> Esperar login/filtro manual</label>
       <div class="buttons">
-        <a class="btn secondary" href="{target_url}" target="_blank" rel="noopener">Abrir pagina alvo</a>
-        <button type="submit">Comecar coleta</button>
+        <button type="button" class="secondary" id="openBtn">Abrir pagina alvo</button>
+        <button type="button" id="startBtn">Comecar coleta</button>
       </div>
     </form>
   </div>
@@ -186,9 +254,27 @@ def _html_page(params):
   <script>
     const form = document.getElementById('startForm');
     const msgBox = document.getElementById('msgBox');
+    const openBtn = document.getElementById('openBtn');
+    const startBtn = document.getElementById('startBtn');
 
-    form.addEventListener('submit', async (ev) => {{
-      ev.preventDefault();
+    openBtn.addEventListener('click', async () => {{
+      const data = new URLSearchParams(new FormData(form));
+      msgBox.textContent = 'Abrindo pagina alvo no navegador do coletor...';
+      try {{
+        const resp = await fetch('/prepare', {{
+          method: 'POST',
+          headers: {{ 'Content-Type': 'application/x-www-form-urlencoded' }},
+          body: data.toString()
+        }});
+        const payload = await resp.json();
+        msgBox.textContent = JSON.stringify(payload, null, 2);
+      }} catch (err) {{
+        msgBox.textContent = 'Erro ao abrir pagina alvo: ' + err;
+      }}
+      updateStatus();
+    }});
+
+    startBtn.addEventListener('click', async () => {{
       const data = new URLSearchParams(new FormData(form));
       msgBox.textContent = 'Iniciando coleta...';
       try {{
@@ -263,6 +349,11 @@ class MacroAgentHandler(BaseHTTPRequestHandler):
             return self._send_html(_html_page(params))
         if parsed.path == "/status":
             return self._send_json(_snapshot_state())
+        if parsed.path == "/prepare":
+            data = {key: values[0] if values else "" for key, values in params.items()}
+            ok, message = _prepare_job(data)
+            status = HTTPStatus.OK if ok else HTTPStatus.INTERNAL_SERVER_ERROR
+            return self._send_json({"ok": ok, "message": message}, status=status)
         if parsed.path == "/start":
             data = {key: values[0] if values else "" for key, values in params.items()}
             started, message = _start_job(data)
@@ -272,6 +363,11 @@ class MacroAgentHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         parsed = urlparse(self.path)
+        if parsed.path == "/prepare":
+            data = self._read_body_data()
+            ok, message = _prepare_job(data)
+            status = HTTPStatus.OK if ok else HTTPStatus.INTERNAL_SERVER_ERROR
+            return self._send_json({"ok": ok, "message": message}, status=status)
         if parsed.path == "/start":
             data = self._read_body_data()
             started, message = _start_job(data)

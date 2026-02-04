@@ -357,21 +357,32 @@ def run_with_metrics(
     api_url: Optional[str] = None,
     api_token: Optional[str] = None,
     target_url: Optional[str] = None,
+    existing_driver=None,
+    navigate_to_target: bool = True,
+    close_driver: bool = True,
 ):
     driver = None
+    owns_driver = existing_driver is None
     all_rows: List[List[str]] = []
     sent = 0
     to_send = 0
     try:
-        driver = build_driver(headless=headless)
+        driver = existing_driver if existing_driver is not None else build_driver(headless=headless)
         final_target_url = (target_url or os.getenv("MACRO_TARGET_URL", URL)).strip() or URL
-        driver.get(final_target_url)
+        if navigate_to_target:
+            driver.get(final_target_url)
         if manual_login:
-            logger.info("Faça login e aplique filtro na tela. Aguardando tabela por ate %ss...", login_timeout)
+            logger.info("Faca login e aplique filtro na tela. Aguardando tabela por ate %ss...", login_timeout)
 
         if not wait_for_table(driver, timeout=login_timeout):
             logger.error("Tabela nao encontrada dentro do timeout.")
-            return []
+            return {
+                "rows": [],
+                "collected": 0,
+                "deduplicated": 0,
+                "sent": 0,
+                "to_send": 0,
+            }
 
         pos = map_header_positions(driver)
         if len(pos) < 2:
@@ -423,7 +434,12 @@ def run_with_metrics(
             "to_send": to_send,
         }
     finally:
-        if driver and not os.getenv("DEBUGGER_ADDRESS", DEBUGGER_ADDRESS).strip():
+        if (
+            driver
+            and owns_driver
+            and close_driver
+            and not os.getenv("DEBUGGER_ADDRESS", DEBUGGER_ADDRESS).strip()
+        ):
             try:
                 driver.quit()
             except Exception:

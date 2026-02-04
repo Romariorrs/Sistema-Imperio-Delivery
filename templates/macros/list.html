@@ -1,169 +1,207 @@
 {% extends "base.html" %}
 {% block title %}Macros{% endblock %}
+{% block extra_head %}
+<style>
+    .macro-page { display: grid; gap: 14px; }
+    .macro-topbar { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .macro-title { margin: 0; display: flex; align-items: center; gap: 8px; }
+    .macro-tag { font-size: 11px; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 3px 8px; }
+    .macro-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .macro-muted { color: var(--muted); margin: 0; }
+    .macro-steps { display: grid; gap: 8px; margin: 12px 0; }
+    .macro-step { display: flex; gap: 10px; align-items: center; color: var(--muted); }
+    .macro-step b {
+        width: 22px; height: 22px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center;
+        background: rgba(43, 179, 227, 0.16); border: 1px solid rgba(43, 179, 227, 0.35); color: var(--text); font-size: 12px;
+    }
+    .macro-main-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+    .macro-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+    .macro-kpi { border: 1px solid var(--border); border-radius: 12px; padding: 12px; background: rgba(15, 23, 37, 0.5); }
+    .macro-kpi-label { color: var(--muted); font-size: 12px; margin-bottom: 4px; }
+    .macro-kpi-value { font-size: 20px; font-weight: 600; }
+    .macro-filter-form { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr auto; gap: 10px; align-items: end; }
+    .macro-pagination { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+    @media (max-width: 980px) { .macro-filter-form { grid-template-columns: 1fr; } }
+</style>
+{% endblock %}
 {% block content %}
-<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
-    <h2>Macros - Leads coletados <span style="font-size:12px;color:#9fb2d7;">(v2)</span></h2>
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-        <a class="btn secondary" href="{% url 'macro_export_csv' %}?{{ filter_querystring }}">Exportar CSV</a>
-        <a class="btn secondary" href="{% url 'macro_export_xlsx' %}?{{ filter_querystring }}">Exportar XLSX</a>
-        <form method="post" action="{% url 'macro_import_csv' %}" enctype="multipart/form-data" style="display:flex;gap:8px;align-items:center;">
-            {% csrf_token %}
-            <input type="file" name="file" accept=".csv" required style="max-width:220px;">
-            <button class="btn secondary" type="submit">Importar CSV</button>
+<div class="macro-page">
+    <div class="macro-topbar">
+        <h2 class="macro-title">Macros - Leads coletados <span class="macro-tag">v3</span></h2>
+        <div class="macro-actions">
+            <a class="btn secondary" href="{% url 'macro_export_csv' %}?{{ filter_querystring }}">Exportar CSV</a>
+            <a class="btn secondary" href="{% url 'macro_export_xlsx' %}?{{ filter_querystring }}">Exportar XLSX</a>
+            <form method="post" action="{% url 'macro_import_csv' %}" enctype="multipart/form-data" style="display:flex;gap:8px;align-items:center;">
+                {% csrf_token %}
+                <input type="file" name="file" accept=".csv" required style="max-width:180px;">
+                <button class="btn secondary" type="submit">Importar CSV</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3 style="margin:0 0 8px;">Coleta local</h3>
+        <p class="macro-muted">Tela simplificada: so o que voce usa no dia a dia.</p>
+        <div class="macro-steps">
+            <div class="macro-step"><b>1</b><span>Baixe e execute o Coletor (EXE) no computador que vai coletar.</span></div>
+            <div class="macro-step"><b>2</b><span>Clique em Abrir painel local e faca login/filtro no portal alvo.</span></div>
+            <div class="macro-step"><b>3</b><span>Clique em Comecar coleta no painel local.</span></div>
+        </div>
+        <div class="macro-main-actions">
+            <a class="btn" href="{{ local_agent_url }}?api_url={{ api_import_url|urlencode }}&target_url={{ macro_target_url|urlencode }}" target="_blank" rel="noopener">Abrir painel local</a>
+            <a class="btn secondary" href="{% url 'macro_download_local_agent_exe' %}">Baixar Coletor (EXE)</a>
+        </div>
+        {% if not local_agent_exe_available %}
+            <p style="margin:10px 0 0;color:#ffb86b;">EXE ainda nao disponivel neste servidor.</p>
+        {% endif %}
+        <details style="margin-top:12px;">
+            <summary style="cursor:pointer;color:var(--muted);">Mostrar detalhes tecnicos</summary>
+            <code style="display:block;word-break:break-all;margin-top:8px;">{{ api_import_url }}</code>
+            {% if token_configured %}
+                <p style="margin:8px 0 0;color:var(--muted);">Token de API configurado no sistema.</p>
+            {% else %}
+                <p style="margin:8px 0 0;color:#ff6b6b;">MACRO_API_TOKEN nao configurado no .env.</p>
+            {% endif %}
+        </details>
+    </div>
+
+    <div class="macro-kpis">
+        <div class="macro-kpi">
+            <div class="macro-kpi-label">Total de registros</div>
+            <div class="macro-kpi-value">{{ total_count }}</div>
+        </div>
+        <div class="macro-kpi">
+            <div class="macro-kpi-label">Ultima execucao</div>
+            <div class="macro-kpi-value">
+                {% if recent_runs %}
+                    {{ recent_runs.0.started_at|date:"d/m H:i" }}
+                {% else %}
+                    --
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3 style="margin:0 0 8px;">Historico de execucoes</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Inicio</th>
+                    <th>Tipo</th>
+                    <th>Status</th>
+                    <th>Recebidos</th>
+                    <th>Novos</th>
+                    <th>Atualizados</th>
+                    <th>IP</th>
+                    <th>Mensagem</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for run in recent_runs %}
+                <tr>
+                    <td>{{ run.started_at|date:"d/m/Y H:i" }}</td>
+                    <td>{{ run.get_run_type_display }}</td>
+                    <td>{{ run.get_status_display }}</td>
+                    <td>{{ run.total_received }}</td>
+                    <td>{{ run.created_count }}</td>
+                    <td>{{ run.updated_count }}</td>
+                    <td>{{ run.request_ip|default:"-" }}</td>
+                    <td>{{ run.message|default:"-" }}</td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="8">Sem execucoes ainda.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card">
+        <form method="get" class="macro-filter-form">
+            <div>
+                <label>Busca geral</label>
+                <input type="text" name="q" value="{{ request.GET.q }}" placeholder="Nome, telefone, endereco...">
+            </div>
+            <div>
+                <label>Cidade</label>
+                <select name="city">
+                    <option value="">Todas</option>
+                    {% for value in cities %}
+                        <option value="{{ value }}" {% if request.GET.city == value %}selected{% endif %}>{{ value }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label>Status contrato</label>
+                <select name="contract_status">
+                    <option value="">Todos</option>
+                    {% for value in contract_statuses %}
+                        <option value="{{ value }}" {% if request.GET.contract_status == value %}selected{% endif %}>{{ value }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label>Categoria</label>
+                <select name="company_category">
+                    <option value="">Todas</option>
+                    {% for value in categories %}
+                        <option value="{{ value }}" {% if request.GET.company_category == value %}selected{% endif %}>{{ value }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div style="display:flex;gap:8px;">
+                <button class="btn" type="submit">Filtrar</button>
+                <a class="btn secondary" href="{% url 'macro_list' %}">Limpar</a>
+            </div>
         </form>
     </div>
-</div>
 
-<div class="card" style="margin-bottom:14px;">
-    <h3 style="margin-bottom:8px;">Coleta por botoes (sem PowerShell)</h3>
-    <p style="margin:0 0 8px;color:#9fb2d7;">
-        1) No seu computador, de duplo clique em <b>iniciar_coletor_local.bat</b> (ou baixe os arquivos abaixo).
-    </p>
-    <p style="margin:0 0 8px;color:#9fb2d7;">
-        2) Clique em "Abrir painel local" e use os botoes para abrir a pagina alvo, filtrar e iniciar coleta.
-    </p>
-    <p style="margin:0 0 8px;color:#9fb2d7;">
-        O coletor local agora abre apenas uma pagina alvo e reutiliza o login salvo no mesmo computador.
-    </p>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
-        <a class="btn" href="{{ local_agent_url }}?api_url={{ api_import_url|urlencode }}&target_url={{ macro_target_url|urlencode }}" target="_blank" rel="noopener">Abrir painel local</a>
-        <a class="btn secondary" href="{% url 'macro_download_local_agent_exe' %}">Baixar Coletor (EXE)</a>
-        <a class="btn secondary" href="{% url 'macro_download_local_agent_py' %}">Baixar local_macro_agent.py</a>
-        <a class="btn secondary" href="{% url 'macro_download_local_agent_bat' %}">Baixar iniciar_coletor_local.bat</a>
-    </div>
-    {% if not local_agent_exe_available %}
-        <p style="margin:0 0 8px;color:#ffb86b;">EXE ainda nao disponivel neste servidor. Use os arquivos .py + .bat como fallback.</p>
-    {% endif %}
-    <p style="margin:0 0 8px;color:#9fb2d7;">
-        API usada para receber os dados:
-    </p>
-    <code style="display:block;word-break:break-all;margin-bottom:8px;">{{ api_import_url }}</code>
-    {% if token_configured %}
-        <p style="margin:0 0 8px;color:#9fb2d7;">Token de API configurado no sistema (MACRO_API_TOKEN).</p>
-    {% else %}
-        <p style="margin:0 0 8px;color:#ff6b6b;">MACRO_API_TOKEN nao configurado no .env.</p>
-    {% endif %}
-</div>
+    <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+            <h3 style="margin:0;">Total encontrado: {{ total_count }}</h3>
+            <div style="color:#9fb2d7;">Pagina {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</div>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Cidade</th>
+                    <th>Regiao</th>
+                    <th>Estabelecimento</th>
+                    <th>Representante</th>
+                    <th>Status</th>
+                    <th>Telefone</th>
+                    <th>Categoria</th>
+                    <th>Endereco</th>
+                    <th>Ultima captura</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for item in page_obj %}
+                <tr>
+                    <td>{{ item.city }}</td>
+                    <td>{{ item.target_region }}</td>
+                    <td>{{ item.establishment_name }}</td>
+                    <td>{{ item.representative_name }}</td>
+                    <td>{{ item.contract_status }}</td>
+                    <td>{{ item.representative_phone }}</td>
+                    <td>{{ item.company_category }}</td>
+                    <td>{{ item.address }}</td>
+                    <td>{{ item.last_seen_at|date:"d/m/Y H:i" }}</td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="9">Nenhum dado importado ainda.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
 
-<div class="card" style="margin-bottom:12px;">
-    <h3>Historico de execucoes</h3>
-    <table>
-        <thead>
-            <tr>
-                <th>Inicio</th>
-                <th>Tipo</th>
-                <th>Status</th>
-                <th>Recebidos</th>
-                <th>Novos</th>
-                <th>Atualizados</th>
-                <th>IP</th>
-                <th>Mensagem</th>
-            </tr>
-        </thead>
-        <tbody>
-        {% for run in recent_runs %}
-            <tr>
-                <td>{{ run.started_at|date:"d/m/Y H:i" }}</td>
-                <td>{{ run.get_run_type_display }}</td>
-                <td>{{ run.get_status_display }}</td>
-                <td>{{ run.total_received }}</td>
-                <td>{{ run.created_count }}</td>
-                <td>{{ run.updated_count }}</td>
-                <td>{{ run.request_ip|default:"-" }}</td>
-                <td>{{ run.message|default:"-" }}</td>
-            </tr>
-        {% empty %}
-            <tr><td colspan="8">Sem execucoes ainda.</td></tr>
-        {% endfor %}
-        </tbody>
-    </table>
-</div>
-
-<div class="card" style="margin-bottom:12px;">
-    <form method="get" style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:10px;align-items:end;">
-        <div>
-            <label>Busca geral</label>
-            <input type="text" name="q" value="{{ request.GET.q }}" placeholder="Nome, telefone, endereco...">
+        <div class="macro-pagination">
+            {% if page_obj.has_previous %}
+                <a class="btn secondary" href="?{% if filter_querystring %}{{ filter_querystring }}&{% endif %}page={{ page_obj.previous_page_number }}">Anterior</a>
+            {% endif %}
+            {% if page_obj.has_next %}
+                <a class="btn secondary" href="?{% if filter_querystring %}{{ filter_querystring }}&{% endif %}page={{ page_obj.next_page_number }}">Proxima</a>
+            {% endif %}
         </div>
-        <div>
-            <label>Cidade</label>
-            <select name="city">
-                <option value="">Todas</option>
-                {% for value in cities %}
-                    <option value="{{ value }}" {% if request.GET.city == value %}selected{% endif %}>{{ value }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        <div>
-            <label>Status contrato</label>
-            <select name="contract_status">
-                <option value="">Todos</option>
-                {% for value in contract_statuses %}
-                    <option value="{{ value }}" {% if request.GET.contract_status == value %}selected{% endif %}>{{ value }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        <div>
-            <label>Categoria</label>
-            <select name="company_category">
-                <option value="">Todas</option>
-                {% for value in categories %}
-                    <option value="{{ value }}" {% if request.GET.company_category == value %}selected{% endif %}>{{ value }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        <div style="display:flex;gap:8px;">
-            <button class="btn" type="submit">Filtrar</button>
-            <a class="btn secondary" href="{% url 'macro_list' %}">Limpar</a>
-        </div>
-    </form>
-</div>
-
-<div class="card">
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
-        <h3>Total encontrado: {{ total_count }}</h3>
-        <div style="color:#9fb2d7;">Pagina {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</div>
-    </div>
-    <table>
-        <thead>
-            <tr>
-                <th>Cidade</th>
-                <th>Regiao</th>
-                <th>Estabelecimento</th>
-                <th>Representante</th>
-                <th>Status</th>
-                <th>Telefone</th>
-                <th>Categoria</th>
-                <th>Endereco</th>
-                <th>Ultima captura</th>
-            </tr>
-        </thead>
-        <tbody>
-        {% for item in page_obj %}
-            <tr>
-                <td>{{ item.city }}</td>
-                <td>{{ item.target_region }}</td>
-                <td>{{ item.establishment_name }}</td>
-                <td>{{ item.representative_name }}</td>
-                <td>{{ item.contract_status }}</td>
-                <td>{{ item.representative_phone }}</td>
-                <td>{{ item.company_category }}</td>
-                <td>{{ item.address }}</td>
-                <td>{{ item.last_seen_at|date:"d/m/Y H:i" }}</td>
-            </tr>
-        {% empty %}
-            <tr><td colspan="9">Nenhum dado importado ainda.</td></tr>
-        {% endfor %}
-        </tbody>
-    </table>
-
-    <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
-        {% if page_obj.has_previous %}
-            <a class="btn secondary" href="?{% if filter_querystring %}{{ filter_querystring }}&{% endif %}page={{ page_obj.previous_page_number }}">Anterior</a>
-        {% endif %}
-        {% if page_obj.has_next %}
-            <a class="btn secondary" href="?{% if filter_querystring %}{{ filter_querystring }}&{% endif %}page={{ page_obj.next_page_number }}">Proxima</a>
-        {% endif %}
     </div>
 </div>
 {% endblock %}

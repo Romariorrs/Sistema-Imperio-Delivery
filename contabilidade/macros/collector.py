@@ -125,7 +125,18 @@ def extract_rows(driver, pos: Dict[str, int]) -> List[List[str]]:
         js_rows = driver.execute_script(
             """
             const rows = Array.from(document.querySelectorAll("tr.pb-table_row, table.pb-table tbody tr"));
-            return rows.map(r => Array.from(r.querySelectorAll("td,div.pb-table_cell")).map(c => (c.innerText||'').trim()));
+            return rows.map(r => {
+              const directTds = Array.from(r.querySelectorAll(":scope > td"));
+              if (directTds.length) {
+                return directTds.map(c => (c.innerText || c.textContent || '').trim());
+              }
+              const directCells = Array.from(r.querySelectorAll(":scope > div.pb-table_cell"));
+              if (directCells.length) {
+                return directCells.map(c => (c.innerText || c.textContent || '').trim());
+              }
+              const fallback = Array.from(r.querySelectorAll("td, div.pb-table_cell"));
+              return fallback.map(c => (c.innerText || c.textContent || '').trim());
+            });
             """
         )
     except Exception:
@@ -163,7 +174,11 @@ def extract_rows(driver, pos: Dict[str, int]) -> List[List[str]]:
         " | //table[contains(@class,'pb-table')]//tbody//tr",
     )
     for row in rows:
-        cells = row.find_elements(By.XPATH, ".//td | .//div[contains(@class,'pb-table_cell')]")
+        cells = row.find_elements(By.XPATH, "./td")
+        if not cells:
+            cells = row.find_elements(By.XPATH, "./div[contains(@class,'pb-table_cell')]")
+        if not cells:
+            cells = row.find_elements(By.XPATH, ".//td | .//div[contains(@class,'pb-table_cell')]")
         if not cells:
             continue
         picked = []

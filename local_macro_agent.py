@@ -1,13 +1,13 @@
 import argparse
 import html
 import json
+import os
 import threading
 import time
 import traceback
-import webbrowser
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import parse_qs, urlencode, urlparse
+from urllib.parse import parse_qs, urlparse
 
 from contabilidade.macros.collector import run_with_metrics
 
@@ -21,6 +21,13 @@ STATE = {
     "last_result": {},
     "last_error": "",
 }
+
+DEFAULT_TARGET_URL = "https://gattaran.didi-food.com/v2/gtr_crm/leads/list/all"
+DEFAULT_PROFILE_DIR = os.path.join(
+    os.getenv("LOCALAPPDATA") or os.getcwd(),
+    "ImperioMacro",
+    "chrome_user_data",
+)
 
 
 def _now_text() -> str:
@@ -60,6 +67,12 @@ def _run_collection_job(config):
         last_error="",
     )
     try:
+        profile_dir = (config.get("profile_dir") or "").strip() or DEFAULT_PROFILE_DIR
+        os.makedirs(profile_dir, exist_ok=True)
+        os.environ["USE_CHROME_PROFILE"] = "1"
+        os.environ["CHROME_USER_DATA_DIR"] = profile_dir
+        os.environ["CHROME_PROFILE_DIR"] = "Default"
+
         result = run_with_metrics(
             headless=_parse_bool(config.get("headless"), False),
             manual_login=_parse_bool(config.get("manual_login"), True),
@@ -68,6 +81,7 @@ def _run_collection_job(config):
             send_api=True,
             api_url=(config.get("api_url") or "").strip(),
             api_token=(config.get("api_token") or "").strip(),
+            target_url=(config.get("target_url") or "").strip() or DEFAULT_TARGET_URL,
         )
         _update_state(
             running=False,
@@ -105,7 +119,8 @@ def _html_page(params):
     api_token = html.escape((params.get("api_token", [""])[0]).strip())
     target_url = html.escape((params.get("target_url", [""])[0]).strip())
     if not target_url:
-        target_url = "https://gattaran.didi-food.com/v2/gtr_crm/leads/list/all"
+        target_url = DEFAULT_TARGET_URL
+    profile_dir = html.escape((params.get("profile_dir", [""])[0]).strip() or DEFAULT_PROFILE_DIR)
     manual_login_checked = "checked"
     return f"""<!doctype html>
 <html lang="pt-br">
@@ -131,6 +146,7 @@ def _html_page(params):
     <p>1) Clique em "Abrir pagina alvo".</p>
     <p>2) Faca login e aplique o filtro desejado.</p>
     <p>3) Volte aqui e clique em "Comecar coleta".</p>
+    <p style="color:#9fb2d7;margin-top:10px;">Depois do primeiro login, a sessao fica salva neste computador.</p>
   </div>
   <div class="card">
     <form method="post" action="/start">
@@ -140,6 +156,8 @@ def _html_page(params):
       <input name="api_token" value="{api_token}" required>
       <label>URL alvo</label>
       <input name="target_url" value="{target_url}" required>
+      <label>Pasta do perfil (mantem login)</label>
+      <input name="profile_dir" value="{profile_dir}" required>
       <div class="row">
         <div>
           <label>Login timeout (segundos)</label>
@@ -152,7 +170,7 @@ def _html_page(params):
       </div>
       <label><input type="checkbox" name="manual_login" value="1" {manual_login_checked} style="width:auto;"> Esperar login/filtro manual</label>
       <div class="buttons">
-        <a class="btn secondary" href="/open-target?{urlencode({'target_url': target_url})}" target="_blank">Abrir pagina alvo</a>
+        <a class="btn secondary" href="{target_url}" target="_blank" rel="noopener">Abrir pagina alvo</a>
         <button type="submit">Comecar coleta</button>
       </div>
     </form>
@@ -220,11 +238,6 @@ class MacroAgentHandler(BaseHTTPRequestHandler):
             return self._send_html(_html_page(params))
         if parsed.path == "/status":
             return self._send_json(_snapshot_state())
-        if parsed.path == "/open-target":
-            target = (params.get("target_url", [""])[0] or "").strip()
-            if target:
-                webbrowser.open(target)
-            return self._send_html("<html><body><p>Pagina alvo aberta.</p><p><a href='/'>Voltar</a></p></body></html>")
         if parsed.path == "/start":
             data = {key: values[0] if values else "" for key, values in params.items()}
             started, message = _start_job(data)

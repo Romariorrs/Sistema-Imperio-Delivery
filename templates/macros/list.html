@@ -22,6 +22,9 @@
     <p style="margin:0 0 8px;color:#9fb2d7;">
         2) Clique em "Abrir painel local" e use os botoes para abrir a pagina alvo, filtrar e iniciar coleta.
     </p>
+    <p style="margin:0 0 8px;color:#9fb2d7;">
+        O coletor local agora abre apenas uma pagina alvo e reutiliza o login salvo no mesmo computador.
+    </p>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
         <a class="btn" href="{{ local_agent_url }}?api_url={{ api_import_url|urlencode }}&target_url={{ macro_target_url|urlencode }}" target="_blank" rel="noopener">Abrir painel local</a>
         <a class="btn secondary" href="{% url 'macro_download_local_agent_exe' %}">Baixar Coletor (EXE)</a>

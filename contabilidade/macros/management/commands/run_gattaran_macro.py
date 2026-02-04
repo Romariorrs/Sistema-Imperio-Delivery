@@ -35,6 +35,7 @@ class Command(BaseCommand):
             help="Tempo maximo (segundos) para esperar tabela apos login/filtro.",
         )
         parser.add_argument("--max-pages", type=int, default=9999, help="Numero maximo de paginas a percorrer.")
+        parser.add_argument("--target-url", default="", help="URL alvo da coleta.")
         parser.add_argument("--api-url", default="", help="Endpoint de importacao da API.")
         parser.add_argument("--api-token", default="", help="Token Bearer da API.")
         parser.add_argument("--no-send-api", action="store_true", help="Nao envia para API; apenas coleta.")
@@ -60,6 +61,7 @@ class Command(BaseCommand):
                 send_api=not options["no_send_api"],
                 api_url=api_url,
                 api_token=options["api_token"] or settings.MACRO_API_TOKEN,
+                target_url=options["target_url"] or settings.MACRO_TARGET_URL,
             )
             run_log.status = "success"
             run_log.finished_at = timezone.now()

@@ -65,6 +65,10 @@ CHROME_ARGS = [
 ]
 
 
+def _env_bool(name: str, default: bool = False) -> bool:
+    return os.getenv(name, str(default)).strip().lower() in {"1", "true", "yes", "on"}
+
+
 def normalize(text: str) -> str:
     text = (text or "").strip()
     text = unicodedata.normalize("NFKD", text)
@@ -237,12 +241,18 @@ def wait_for_table(driver, timeout: int = 180) -> bool:
 
 
 def build_driver(headless: bool = HEADLESS_DEFAULT):
-    if DEBUGGER_ADDRESS:
-        logger.info("Conectando no Chrome aberto em %s", DEBUGGER_ADDRESS)
+    debugger_address = os.getenv("DEBUGGER_ADDRESS", DEBUGGER_ADDRESS).strip()
+    binary_path = os.getenv("CHROME_BINARY", BINARY_PATH)
+    use_profile = _env_bool("USE_CHROME_PROFILE", USE_CHROME_PROFILE)
+    chrome_user_data_dir = os.getenv("CHROME_USER_DATA_DIR", CHROME_USER_DATA_DIR)
+    chrome_profile_dir = os.getenv("CHROME_PROFILE_DIR", CHROME_PROFILE_DIR)
+
+    if debugger_address:
+        logger.info("Conectando no Chrome aberto em %s", debugger_address)
         opts = ChromeOptions()
-        opts.add_experimental_option("debuggerAddress", DEBUGGER_ADDRESS)
-        if BINARY_PATH and os.path.isfile(BINARY_PATH):
-            opts.binary_location = BINARY_PATH
+        opts.add_experimental_option("debuggerAddress", debugger_address)
+        if binary_path and os.path.isfile(binary_path):
+            opts.binary_location = binary_path
         return webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=opts)
 
     opts = ChromeOptions()
@@ -256,15 +266,16 @@ def build_driver(headless: bool = HEADLESS_DEFAULT):
     if headless:
         opts.add_argument("--headless=new")
 
-    if BINARY_PATH and os.path.isfile(BINARY_PATH):
-        opts.binary_location = BINARY_PATH
-    if USE_CHROME_PROFILE and os.path.isdir(CHROME_USER_DATA_DIR):
-        opts.add_argument(f"--user-data-dir={CHROME_USER_DATA_DIR}")
-        opts.add_argument(f"--profile-directory={CHROME_PROFILE_DIR}")
+    if binary_path and os.path.isfile(binary_path):
+        opts.binary_location = binary_path
+    if use_profile and os.path.isdir(chrome_user_data_dir):
+        opts.add_argument(f"--user-data-dir={chrome_user_data_dir}")
+        opts.add_argument(f"--profile-directory={chrome_profile_dir}")
     else:
-        temp_profile = os.path.join(os.getcwd(), "chrome_user_data_temp")
-        os.makedirs(temp_profile, exist_ok=True)
-        opts.add_argument(f"--user-data-dir={temp_profile}")
+        localapp = os.getenv("LOCALAPPDATA") or os.getcwd()
+        persistent_profile = os.path.join(localapp, "ImperioMacro", "chrome_user_data")
+        os.makedirs(persistent_profile, exist_ok=True)
+        opts.add_argument(f"--user-data-dir={persistent_profile}")
     return webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=opts)
 
 
@@ -307,6 +318,7 @@ def run(
     send_api: bool = True,
     api_url: Optional[str] = None,
     api_token: Optional[str] = None,
+    target_url: Optional[str] = None,
 ) -> List[List[str]]:
     return run_with_metrics(
         headless=headless,
@@ -316,6 +328,7 @@ def run(
         send_api=send_api,
         api_url=api_url,
         api_token=api_token,
+        target_url=target_url,
     )["rows"]
 
 
@@ -328,6 +341,7 @@ def run_with_metrics(
     send_api: bool = True,
     api_url: Optional[str] = None,
     api_token: Optional[str] = None,
+    target_url: Optional[str] = None,
 ):
     driver = None
     all_rows: List[List[str]] = []
@@ -335,7 +349,8 @@ def run_with_metrics(
     to_send = 0
     try:
         driver = build_driver(headless=headless)
-        driver.get(URL)
+        final_target_url = (target_url or os.getenv("MACRO_TARGET_URL", URL)).strip() or URL
+        driver.get(final_target_url)
         if manual_login:
             logger.info("Faça login e aplique filtro na tela. Aguardando tabela por ate %ss...", login_timeout)
 
@@ -393,7 +408,7 @@ def run_with_metrics(
             "to_send": to_send,
         }
     finally:
-        if driver and not DEBUGGER_ADDRESS:
+        if driver and not os.getenv("DEBUGGER_ADDRESS", DEBUGGER_ADDRESS).strip():
             try:
                 driver.quit()
             except Exception:

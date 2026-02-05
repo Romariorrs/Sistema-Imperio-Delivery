@@ -135,13 +135,27 @@ def _run_collection_job(config):
             navigate_to_target=False,
             close_driver=False,
         )
-        _update_state(
-            running=False,
-            last_status="success",
-            finished_at=_now_text(),
-            last_result=result,
-            last_error="",
-        )
+        sent = int(result.get("sent") or 0)
+        to_send = int(result.get("to_send") or 0)
+        if to_send > 0 and sent < to_send:
+            _update_state(
+                running=False,
+                last_status="error",
+                finished_at=_now_text(),
+                last_result=result,
+                last_error=(
+                    f"Coleta concluida, mas envio parcial/falhou: enviados {sent} de {to_send}. "
+                    "Verifique API URL/token e conexao."
+                ),
+            )
+        else:
+            _update_state(
+                running=False,
+                last_status="success",
+                finished_at=_now_text(),
+                last_result=result,
+                last_error="",
+            )
     except Exception:
         _update_state(
             running=False,

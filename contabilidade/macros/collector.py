@@ -30,7 +30,8 @@ HEADLESS_DEFAULT = os.getenv("MACRO_HEADLESS", "false").lower() in {"1", "true",
 
 API_URL = os.getenv("API_URL", "").strip()
 API_TOKEN = os.getenv("API_TOKEN", "").strip()
-API_TIMEOUT = int(os.getenv("API_TIMEOUT", "30"))
+API_TIMEOUT = int(os.getenv("API_TIMEOUT", "180"))
+API_BATCH_SIZE = int(os.getenv("API_BATCH_SIZE", "400"))
 
 logger = logging.getLogger(__name__)
 
@@ -315,13 +316,20 @@ def send_rows_to_api(
     if token:
         headers["Authorization"] = f"Bearer {token}"
 
-    try:
-        resp = requests.post(endpoint, json=payload, headers=headers, timeout=timeout)
-        resp.raise_for_status()
-    except Exception as exc:
-        logger.error("Falha no envio para API: %s", exc)
-        return 0, len(rows)
-    return len(rows), len(rows)
+    total = len(rows)
+    sent = 0
+    batch_size = max(1, API_BATCH_SIZE)
+    for start in range(0, total, batch_size):
+        end = min(start + batch_size, total)
+        chunk = payload[start:end]
+        try:
+            resp = requests.post(endpoint, json=chunk, headers=headers, timeout=timeout)
+            resp.raise_for_status()
+            sent += len(chunk)
+        except Exception as exc:
+            logger.error("Falha no envio para API no lote %s-%s: %s", start + 1, end, exc)
+            return sent, total
+    return sent, total
 
 
 def run(

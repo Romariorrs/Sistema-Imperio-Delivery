@@ -150,6 +150,23 @@
                     <button class="btn danger" type="submit" onclick="return confirm('Apagar toda a base de leads?')">Apagar base</button>
                 </form>
             </div>
+            <div class="macro-danger-box">
+                <div class="macro-danger-title">Excluir base especifica</div>
+                <p class="macro-danger-help">Escolha a fonte e opcionalmente cidade. Digite <b>EXCLUIR BASE</b>.</p>
+                <form method="post" action="{% url 'macro_delete_source' %}" class="macro-inline-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="collect">
+                    <select name="source" required style="width:auto;min-width:140px;">
+                        <option value="">Fonte</option>
+                        {% for source in sources %}
+                            <option value="{{ source }}">{{ source }}</option>
+                        {% endfor %}
+                    </select>
+                    <input type="text" name="city" placeholder="Cidade (opcional)">
+                    <input type="text" name="confirm_text" placeholder="EXCLUIR BASE" required>
+                    <button class="btn danger" type="submit" onclick="return confirm('Excluir base especifica agora?')">Excluir base especifica</button>
+                </form>
+            </div>
         </div>
     </div>
 
@@ -166,6 +183,7 @@
                     <th>Atualizados</th>
                     <th>IP</th>
                     <th>Mensagem</th>
+                    <th>Acoes</th>
                 </tr>
             </thead>
             <tbody>
@@ -179,9 +197,16 @@
                     <td>{{ run.updated_count }}</td>
                     <td>{{ run.request_ip|default:"-" }}</td>
                     <td>{{ run.message|default:"-" }}</td>
+                    <td>
+                        <form method="post" action="{% url 'macro_delete_run_item' run.id %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="next" value="collect">
+                            <button class="btn danger" type="submit" onclick="return confirm('Excluir esta execucao do historico?')">Excluir</button>
+                        </form>
+                    </td>
                 </tr>
             {% empty %}
-                <tr><td colspan="8">Sem execucoes ainda.</td></tr>
+                <tr><td colspan="9">Sem execucoes ainda.</td></tr>
             {% endfor %}
             </tbody>
         </table>

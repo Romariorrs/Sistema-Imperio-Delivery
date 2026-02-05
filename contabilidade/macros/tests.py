@@ -185,3 +185,52 @@ class MacroScreenTests(TestCase):
         self.assertEqual(all_resp.status_code, 302)
         self.assertEqual(MacroRun.objects.count(), 0)
         self.assertEqual(MacroLead.objects.count(), 0)
+
+    def test_delete_specific_source(self):
+        MacroLead.objects.create(
+            source="csv",
+            city="Rio",
+            target_region="R1",
+            establishment_name="Loja CSV",
+            representative_name="Ana",
+            contract_status="Ativo",
+            representative_phone="21999990000",
+            representative_phone_norm="5521999990000",
+            company_category="Brasileira",
+            address="Rua 1",
+            unique_key="src-1",
+        )
+        MacroLead.objects.create(
+            source="api",
+            city="Rio",
+            target_region="R2",
+            establishment_name="Loja API",
+            representative_name="Joao",
+            contract_status="Ativo",
+            representative_phone="21999991111",
+            representative_phone_norm="5521999991111",
+            company_category="Pizza",
+            address="Rua 2",
+            unique_key="src-2",
+        )
+        resp = self.client.post(
+            reverse("macro_delete_source"),
+            data={"source": "csv", "confirm_text": "EXCLUIR BASE", "next": "database"},
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(MacroLead.objects.count(), 1)
+        self.assertEqual(MacroLead.objects.first().source, "api")
+
+    def test_delete_specific_run_item(self):
+        run = MacroRun.objects.create(
+            run_type="csv",
+            status="success",
+            source="csv",
+            message="ok",
+        )
+        resp = self.client.post(
+            reverse("macro_delete_run_item", args=[run.id]),
+            data={"next": "collect"},
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertFalse(MacroRun.objects.filter(id=run.id).exists())

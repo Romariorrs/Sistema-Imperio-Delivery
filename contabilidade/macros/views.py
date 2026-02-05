@@ -76,6 +76,15 @@ def _filtered_delete_redirect(params):
     return redirect(f"{base}?{urlencode(cleaned)}")
 
 
+def _lead_sources():
+    return (
+        MacroLead.objects.exclude(source="")
+        .values_list("source", flat=True)
+        .distinct()
+        .order_by("source")
+    )
+
+
 def _staff_or_token(request):
     if request.user.is_authenticated and _staff_access(request.user):
         return True
@@ -199,6 +208,7 @@ def macro_list(request):
         "city_breakdown": city_breakdown,
         "category_breakdown": category_breakdown,
         "status_breakdown": status_breakdown,
+        "sources": _lead_sources(),
     }
     return render(request, "macros/list.html", context)
 
@@ -224,6 +234,7 @@ def macro_collect(request):
         "last_error_run": last_error_run,
         "runs_24h_total": runs_24h.count(),
         "runs_24h_error": runs_24h.filter(status="error").count(),
+        "sources": _lead_sources(),
     }
     return render(request, "macros/collect.html", context)
 
@@ -400,6 +411,46 @@ def macro_delete_runs(request):
 
     deleted_count, _ = MacroRun.objects.all().delete()
     messages.success(request, f"Historico limpo. {deleted_count} execucao(oes) removida(s).")
+    return _safe_macro_redirect(request.POST)
+
+
+@login_required
+@user_passes_test(_staff_access)
+def macro_delete_source(request):
+    if request.method != "POST":
+        return redirect("macro_list")
+    if (request.POST.get("confirm_text") or "").strip().upper() != "EXCLUIR BASE":
+        messages.error(request, 'Para excluir base especifica, digite "EXCLUIR BASE".')
+        return _safe_macro_redirect(request.POST)
+
+    source = (request.POST.get("source") or "").strip()
+    if not source:
+        messages.error(request, "Selecione uma fonte para excluir.")
+        return _safe_macro_redirect(request.POST)
+
+    city = (request.POST.get("city") or "").strip()
+    queryset = MacroLead.objects.filter(source=source)
+    if city:
+        queryset = queryset.filter(city__iexact=city)
+    deleted_count, _ = queryset.delete()
+
+    detail = f"fonte '{source}'"
+    if city:
+        detail += f" e cidade '{city}'"
+    messages.success(request, f"Base especifica removida ({detail}). {deleted_count} registro(s) excluido(s).")
+    return _safe_macro_redirect(request.POST)
+
+
+@login_required
+@user_passes_test(_staff_access)
+def macro_delete_run_item(request, run_id: int):
+    if request.method != "POST":
+        return redirect("macro_collect")
+    deleted_count, _ = MacroRun.objects.filter(id=run_id).delete()
+    if deleted_count:
+        messages.success(request, "Execucao removida do historico.")
+    else:
+        messages.error(request, "Execucao nao encontrada.")
     return _safe_macro_redirect(request.POST)
 
 

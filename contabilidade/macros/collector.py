@@ -32,6 +32,7 @@ API_URL = os.getenv("API_URL", "").strip()
 API_TOKEN = os.getenv("API_TOKEN", "").strip()
 API_TIMEOUT = int(os.getenv("API_TIMEOUT", "180"))
 API_BATCH_SIZE = int(os.getenv("API_BATCH_SIZE", "400"))
+API_BATCH_SLEEP = float(os.getenv("API_BATCH_SLEEP", "0.4"))
 
 logger = logging.getLogger(__name__)
 
@@ -331,6 +332,8 @@ def send_rows_to_api(
         except Exception as exc:
             logger.error("Falha no envio para API no lote %s-%s: %s", start + 1, end, exc)
             return sent, total
+        if API_BATCH_SLEEP > 0 and end < total:
+            time.sleep(API_BATCH_SLEEP)
     return sent, total
 
 

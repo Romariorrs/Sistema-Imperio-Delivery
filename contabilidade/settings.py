@@ -131,6 +131,7 @@ MACRO_TARGET_URL = os.getenv(
 ).strip()
 MACRO_IMPORT_API_URL = os.getenv("MACRO_IMPORT_API_URL", "").strip()
 MACRO_LOCAL_AGENT_URL = os.getenv("MACRO_LOCAL_AGENT_URL", "http://127.0.0.1:8765/").strip()
+MACRO_AGENT_VERSION = os.getenv("MACRO_AGENT_VERSION", "2026.02.06-1").strip()
 MACRO_LOCAL_AGENT_EXE_PATH = os.getenv(
     "MACRO_LOCAL_AGENT_EXE_PATH",
     str(BASE_DIR / "downloads" / "ColetorMacro.exe"),

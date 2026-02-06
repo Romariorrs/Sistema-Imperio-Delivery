@@ -11,6 +11,8 @@ from urllib.parse import parse_qs, urlparse
 
 from contabilidade.macros.collector import build_driver, run_with_metrics
 
+VERSION = os.getenv("MACRO_AGENT_VERSION", "2026.02.06-1").strip()
+
 
 STATE_LOCK = threading.Lock()
 STATE = {
@@ -224,6 +226,7 @@ def _html_page(params):
 </head>
 <body>
   <h2>Coletor Local (sem PowerShell)</h2>
+  <p style="color:#9fb2d7;margin:4px 0 14px;">Versao: {VERSION}</p>
   <div class="card">
     <p>1) Clique em "Abrir pagina alvo".</p>
     <p>2) Faca login e aplique o filtro desejado.</p>
@@ -401,6 +404,7 @@ def main():
 
     server = ThreadingHTTPServer((args.host, args.port), MacroAgentHandler)
     print(f"[macro-agent] Rodando em http://{args.host}:{args.port}/")
+    print(f"[macro-agent] Versao: {VERSION}")
     print("[macro-agent] Abra essa URL no navegador e use os botoes.")
     try:
         server.serve_forever()

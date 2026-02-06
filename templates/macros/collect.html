@@ -73,6 +73,7 @@
             <a class="btn secondary" href="{% url 'macro_download_local_agent_exe' %}">Baixar Coletor (EXE)</a>
             <a class="btn secondary" href="{% url 'macro_download_local_agent_mac' %}">Baixar Coletor (macOS)</a>
         </div>
+        <p style="margin:10px 0 0;color:var(--muted);">Versao do coletor: {{ macro_agent_version }}</p>
         {% if not local_agent_exe_available %}
             <p style="margin:10px 0 0;color:#ffb86b;">EXE ainda nao disponivel neste servidor.</p>
         {% endif %}

@@ -1,16 +1,19 @@
 import hashlib
 import re
 import unicodedata
-from typing import Any, Dict, Iterable, Mapping
+from datetime import datetime, timezone as dt_timezone, timedelta
+from typing import Any, Dict, Iterable, Mapping, Optional
 
 from django.db import IntegrityError
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime, parse_date
 
 from .models import MacroLead
 
 EXPORT_COLUMNS = (
     ("city", "Cidade"),
     ("target_region", "Regiao-alvo"),
+    ("lead_created_at", "Horario de criacao do lead"),
     ("establishment_name", "Nome do estabelecimento"),
     ("representative_name", "Nome do representante 99"),
     ("contract_status", "Status do contrato"),
@@ -26,6 +29,10 @@ HEADER_ALIASES = {
     "regiao-alvo": "target_region",
     "target region": "target_region",
     "target_region": "target_region",
+    "horario de criacao do lead": "lead_created_at",
+    "horario criacao do lead": "lead_created_at",
+    "lead created at": "lead_created_at",
+    "lead_created_at": "lead_created_at",
     "nome do estabelecimento": "establishment_name",
     "establishment_name": "establishment_name",
     "nome do representante 99": "representative_name",
@@ -74,8 +81,51 @@ def normalize_value(field: str, value: Any) -> str:
     return text
 
 
+def parse_lead_datetime(value: Any) -> Optional[datetime]:
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+
+    # Try standard parsers first
+    dt = parse_datetime(raw)
+    if dt:
+        if timezone.is_naive(dt):
+            return timezone.make_aware(dt)
+        return dt
+
+    # Common formats like "2026-02-02 13:45:20 UTC-3"
+    match = re.search(
+        r"(?P<date>\d{4}-\d{2}-\d{2})[ T](?P<time>\d{2}:\d{2}(?::\d{2})?)"
+        r"(?:\s*UTC(?P<offset>[+-]\d{1,2})(?::?(?P<mins>\d{2}))?)?",
+        raw,
+        flags=re.IGNORECASE,
+    )
+    if match:
+        date_part = match.group("date")
+        time_part = match.group("time")
+        try:
+            dt = datetime.strptime(f"{date_part} {time_part}", "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            dt = datetime.strptime(f"{date_part} {time_part}", "%Y-%m-%d %H:%M")
+        offset = match.group("offset")
+        mins = match.group("mins")
+        if offset:
+            hours = int(offset)
+            minutes = int(mins) if mins else 0
+            tz = dt_timezone(timedelta(hours=hours, minutes=minutes))
+            return dt.replace(tzinfo=tz).astimezone(timezone.get_current_timezone())
+        return timezone.make_aware(dt)
+
+    # Fallback: date only
+    d = parse_date(raw)
+    if d:
+        return timezone.make_aware(datetime(d.year, d.month, d.day))
+    return None
+
+
 def normalize_row(raw_row: Mapping[str, Any], default_source: str = "gattaran") -> Dict[str, str]:
-    parsed: Dict[str, str] = {field: "" for field, _ in EXPORT_COLUMNS}
+    parsed: Dict[str, Any] = {field: "" for field, _ in EXPORT_COLUMNS}
+    parsed["lead_created_at"] = None
     parsed["source"] = default_source
     parsed["representative_phone_norm"] = ""
 
@@ -83,7 +133,10 @@ def normalize_row(raw_row: Mapping[str, Any], default_source: str = "gattaran") 
         mapped = HEADER_ALIASES.get(normalize_header(key))
         if not mapped:
             continue
-        parsed[mapped] = normalize_value(mapped, value)
+        if mapped == "lead_created_at":
+            parsed[mapped] = parse_lead_datetime(value)
+        else:
+            parsed[mapped] = normalize_value(mapped, value)
 
     parsed["representative_phone_norm"] = normalize_phone(parsed.get("representative_phone", ""))
 

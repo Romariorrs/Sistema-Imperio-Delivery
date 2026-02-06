@@ -36,6 +36,8 @@ def _apply_filters(request=None, queryset=None, params=None):
     city = (params.get("city") or "").strip()
     contract_status = (params.get("contract_status") or "").strip()
     company_category = (params.get("company_category") or "").strip()
+    lead_date_from = (params.get("lead_date_from") or "").strip()
+    lead_date_to = (params.get("lead_date_to") or "").strip()
 
     if q:
         text_filter = (
@@ -57,6 +59,10 @@ def _apply_filters(request=None, queryset=None, params=None):
         queryset = queryset.filter(contract_status=contract_status)
     if company_category:
         queryset = queryset.filter(company_category=company_category)
+    if lead_date_from:
+        queryset = queryset.filter(lead_created_at__date__gte=lead_date_from)
+    if lead_date_to:
+        queryset = queryset.filter(lead_created_at__date__lte=lead_date_to)
     return queryset.order_by("-last_seen_at", "-id")
 
 
@@ -69,7 +75,10 @@ def _safe_macro_redirect(post_data):
 
 def _filtered_delete_redirect(params):
     base = reverse("macro_list")
-    cleaned = {k: (params.get(k) or "").strip() for k in ("q", "city", "contract_status", "company_category")}
+    cleaned = {
+        k: (params.get(k) or "").strip()
+        for k in ("q", "city", "contract_status", "company_category", "lead_date_from", "lead_date_to")
+    }
     cleaned = {k: v for k, v in cleaned.items() if v}
     if not cleaned:
         return redirect("macro_list")
@@ -249,8 +258,14 @@ def macro_export_csv(request):
     writer = csv.writer(response)
     writer.writerow([label for _, label in EXPORT_COLUMNS] + ["Source", "Primeira captura", "Ultima captura"])
     for item in queryset:
+        row_values = []
+        for field, _ in EXPORT_COLUMNS:
+            value = getattr(item, field, "")
+            if field == "lead_created_at" and value:
+                value = value.strftime("%Y-%m-%d %H:%M:%S")
+            row_values.append(value)
         writer.writerow(
-            [getattr(item, field, "") for field, _ in EXPORT_COLUMNS]
+            row_values
             + [
                 item.source,
                 item.first_seen_at.strftime("%Y-%m-%d %H:%M:%S"),
@@ -276,8 +291,14 @@ def macro_export_xlsx(request):
     ws.title = "Macro Leads"
     ws.append([label for _, label in EXPORT_COLUMNS] + ["Source", "Primeira captura", "Ultima captura"])
     for item in queryset:
+        row_values = []
+        for field, _ in EXPORT_COLUMNS:
+            value = getattr(item, field, "")
+            if field == "lead_created_at" and value:
+                value = value.strftime("%Y-%m-%d %H:%M:%S")
+            row_values.append(value)
         ws.append(
-            [getattr(item, field, "") for field, _ in EXPORT_COLUMNS]
+            row_values
             + [
                 item.source,
                 item.first_seen_at.strftime("%Y-%m-%d %H:%M:%S"),

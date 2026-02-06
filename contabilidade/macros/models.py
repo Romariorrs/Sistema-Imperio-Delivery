@@ -6,6 +6,7 @@ class MacroLead(models.Model):
     source = models.CharField(max_length=50, default="gattaran", db_index=True)
     city = models.CharField(max_length=255, blank=True, db_index=True)
     target_region = models.CharField(max_length=255, blank=True, db_index=True)
+    lead_created_at = models.DateTimeField(null=True, blank=True, db_index=True)
     establishment_name = models.CharField(max_length=255, blank=True, db_index=True)
     representative_name = models.CharField(max_length=255, blank=True, db_index=True)
     contract_status = models.CharField(max_length=100, blank=True, db_index=True)

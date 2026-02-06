@@ -38,6 +38,7 @@ logger = logging.getLogger(__name__)
 FIELD_TARGETS = [
     "Cidade",
     "Regiao-alvo",
+    "Horario de criacao do lead",
     "Nome do estabelecimento",
     "Nome do representante 99",
     "Status do contrato",
@@ -49,6 +50,7 @@ FIELD_TARGETS = [
 FALLBACK_INDICES = {
     "Cidade": 2,
     "Regiao-alvo": 3,
+    "Horario de criacao do lead": 4,
     "Nome do estabelecimento": 5,
     "Nome do representante 99": 9,
     "Status do contrato": 10,

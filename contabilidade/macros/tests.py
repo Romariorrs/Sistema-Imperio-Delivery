@@ -30,6 +30,17 @@ class MacroServicesTests(TestCase):
         self.assertEqual(MacroLead.objects.count(), 1)
         self.assertEqual(MacroLead.objects.first().contract_status, "Pendente")
 
+    def test_upsert_parses_lead_created_at(self):
+        row = {
+            "Cidade": "Sao Paulo",
+            "Nome do estabelecimento": "Loja Data",
+            "Telefone do representante do estabelecimento": "11999990000",
+            "Horario de criacao do lead": "2026-02-02 13:45:20 UTC-3",
+        }
+        upsert_rows([row], default_source="api")
+        lead = MacroLead.objects.first()
+        self.assertIsNotNone(lead.lead_created_at)
+
 
 @override_settings(
     MACRO_API_TOKEN="token123",

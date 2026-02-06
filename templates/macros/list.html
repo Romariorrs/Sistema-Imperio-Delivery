@@ -38,7 +38,7 @@
     .macro-kpi-value { font-size: 24px; font-weight: 600; line-height: 1.1; }
     .macro-kpi-note { color: var(--muted); font-size: 12px; margin-top: 4px; }
     .macro-insights { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
-    .macro-filter-form { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr auto; gap: 10px; align-items: end; }
+    .macro-filter-form { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr auto; gap: 10px; align-items: end; }
     .macro-pagination { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
     .macro-danger-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 10px; }
     .macro-danger-box { border: 1px dashed rgba(255, 107, 107, 0.45); border-radius: 12px; padding: 10px; }
@@ -84,6 +84,8 @@
                     <input type="hidden" name="city" value="{{ request.GET.city }}">
                     <input type="hidden" name="contract_status" value="{{ request.GET.contract_status }}">
                     <input type="hidden" name="company_category" value="{{ request.GET.company_category }}">
+                    <input type="hidden" name="lead_date_from" value="{{ request.GET.lead_date_from }}">
+                    <input type="hidden" name="lead_date_to" value="{{ request.GET.lead_date_to }}">
                     <input type="text" name="confirm_text" placeholder="EXCLUIR" required>
                     <button class="btn danger" type="submit" onclick="return confirm('Excluir os dados filtrados agora?')">Excluir filtrados</button>
                 </form>
@@ -291,6 +293,14 @@
                     {% endfor %}
                 </select>
             </div>
+            <div>
+                <label>Lead de (data)</label>
+                <input type="date" name="lead_date_from" value="{{ request.GET.lead_date_from }}">
+            </div>
+            <div>
+                <label>Lead ate (data)</label>
+                <input type="date" name="lead_date_to" value="{{ request.GET.lead_date_to }}">
+            </div>
             <div style="display:flex;gap:8px;">
                 <button class="btn" type="submit">Filtrar</button>
                 <a class="btn secondary" href="{% url 'macro_list' %}">Limpar</a>
@@ -314,6 +324,7 @@
                     <th>Telefone</th>
                     <th>Categoria</th>
                     <th>Endereco</th>
+                    <th>Horario lead</th>
                     <th>Ultima captura</th>
                 </tr>
             </thead>
@@ -328,10 +339,17 @@
                     <td>{{ item.representative_phone }}</td>
                     <td>{{ item.company_category }}</td>
                     <td>{{ item.address }}</td>
+                    <td>
+                        {% if item.lead_created_at %}
+                            {{ item.lead_created_at|date:"d/m/Y H:i" }}
+                        {% else %}
+                            --
+                        {% endif %}
+                    </td>
                     <td>{{ item.last_seen_at|date:"d/m/Y H:i" }}</td>
                 </tr>
             {% empty %}
-                <tr><td colspan="9">Nenhum dado encontrado.</td></tr>
+                <tr><td colspan="10">Nenhum dado encontrado.</td></tr>
             {% endfor %}
             </tbody>
         </table>

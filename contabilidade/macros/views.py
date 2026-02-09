@@ -15,7 +15,7 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.core.paginator import Paginator
 from django.db.models import Count, Q
 from django.http import HttpResponse, JsonResponse
-from django.shortcuts import redirect, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
@@ -36,8 +36,17 @@ def _apply_filters(request=None, queryset=None, params=None):
     city = (params.get("city") or "").strip()
     contract_status = (params.get("contract_status") or "").strip()
     company_category = (params.get("company_category") or "").strip()
+    blocked = (params.get("blocked") or "").strip().lower()
+    phone_dup = (params.get("phone_dup") or "").strip().lower()
     lead_date_from = (params.get("lead_date_from") or "").strip()
     lead_date_to = (params.get("lead_date_to") or "").strip()
+    duplicate_phone_norms = (
+        MacroLead.objects.exclude(representative_phone_norm="")
+        .values("representative_phone_norm")
+        .annotate(total=Count("id"))
+        .filter(total__gt=1)
+        .values_list("representative_phone_norm", flat=True)
+    )
 
     if q:
         text_filter = (
@@ -59,6 +68,18 @@ def _apply_filters(request=None, queryset=None, params=None):
         queryset = queryset.filter(contract_status=contract_status)
     if company_category:
         queryset = queryset.filter(company_category=company_category)
+    if blocked == "yes":
+        queryset = queryset.filter(is_blocked_number=True)
+    elif blocked == "no":
+        queryset = queryset.filter(is_blocked_number=False)
+    if phone_dup == "duplicates":
+        queryset = queryset.filter(representative_phone_norm__in=duplicate_phone_norms)
+    elif phone_dup == "unique":
+        queryset = queryset.exclude(representative_phone_norm="").exclude(
+            representative_phone_norm__in=duplicate_phone_norms
+        )
+    elif phone_dup == "empty":
+        queryset = queryset.filter(representative_phone_norm="")
     if lead_date_from:
         queryset = queryset.filter(lead_created_at__date__gte=lead_date_from)
     if lead_date_to:
@@ -77,7 +98,16 @@ def _filtered_delete_redirect(params):
     base = reverse("macro_list")
     cleaned = {
         k: (params.get(k) or "").strip()
-        for k in ("q", "city", "contract_status", "company_category", "lead_date_from", "lead_date_to")
+        for k in (
+            "q",
+            "city",
+            "contract_status",
+            "company_category",
+            "blocked",
+            "phone_dup",
+            "lead_date_from",
+            "lead_date_to",
+        )
     }
     cleaned = {k: v for k, v in cleaned.items() if v}
     if not cleaned:
@@ -168,8 +198,37 @@ def macro_list(request):
         total_cities=Count("city", distinct=True, filter=~Q(city="")),
         phones_filled=Count("id", filter=~Q(representative_phone_norm="")),
         phones_unique=Count("representative_phone_norm", distinct=True, filter=~Q(representative_phone_norm="")),
+        blocked_numbers=Count("id", filter=Q(is_blocked_number=True)),
+        blocked_numbers_unique=Count(
+            "representative_phone_norm",
+            distinct=True,
+            filter=Q(is_blocked_number=True) & ~Q(representative_phone_norm=""),
+        ),
         total_categories=Count("company_category", distinct=True, filter=~Q(company_category="")),
     )
+    duplicate_phone_stats = (
+        all_queryset.exclude(representative_phone_norm="")
+        .values("representative_phone_norm")
+        .annotate(total=Count("id"))
+        .filter(total__gt=1)
+    )
+    stats["duplicate_phone_numbers"] = duplicate_phone_stats.count()
+    stats["duplicate_phone_leads"] = sum(row["total"] for row in duplicate_phone_stats)
+
+    page_phone_norms = {
+        (item.representative_phone_norm or "").strip()
+        for item in page_obj.object_list
+        if (item.representative_phone_norm or "").strip()
+    }
+    page_duplicate_phone_norms = set()
+    if page_phone_norms:
+        page_duplicate_phone_norms = set(
+            all_queryset.filter(representative_phone_norm__in=page_phone_norms)
+            .values("representative_phone_norm")
+            .annotate(total=Count("id"))
+            .filter(total__gt=1)
+            .values_list("representative_phone_norm", flat=True)
+        )
     city_breakdown = (
         all_queryset.exclude(city="")
         .values("city")
@@ -213,6 +272,7 @@ def macro_list(request):
         "local_agent_url": settings.MACRO_LOCAL_AGENT_URL,
         "macro_agent_version": settings.MACRO_AGENT_VERSION,
         "stats": stats,
+        "page_duplicate_phone_norms": page_duplicate_phone_norms,
         "last_capture_at": last_capture_at,
         "last_success_run": last_success_run,
         "city_breakdown": city_breakdown,
@@ -462,6 +522,43 @@ def macro_delete_source(request):
         detail += f" e cidade '{city}'"
     messages.success(request, f"Base especifica removida ({detail}). {deleted_count} registro(s) excluido(s).")
     return _safe_macro_redirect(request.POST)
+
+
+@login_required
+@user_passes_test(_staff_access)
+def macro_delete_blocked(request):
+    if request.method != "POST":
+        return redirect("macro_list")
+    if (request.POST.get("confirm_text") or "").strip().upper() != "EXCLUIR BLOQUEADOS":
+        messages.error(request, 'Para excluir bloqueados, digite "EXCLUIR BLOQUEADOS".')
+        return _filtered_delete_redirect(request.POST)
+
+    queryset = _apply_filters(queryset=MacroLead.objects.all(), params=request.POST).filter(is_blocked_number=True)
+    deleted_count, _ = queryset.delete()
+    messages.success(request, f"{deleted_count} lead(s) bloqueado(s) excluido(s).")
+    return _filtered_delete_redirect(request.POST)
+
+
+@login_required
+@user_passes_test(_staff_access)
+def macro_toggle_phone_block(request, lead_id: int, blocked: bool):
+    if request.method != "POST":
+        return redirect("macro_list")
+
+    lead = get_object_or_404(MacroLead, id=lead_id)
+    now = timezone.now()
+    phone_norm = (lead.representative_phone_norm or "").strip()
+    if phone_norm:
+        affected = MacroLead.objects.filter(representative_phone_norm=phone_norm)
+    else:
+        affected = MacroLead.objects.filter(id=lead.id)
+
+    updated_count = affected.update(is_blocked_number=blocked, last_seen_at=now)
+    if blocked:
+        messages.success(request, f"Numero marcado como bloqueado. Leads afetados: {updated_count}.")
+    else:
+        messages.success(request, f"Numero removido dos bloqueados. Leads afetados: {updated_count}.")
+    return _filtered_delete_redirect(request.POST)
 
 
 @login_required

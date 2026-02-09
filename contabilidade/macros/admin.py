@@ -11,9 +11,10 @@ class MacroLeadAdmin(admin.ModelAdmin):
         "target_region",
         "contract_status",
         "representative_phone",
+        "is_blocked_number",
         "last_seen_at",
     )
-    list_filter = ("city", "contract_status", "company_category", "source")
+    list_filter = ("city", "contract_status", "company_category", "source", "is_blocked_number")
     search_fields = (
         "establishment_name",
         "representative_name",

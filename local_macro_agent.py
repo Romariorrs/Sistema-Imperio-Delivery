@@ -11,7 +11,7 @@ from urllib.parse import parse_qs, urlparse
 
 from contabilidade.macros.collector import build_driver, run_with_metrics
 
-VERSION = os.getenv("MACRO_AGENT_VERSION", "2026.02.06-1").strip()
+VERSION = os.getenv("MACRO_AGENT_VERSION", "v4.4.0").strip()
 
 
 STATE_LOCK = threading.Lock()

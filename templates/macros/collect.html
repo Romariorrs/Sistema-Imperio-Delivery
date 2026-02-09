@@ -45,6 +45,29 @@
     .macro-danger-help { margin: 0 0 8px; color: var(--muted); font-size: 12px; }
     .macro-inline-form { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
     .macro-inline-form input { width: auto; min-width: 150px; }
+    .version-alert {
+        border: 1px solid rgba(255, 195, 77, 0.45);
+        background: linear-gradient(120deg, rgba(255, 195, 77, 0.2), rgba(15, 23, 37, 0.95));
+        border-radius: 12px;
+        padding: 12px;
+        display: none;
+        gap: 10px;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+    }
+    .version-alert.show { display: flex; }
+    .version-alert strong { color: #ffd894; }
+    .version-alert p { margin: 0; color: #ffe7bf; }
+    .version-ok {
+        border: 1px solid rgba(75,214,176,0.35);
+        background: rgba(75,214,176,0.1);
+        border-radius: 12px;
+        padding: 10px 12px;
+        display: none;
+        color: #9df2dc;
+    }
+    .version-ok.show { display: block; }
 </style>
 {% endblock %}
 {% block content %}
@@ -52,12 +75,20 @@
     <div class="macro-header">
         <div class="macro-title-wrap">
             <h2 style="margin:0;">Macros - Coleta local</h2>
-            <span class="macro-tag">v4</span>
+            <span class="macro-tag">{{ macro_agent_version }}</span>
         </div>
         <div class="macro-nav">
             <a class="tab {% if active_tab == 'database' %}active{% endif %}" href="{% url 'macro_list' %}">Banco de dados</a>
             <a class="tab {% if active_tab == 'collect' %}active{% endif %}" href="{% url 'macro_collect' %}">Coleta local</a>
         </div>
+    </div>
+
+    <div id="versionAlert" class="version-alert">
+        <p><strong>NOVA VERSAO DISPONIVEL:</strong> baixe novamente o Coletor (EXE) para usar a versao <b>{{ macro_agent_version }}</b>.</p>
+        <button id="markVersionBtn" class="btn secondary" type="button">Ja baixei esta versao</button>
+    </div>
+    <div id="versionOk" class="version-ok">
+        Coletor local atualizado para a versao {{ macro_agent_version }} neste navegador.
     </div>
 
     <div class="card">
@@ -70,8 +101,8 @@
         </div>
         <div class="macro-main-actions">
             <a class="btn" href="{{ local_agent_url }}?api_url={{ api_import_url|urlencode }}&target_url={{ macro_target_url|urlencode }}" target="_blank" rel="noopener">Abrir painel local</a>
-            <a class="btn secondary" href="{% url 'macro_download_local_agent_exe' %}">Baixar Coletor (EXE)</a>
-            <a class="btn secondary" href="{% url 'macro_download_local_agent_mac' %}">Baixar Coletor (macOS)</a>
+            <a class="btn secondary js-download-agent" href="{% url 'macro_download_local_agent_exe' %}">Baixar Coletor (EXE)</a>
+            <a class="btn secondary js-download-agent" href="{% url 'macro_download_local_agent_mac' %}">Baixar Coletor (macOS)</a>
         </div>
         <p style="margin:10px 0 0;color:var(--muted);">Versao do coletor: {{ macro_agent_version }}</p>
         {% if not local_agent_exe_available %}
@@ -213,4 +244,42 @@
         </table>
     </div>
 </div>
+<script>
+(() => {
+    const currentVersion = "{{ macro_agent_version|escapejs }}";
+    const storageKey = "macro_agent_downloaded_version";
+    const versionAlert = document.getElementById("versionAlert");
+    const versionOk = document.getElementById("versionOk");
+    const markBtn = document.getElementById("markVersionBtn");
+    const downloadLinks = document.querySelectorAll(".js-download-agent");
+
+    if (!currentVersion) {
+        return;
+    }
+
+    const savedVersion = localStorage.getItem(storageKey) || "";
+    const needsDownload = savedVersion !== currentVersion;
+
+    if (needsDownload) {
+        versionAlert.classList.add("show");
+        versionOk.classList.remove("show");
+    } else {
+        versionOk.classList.add("show");
+        versionAlert.classList.remove("show");
+    }
+
+    const markCurrentVersion = () => {
+        localStorage.setItem(storageKey, currentVersion);
+        versionAlert.classList.remove("show");
+        versionOk.classList.add("show");
+    };
+
+    if (markBtn) {
+        markBtn.addEventListener("click", markCurrentVersion);
+    }
+    downloadLinks.forEach((link) => {
+        link.addEventListener("click", markCurrentVersion);
+    });
+})();
+</script>
 {% endblock %}

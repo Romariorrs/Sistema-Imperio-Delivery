@@ -201,7 +201,18 @@ def upsert_rows(rows: Iterable[Mapping[str, Any]], default_source: str = "gattar
                 .first()
             )
         if not lead:
-            lead = MacroLead.objects.create(unique_key=unique_key, **defaults)
+            blocked_phone = defaults.get("representative_phone_norm", "")
+            is_blocked = False
+            if blocked_phone:
+                is_blocked = MacroLead.objects.filter(
+                    representative_phone_norm=blocked_phone,
+                    is_blocked_number=True,
+                ).exists()
+            lead = MacroLead.objects.create(
+                unique_key=unique_key,
+                is_blocked_number=is_blocked,
+                **defaults,
+            )
             was_created = True
 
         if was_created:
@@ -217,6 +228,15 @@ def upsert_rows(rows: Iterable[Mapping[str, Any]], default_source: str = "gattar
             if getattr(lead, field) != incoming:
                 setattr(lead, field, incoming)
                 changed_fields.append(field)
+
+        current_phone = lead.representative_phone_norm
+        if current_phone and not lead.is_blocked_number:
+            if MacroLead.objects.filter(
+                representative_phone_norm=current_phone,
+                is_blocked_number=True,
+            ).exclude(id=lead.id).exists():
+                lead.is_blocked_number = True
+                changed_fields.append("is_blocked_number")
 
         lead.last_seen_at = timezone.now()
         changed_fields.append("last_seen_at")

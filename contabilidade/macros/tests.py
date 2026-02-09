@@ -245,3 +245,128 @@ class MacroScreenTests(TestCase):
         )
         self.assertEqual(resp.status_code, 302)
         self.assertFalse(MacroRun.objects.filter(id=run.id).exists())
+
+    def test_block_and_unblock_phone_updates_same_number(self):
+        lead_a = MacroLead.objects.create(
+            source="api",
+            city="Rio",
+            target_region="R1",
+            establishment_name="Loja A",
+            representative_name="Ana",
+            contract_status="Ativo",
+            representative_phone="21999990000",
+            representative_phone_norm="5521999990000",
+            company_category="Brasileira",
+            address="Rua 1",
+            unique_key="block-1",
+        )
+        lead_b = MacroLead.objects.create(
+            source="api",
+            city="Niteroi",
+            target_region="R2",
+            establishment_name="Loja B",
+            representative_name="Bia",
+            contract_status="Ativo",
+            representative_phone="(21) 99999-0000",
+            representative_phone_norm="5521999990000",
+            company_category="Pizza",
+            address="Rua 2",
+            unique_key="block-2",
+        )
+
+        block_resp = self.client.post(reverse("macro_block_phone", args=[lead_a.id]), data={})
+        self.assertEqual(block_resp.status_code, 302)
+        self.assertEqual(MacroLead.objects.filter(is_blocked_number=True).count(), 2)
+
+        unblock_resp = self.client.post(reverse("macro_unblock_phone", args=[lead_b.id]), data={})
+        self.assertEqual(unblock_resp.status_code, 302)
+        self.assertEqual(MacroLead.objects.filter(is_blocked_number=True).count(), 0)
+
+    def test_delete_blocked_respects_filter(self):
+        MacroLead.objects.create(
+            source="api",
+            city="Rio",
+            target_region="R1",
+            establishment_name="Loja Bloq",
+            representative_name="Ana",
+            contract_status="Ativo",
+            representative_phone="21999990000",
+            representative_phone_norm="5521999990000",
+            is_blocked_number=True,
+            company_category="Brasileira",
+            address="Rua 1",
+            unique_key="blocked-del-1",
+        )
+        MacroLead.objects.create(
+            source="api",
+            city="Sao Paulo",
+            target_region="R2",
+            establishment_name="Loja Livre",
+            representative_name="Joao",
+            contract_status="Ativo",
+            representative_phone="11999998888",
+            representative_phone_norm="5511999998888",
+            is_blocked_number=False,
+            company_category="Pizza",
+            address="Rua 2",
+            unique_key="blocked-del-2",
+        )
+        resp = self.client.post(
+            reverse("macro_delete_blocked"),
+            data={"blocked": "yes", "confirm_text": "EXCLUIR BLOQUEADOS"},
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(MacroLead.objects.count(), 1)
+        self.assertEqual(MacroLead.objects.first().city, "Sao Paulo")
+
+    def test_filter_duplicate_phones(self):
+        MacroLead.objects.create(
+            source="api",
+            city="Rio",
+            target_region="R1",
+            establishment_name="Loja Dup 1",
+            representative_name="Ana",
+            contract_status="Ativo",
+            representative_phone="21999990000",
+            representative_phone_norm="5521999990000",
+            company_category="Brasileira",
+            address="Rua 1",
+            unique_key="dup-filter-1",
+        )
+        MacroLead.objects.create(
+            source="api",
+            city="Niteroi",
+            target_region="R2",
+            establishment_name="Loja Dup 2",
+            representative_name="Bia",
+            contract_status="Ativo",
+            representative_phone="(21) 99999-0000",
+            representative_phone_norm="5521999990000",
+            company_category="Pizza",
+            address="Rua 2",
+            unique_key="dup-filter-2",
+        )
+        MacroLead.objects.create(
+            source="api",
+            city="Sao Paulo",
+            target_region="R3",
+            establishment_name="Loja Unica",
+            representative_name="Joao",
+            contract_status="Ativo",
+            representative_phone="11999998888",
+            representative_phone_norm="5511999998888",
+            company_category="Lanches",
+            address="Rua 3",
+            unique_key="dup-filter-3",
+        )
+
+        duplicates_resp = self.client.get(reverse("macro_list"), data={"phone_dup": "duplicates"})
+        duplicates_page = list(duplicates_resp.context["page_obj"].object_list)
+        self.assertEqual(duplicates_resp.status_code, 200)
+        self.assertEqual(len(duplicates_page), 2)
+
+        unique_resp = self.client.get(reverse("macro_list"), data={"phone_dup": "unique"})
+        unique_page = list(unique_resp.context["page_obj"].object_list)
+        self.assertEqual(unique_resp.status_code, 200)
+        self.assertEqual(len(unique_page), 1)
+        self.assertEqual(unique_page[0].city, "Sao Paulo")

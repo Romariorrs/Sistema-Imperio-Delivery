@@ -1,6 +1,7 @@
 import csv
 import io
 import json
+import logging
 import secrets
 from datetime import timedelta
 from pathlib import Path
@@ -22,6 +23,8 @@ from django.views.decorators.csrf import csrf_exempt
 
 from .models import MacroLead, MacroRun
 from .services import EXPORT_COLUMNS, upsert_rows
+
+logger = logging.getLogger(__name__)
 
 
 def _staff_access(user):
@@ -709,7 +712,17 @@ def macro_api_import(request):
         run_log.save(update_fields=["status", "message", "finished_at"])
         return JsonResponse({"ok": False, "detail": "Payload sem linhas"}, status=400)
 
-    result = upsert_rows(rows, default_source="api")
+    try:
+        result = upsert_rows(rows, default_source="api")
+    except Exception:
+        logger.exception("Falha interna no import da macro API")
+        run_log.status = "error"
+        run_log.finished_at = timezone.now()
+        run_log.total_collected = len(rows)
+        run_log.message = "Erro interno ao processar lote da API."
+        run_log.save(update_fields=["status", "finished_at", "total_collected", "message"])
+        return JsonResponse({"ok": False, "detail": "Internal processing error"}, status=500)
+
     run_log.status = "success"
     run_log.finished_at = timezone.now()
     run_log.total_collected = result["processed"]

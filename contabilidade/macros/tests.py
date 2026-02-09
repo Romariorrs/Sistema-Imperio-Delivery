@@ -1,4 +1,5 @@
 import json
+from unittest.mock import patch
 
 from django.contrib.auth.models import User
 from django.core.cache import cache
@@ -41,6 +42,24 @@ class MacroServicesTests(TestCase):
         lead = MacroLead.objects.first()
         self.assertIsNotNone(lead.lead_created_at)
 
+    def test_upsert_trims_oversized_values(self):
+        row = {
+            "Cidade": "S" * 400,
+            "Nome do estabelecimento": "L" * 400,
+            "Status do contrato": "A" * 150,
+            "Telefone do representante do estabelecimento": "9" * 80,
+            "Categoria da empresa": "C" * 400,
+            "Endereco": "Rua X",
+        }
+        result = upsert_rows([row], default_source="api")
+        self.assertEqual(result["created"], 1)
+        lead = MacroLead.objects.first()
+        self.assertEqual(len(lead.city), 255)
+        self.assertEqual(len(lead.establishment_name), 255)
+        self.assertEqual(len(lead.contract_status), 100)
+        self.assertEqual(len(lead.representative_phone), 50)
+        self.assertEqual(len(lead.company_category), 255)
+
 
 @override_settings(
     MACRO_API_TOKEN="token123",
@@ -63,6 +82,20 @@ class MacroApiImportTests(TestCase):
         )
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(MacroLead.objects.filter(establishment_name="Loja API").count(), 1)
+
+    def test_api_import_marks_error_if_processing_fails(self):
+        payload = [{"Cidade": "Rio", "Nome do estabelecimento": "Loja API"}]
+        with patch("contabilidade.macros.views.upsert_rows", side_effect=RuntimeError("boom")):
+            resp = self.client.post(
+                self.url,
+                data=json.dumps(payload),
+                content_type="application/json",
+                HTTP_AUTHORIZATION="Bearer token123",
+            )
+        self.assertEqual(resp.status_code, 500)
+        run = MacroRun.objects.first()
+        self.assertIsNotNone(run)
+        self.assertEqual(run.status, "error")
 
     @override_settings(MACRO_API_RATE_LIMIT_PER_MINUTE=1)
     def test_api_rate_limit_blocks_second_request(self):

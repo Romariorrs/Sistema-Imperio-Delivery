@@ -48,6 +48,24 @@ HEADER_ALIASES = {
     "source": "source",
 }
 
+FIELD_MAX_LENGTHS = {
+    "source": 50,
+    "city": 255,
+    "target_region": 255,
+    "establishment_name": 255,
+    "representative_name": 255,
+    "contract_status": 100,
+    "representative_phone": 50,
+    "representative_phone_norm": 20,
+    "company_category": 255,
+}
+
+
+def _trim(value: str, max_length: int) -> str:
+    if len(value) <= max_length:
+        return value
+    return value[:max_length]
+
 
 def normalize_text(value: Any) -> str:
     text = str(value or "").strip()
@@ -139,6 +157,8 @@ def normalize_row(raw_row: Mapping[str, Any], default_source: str = "gattaran") 
             parsed[mapped] = normalize_value(mapped, value)
 
     parsed["representative_phone_norm"] = normalize_phone(parsed.get("representative_phone", ""))
+    for field, max_len in FIELD_MAX_LENGTHS.items():
+        parsed[field] = _trim(str(parsed.get(field, "") or "").strip(), max_len)
 
     return parsed
 

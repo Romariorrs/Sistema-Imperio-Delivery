@@ -14,6 +14,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 from webdriver_manager.chrome import ChromeDriverManager
+from webdriver_manager.core.driver_cache import DriverCacheManager
 
 URL = os.getenv("MACRO_TARGET_URL", "https://gattaran.didi-food.com/v2/gtr_crm/leads/list/all")
 MAX_PAGES = int(os.getenv("MACRO_MAX_PAGES", "9999"))
@@ -81,8 +82,17 @@ def _make_chrome_driver(opts: ChromeOptions):
 
     last_error = None
     try:
-        driver_path = ChromeDriverManager(path=wdm_root).install()
+        cache_manager = DriverCacheManager(root_dir=wdm_root)
+        driver_path = ChromeDriverManager(cache_manager=cache_manager).install()
         return webdriver.Chrome(service=Service(driver_path), options=opts)
+    except TypeError:
+        # Compatibilidade com versoes antigas do webdriver_manager.
+        try:
+            driver_path = ChromeDriverManager().install()
+            return webdriver.Chrome(service=Service(driver_path), options=opts)
+        except Exception as exc:
+            last_error = exc
+            logger.warning("Falha ao iniciar Chrome com webdriver_manager (legacy): %s", exc)
     except Exception as exc:
         last_error = exc
         logger.warning("Falha ao iniciar Chrome com webdriver_manager: %s", exc)

@@ -11,7 +11,7 @@ from urllib.parse import parse_qs, urlparse
 
 from contabilidade.macros.collector import build_driver, run_with_metrics
 
-VERSION = os.getenv("MACRO_AGENT_VERSION", "2026.02.10-4").strip()
+VERSION = os.getenv("MACRO_AGENT_VERSION", "2026.02.10-5").strip()
 
 
 STATE_LOCK = threading.Lock()
@@ -27,11 +27,7 @@ BROWSER_LOCK = threading.Lock()
 BROWSER_DRIVER = None
 
 DEFAULT_TARGET_URL = "https://gattaran.didi-food.com/v2/gtr_crm/leads/list/all"
-DEFAULT_PROFILE_DIR = os.path.join(
-    os.getenv("LOCALAPPDATA") or os.getcwd(),
-    "ImperioMacro",
-    "chrome_user_data",
-)
+DEFAULT_PROFILE_DIR = os.path.join(r"C:\ImperioMacro", "chrome_user_data")
 
 
 def _now_text() -> str:

@@ -71,6 +71,25 @@ CHROME_ARGS = [
 ]
 
 
+def _make_chrome_driver(opts: ChromeOptions):
+    """
+    Tenta primeiro Selenium Manager (mais estavel em maquinas de usuario final)
+    e usa webdriver_manager como fallback.
+    """
+    last_error = None
+    try:
+        return webdriver.Chrome(options=opts)
+    except Exception as exc:
+        last_error = exc
+        logger.warning("Falha ao iniciar Chrome com Selenium Manager: %s", exc)
+
+    try:
+        return webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=opts)
+    except Exception as exc:
+        logger.error("Falha ao iniciar Chrome com webdriver_manager: %s", exc)
+        raise RuntimeError(f"Nao foi possivel iniciar o navegador Chrome: {exc}") from (last_error or exc)
+
+
 def _env_bool(name: str, default: bool = False) -> bool:
     return os.getenv(name, str(default)).strip().lower() in {"1", "true", "yes", "on"}
 
@@ -276,7 +295,7 @@ def build_driver(headless: bool = HEADLESS_DEFAULT):
         opts.add_experimental_option("debuggerAddress", debugger_address)
         if binary_path and os.path.isfile(binary_path):
             opts.binary_location = binary_path
-        return webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=opts)
+        return _make_chrome_driver(opts)
 
     opts = ChromeOptions()
     opts.add_argument("--start-maximized")
@@ -295,11 +314,12 @@ def build_driver(headless: bool = HEADLESS_DEFAULT):
         opts.add_argument(f"--user-data-dir={chrome_user_data_dir}")
         opts.add_argument(f"--profile-directory={chrome_profile_dir}")
     else:
-        localapp = os.getenv("LOCALAPPDATA") or os.getcwd()
-        persistent_profile = os.path.join(localapp, "ImperioMacro", "chrome_user_data")
+        # Evita problemas com caminho de perfil contendo acentos no nome do usuario.
+        profile_root = os.getenv("MACRO_PROFILE_ROOT", r"C:\ImperioMacro").strip() or r"C:\ImperioMacro"
+        persistent_profile = os.path.join(profile_root, "chrome_user_data")
         os.makedirs(persistent_profile, exist_ok=True)
         opts.add_argument(f"--user-data-dir={persistent_profile}")
-    return webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=opts)
+    return _make_chrome_driver(opts)
 
 
 def rows_to_dicts(rows: Sequence[Sequence[str]]) -> List[Dict[str, str]]:

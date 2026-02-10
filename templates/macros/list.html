@@ -2,7 +2,13 @@
 {% block title %}Macros - Banco de dados{% endblock %}
 {% block extra_head %}
 <style>
-    .macro-page { display: grid; gap: 14px; }
+    .macro-page {
+        display: grid;
+        gap: 14px;
+        width: min(1400px, 100%);
+        margin-inline: auto;
+    }
+    .macro-page > * { min-width: 0; }
     .macro-header {
         display: flex;
         justify-content: space-between;
@@ -92,7 +98,8 @@
     .macro-kpi-value { font-size: 24px; font-weight: 600; line-height: 1.1; }
     .macro-kpi-note { color: var(--muted); font-size: 12px; margin-top: 4px; }
     .macro-insights { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
-    .macro-filter-form { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr auto; gap: 10px; align-items: end; }
+    .macro-filter-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; align-items: end; }
+    .macro-filter-form > div:last-child { justify-self: end; }
     .macro-pagination { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
     .macro-danger-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 10px; }
     .macro-danger-box { border: 1px dashed rgba(255, 107, 107, 0.45); border-radius: 12px; padding: 10px; }
@@ -124,7 +131,10 @@
         color: var(--text);
         box-shadow: none;
     }
-    @media (max-width: 980px) { .macro-filter-form { grid-template-columns: 1fr; } }
+    @media (max-width: 980px) {
+        .macro-filter-form { grid-template-columns: 1fr; }
+        .macro-filter-form > div:last-child { justify-self: start; }
+    }
 </style>
 {% endblock %}
 {% block content %}
@@ -341,44 +351,46 @@
 
     <div class="card">
         <h3 style="margin:0 0 8px;">Historico de execucoes</h3>
-        <table>
-            <thead>
-                <tr>
-                    <th>Inicio</th>
-                    <th>Tipo</th>
-                    <th>Status</th>
-                    <th>Recebidos</th>
-                    <th>Novos</th>
-                    <th>Atualizados</th>
-                    <th>IP</th>
-                    <th>Mensagem</th>
-                    <th>Acoes</th>
-                </tr>
-            </thead>
-            <tbody>
-            {% for run in recent_runs %}
-                <tr>
-                    <td>{{ run.started_at|date:"d/m/Y H:i" }}</td>
-                    <td>{{ run.get_run_type_display }}</td>
-                    <td>{{ run.get_status_display }}</td>
-                    <td>{{ run.total_received }}</td>
-                    <td>{{ run.created_count }}</td>
-                    <td>{{ run.updated_count }}</td>
-                    <td>{{ run.request_ip|default:"-" }}</td>
-                    <td>{{ run.message|default:"-" }}</td>
-                    <td>
-                        <form method="post" action="{% url 'macro_delete_run_item' run.id %}">
-                            {% csrf_token %}
-                            <input type="hidden" name="next" value="database">
-                            <button class="btn danger" type="submit" onclick="return confirm('Excluir esta execucao do historico?')">Excluir</button>
-                        </form>
-                    </td>
-                </tr>
-            {% empty %}
-                <tr><td colspan="9">Sem execucoes ainda.</td></tr>
-            {% endfor %}
-            </tbody>
-        </table>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Inicio</th>
+                        <th>Tipo</th>
+                        <th>Status</th>
+                        <th>Recebidos</th>
+                        <th>Novos</th>
+                        <th>Atualizados</th>
+                        <th>IP</th>
+                        <th>Mensagem</th>
+                        <th>Acoes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for run in recent_runs %}
+                    <tr>
+                        <td>{{ run.started_at|date:"d/m/Y H:i" }}</td>
+                        <td>{{ run.get_run_type_display }}</td>
+                        <td>{{ run.get_status_display }}</td>
+                        <td>{{ run.total_received }}</td>
+                        <td>{{ run.created_count }}</td>
+                        <td>{{ run.updated_count }}</td>
+                        <td>{{ run.request_ip|default:"-" }}</td>
+                        <td>{{ run.message|default:"-" }}</td>
+                        <td>
+                            <form method="post" action="{% url 'macro_delete_run_item' run.id %}">
+                                {% csrf_token %}
+                                <input type="hidden" name="next" value="database">
+                                <button class="btn danger" type="submit" onclick="return confirm('Excluir esta execucao do historico?')">Excluir</button>
+                            </form>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="9">Sem execucoes ainda.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
 
     <div class="card">
@@ -461,90 +473,92 @@
             <h3 style="margin:0;">Resultados filtrados: {{ filtered_count }}</h3>
             <div style="color:#9fb2d7;">Pagina {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</div>
         </div>
-        <table>
-            <thead>
-                <tr>
-                    <th>Cidade</th>
-                    <th>Regiao</th>
-                    <th>Estabelecimento</th>
-                    <th>Representante</th>
-                    <th>Status</th>
-                    <th>Seu Negocio na 99</th>
-                    <th>Telefone</th>
-                    <th>Categoria</th>
-                    <th>Endereco</th>
-                    <th>Horario lead</th>
-                    <th>Ultima captura</th>
-                    <th>Acoes</th>
-                </tr>
-            </thead>
-            <tbody>
-            {% for item in page_obj %}
-                <tr class="{% if item.is_blocked_number %}macro-row-blocked{% endif %}">
-                    <td>{{ item.city }}</td>
-                    <td>{{ item.target_region }}</td>
-                    <td>{{ item.establishment_name }}</td>
-                    <td>{{ item.representative_name }}</td>
-                    <td>{{ item.contract_status }}</td>
-                    <td>{{ item.business_99_status|default:"--" }}</td>
-                    <td>
-                        {{ item.representative_phone|default:"--" }}
-                        {% if item.is_blocked_number %}
-                            <span class="macro-phone-chip">Bloqueado</span>
-                        {% endif %}
-                        {% if item.representative_phone_norm and item.representative_phone_norm in page_duplicate_phone_norms %}
-                            <span class="macro-phone-chip warn">Duplicado</span>
-                        {% endif %}
-                    </td>
-                    <td>{{ item.company_category }}</td>
-                    <td>{{ item.address }}</td>
-                    <td>
-                        {% if item.lead_created_at %}
-                            {{ item.lead_created_at|date:"d/m/Y H:i" }}
-                        {% else %}
-                            --
-                        {% endif %}
-                    </td>
-                    <td>{{ item.last_seen_at|date:"d/m/Y H:i" }}</td>
-                    <td>
-                        <div class="macro-row-actions">
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Cidade</th>
+                        <th>Regiao</th>
+                        <th>Estabelecimento</th>
+                        <th>Representante</th>
+                        <th>Status</th>
+                        <th>Seu Negocio na 99</th>
+                        <th>Telefone</th>
+                        <th>Categoria</th>
+                        <th>Endereco</th>
+                        <th>Horario lead</th>
+                        <th>Ultima captura</th>
+                        <th>Acoes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for item in page_obj %}
+                    <tr class="{% if item.is_blocked_number %}macro-row-blocked{% endif %}">
+                        <td>{{ item.city }}</td>
+                        <td>{{ item.target_region }}</td>
+                        <td>{{ item.establishment_name }}</td>
+                        <td>{{ item.representative_name }}</td>
+                        <td>{{ item.contract_status }}</td>
+                        <td>{{ item.business_99_status|default:"--" }}</td>
+                        <td>
+                            {{ item.representative_phone|default:"--" }}
                             {% if item.is_blocked_number %}
-                                <form method="post" action="{% url 'macro_unblock_phone' item.id %}">
-                                    {% csrf_token %}
-                                    <input type="hidden" name="q" value="{{ request.GET.q }}">
-                                    <input type="hidden" name="city" value="{{ request.GET.city }}">
-                                    <input type="hidden" name="contract_status" value="{{ request.GET.contract_status }}">
-                                    <input type="hidden" name="business_99_status" value="{{ request.GET.business_99_status }}">
-                                    <input type="hidden" name="company_category" value="{{ request.GET.company_category }}">
-                                    <input type="hidden" name="blocked" value="{{ request.GET.blocked }}">
-                                    <input type="hidden" name="phone_dup" value="{{ request.GET.phone_dup }}">
-                                    <input type="hidden" name="lead_date_from" value="{{ request.GET.lead_date_from }}">
-                                    <input type="hidden" name="lead_date_to" value="{{ request.GET.lead_date_to }}">
-                                    <button class="btn ghost" type="submit">Desbloquear</button>
-                                </form>
-                            {% else %}
-                                <form method="post" action="{% url 'macro_block_phone' item.id %}">
-                                    {% csrf_token %}
-                                    <input type="hidden" name="q" value="{{ request.GET.q }}">
-                                    <input type="hidden" name="city" value="{{ request.GET.city }}">
-                                    <input type="hidden" name="contract_status" value="{{ request.GET.contract_status }}">
-                                    <input type="hidden" name="business_99_status" value="{{ request.GET.business_99_status }}">
-                                    <input type="hidden" name="company_category" value="{{ request.GET.company_category }}">
-                                    <input type="hidden" name="blocked" value="{{ request.GET.blocked }}">
-                                    <input type="hidden" name="phone_dup" value="{{ request.GET.phone_dup }}">
-                                    <input type="hidden" name="lead_date_from" value="{{ request.GET.lead_date_from }}">
-                                    <input type="hidden" name="lead_date_to" value="{{ request.GET.lead_date_to }}">
-                                    <button class="btn danger" type="submit">Bloquear</button>
-                                </form>
+                                <span class="macro-phone-chip">Bloqueado</span>
                             {% endif %}
-                        </div>
-                    </td>
-                </tr>
-            {% empty %}
-                <tr><td colspan="12">Nenhum dado encontrado.</td></tr>
-            {% endfor %}
-            </tbody>
-        </table>
+                            {% if item.representative_phone_norm and item.representative_phone_norm in page_duplicate_phone_norms %}
+                                <span class="macro-phone-chip warn">Duplicado</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ item.company_category }}</td>
+                        <td>{{ item.address }}</td>
+                        <td>
+                            {% if item.lead_created_at %}
+                                {{ item.lead_created_at|date:"d/m/Y H:i" }}
+                            {% else %}
+                                --
+                            {% endif %}
+                        </td>
+                        <td>{{ item.last_seen_at|date:"d/m/Y H:i" }}</td>
+                        <td>
+                            <div class="macro-row-actions">
+                                {% if item.is_blocked_number %}
+                                    <form method="post" action="{% url 'macro_unblock_phone' item.id %}">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="q" value="{{ request.GET.q }}">
+                                        <input type="hidden" name="city" value="{{ request.GET.city }}">
+                                        <input type="hidden" name="contract_status" value="{{ request.GET.contract_status }}">
+                                        <input type="hidden" name="business_99_status" value="{{ request.GET.business_99_status }}">
+                                        <input type="hidden" name="company_category" value="{{ request.GET.company_category }}">
+                                        <input type="hidden" name="blocked" value="{{ request.GET.blocked }}">
+                                        <input type="hidden" name="phone_dup" value="{{ request.GET.phone_dup }}">
+                                        <input type="hidden" name="lead_date_from" value="{{ request.GET.lead_date_from }}">
+                                        <input type="hidden" name="lead_date_to" value="{{ request.GET.lead_date_to }}">
+                                        <button class="btn ghost" type="submit">Desbloquear</button>
+                                    </form>
+                                {% else %}
+                                    <form method="post" action="{% url 'macro_block_phone' item.id %}">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="q" value="{{ request.GET.q }}">
+                                        <input type="hidden" name="city" value="{{ request.GET.city }}">
+                                        <input type="hidden" name="contract_status" value="{{ request.GET.contract_status }}">
+                                        <input type="hidden" name="business_99_status" value="{{ request.GET.business_99_status }}">
+                                        <input type="hidden" name="company_category" value="{{ request.GET.company_category }}">
+                                        <input type="hidden" name="blocked" value="{{ request.GET.blocked }}">
+                                        <input type="hidden" name="phone_dup" value="{{ request.GET.phone_dup }}">
+                                        <input type="hidden" name="lead_date_from" value="{{ request.GET.lead_date_from }}">
+                                        <input type="hidden" name="lead_date_to" value="{{ request.GET.lead_date_to }}">
+                                        <button class="btn danger" type="submit">Bloquear</button>
+                                    </form>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="12">Nenhum dado encontrado.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
 
         <div class="macro-pagination">
             {% if page_obj.has_previous %}

@@ -433,14 +433,22 @@ def run_with_metrics(
             logger.info("Faca login e aplique filtro na tela. Aguardando tabela por ate %ss...", login_timeout)
 
         if not wait_for_table(driver, timeout=login_timeout):
-            logger.error("Tabela nao encontrada dentro do timeout.")
-            return {
-                "rows": [],
-                "collected": 0,
-                "deduplicated": 0,
-                "sent": 0,
-                "to_send": 0,
-            }
+            # Em alguns logins SSO o usuario cai em pagina de links.
+            # Tentamos voltar para URL alvo antes de abortar.
+            logger.warning("Tabela nao encontrada. Tentando navegar para URL alvo e validar novamente...")
+            try:
+                driver.get(final_target_url)
+            except Exception:
+                logger.exception("Falha ao navegar para URL alvo apos timeout inicial.")
+            if not wait_for_table(driver, timeout=min(login_timeout, 120)):
+                logger.error("Tabela nao encontrada dentro do timeout.")
+                return {
+                    "rows": [],
+                    "collected": 0,
+                    "deduplicated": 0,
+                    "sent": 0,
+                    "to_send": 0,
+                }
 
         pos = map_header_positions(driver)
         if len(pos) < 2:

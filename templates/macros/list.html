@@ -2,10 +2,13 @@
 {% block title %}Macros - Banco de dados{% endblock %}
 {% block extra_head %}
 <style>
+    .container {
+        width: min(1720px, calc(100vw - 24px)) !important;
+    }
     .macro-page {
         display: grid;
         gap: 14px;
-        width: min(1400px, 100%);
+        width: 100%;
         margin-inline: auto;
     }
     .macro-page > * { min-width: 0; }

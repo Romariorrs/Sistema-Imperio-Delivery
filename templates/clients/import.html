@@ -1,8 +1,16 @@
 {% extends "base.html" %}
 {% block title %}Importar Clientes{% endblock %}
 {% block content %}
-<div class="card">
-    <h2>Importação</h2>
-    <p>Funcionalidade de importação será adicionada em breve.</p>
+<div class="page-shell">
+    <div class="page-head">
+        <div>
+            <h2>Importacao de Clientes</h2>
+            <div class="muted">Tela reservada para carga em lote.</div>
+        </div>
+        <a class="btn secondary" href="{% url 'client_list' %}">Voltar para clientes</a>
+    </div>
+    <div class="card">
+        <p class="muted">Funcionalidade de importacao sera expandida em breve com preview e validacao.</p>
+    </div>
 </div>
 {% endblock %}

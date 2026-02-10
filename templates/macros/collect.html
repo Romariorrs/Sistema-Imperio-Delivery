@@ -75,7 +75,7 @@
     <div class="macro-header">
         <div class="macro-title-wrap">
             <h2 style="margin:0;">Macros - Coleta local</h2>
-            <span class="macro-tag">{{ macro_agent_version }}</span>
+            <span class="macro-tag">{{ macro_agent_label }}</span>
         </div>
         <div class="macro-nav">
             <a class="tab {% if active_tab == 'database' %}active{% endif %}" href="{% url 'macro_list' %}">Banco de dados</a>
@@ -84,11 +84,11 @@
     </div>
 
     <div id="versionAlert" class="version-alert">
-        <p><strong>NOVA VERSAO DISPONIVEL:</strong> baixe novamente o Coletor (EXE) para usar a versao <b>{{ macro_agent_version }}</b>.</p>
+        <p><strong>NOVA VERSAO DISPONIVEL:</strong> baixe novamente o Coletor (EXE) para usar a versao <b>{{ macro_agent_label }}</b>.</p>
         <button id="markVersionBtn" class="btn secondary" type="button">Ja baixei esta versao</button>
     </div>
     <div id="versionOk" class="version-ok">
-        Coletor local atualizado para a versao {{ macro_agent_version }} neste navegador.
+        Coletor local atualizado para a versao {{ macro_agent_label }} neste navegador.
     </div>
 
     <div class="card">
@@ -104,7 +104,7 @@
             <a class="btn secondary js-download-agent" href="{% url 'macro_download_local_agent_exe' %}">Baixar Coletor (EXE)</a>
             <a class="btn secondary js-download-agent" href="{% url 'macro_download_local_agent_mac' %}">Baixar Coletor (macOS)</a>
         </div>
-        <p style="margin:10px 0 0;color:var(--muted);">Versao do coletor: {{ macro_agent_version }}</p>
+        <p style="margin:10px 0 0;color:var(--muted);">Versao do coletor: {{ macro_agent_label }}</p>
         {% if not local_agent_exe_available %}
             <p style="margin:10px 0 0;color:#ffb86b;">EXE ainda nao disponivel neste servidor.</p>
         {% endif %}
@@ -246,7 +246,7 @@
 </div>
 <script>
 (() => {
-    const currentVersion = "{{ macro_agent_version|escapejs }}";
+    const currentVersion = "{{ macro_agent_label|escapejs }}";
     const storageKey = "macro_agent_downloaded_version";
     const versionAlert = document.getElementById("versionAlert");
     const versionOk = document.getElementById("versionOk");

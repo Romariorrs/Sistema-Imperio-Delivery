@@ -1,16 +1,33 @@
 {% extends "base.html" %}
-{% block title %}Novo Cliente{% endblock %}
+{% block title %}Novo cliente{% endblock %}
 {% block content %}
-<div class="card" style="max-width:640px;">
-    <h2>Novo Cliente</h2>
-    <form method="post">
-        {% csrf_token %}
-        {% for field in form %}
-            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
-            {{ field }}
-            {% if field.errors %}<div class="msg error">{{ field.errors|striptags }}</div>{% endif %}
-        {% endfor %}
-        <button class="btn" type="submit">Salvar</button>
-    </form>
+<div class="page-shell">
+    <div class="page-head">
+        <div>
+            <h2>Novo cliente</h2>
+            <div class="muted">Preencha os dados para cadastrar o cliente no funil de cobranca.</div>
+        </div>
+        <a class="btn secondary" href="{% url 'seller_dashboard' %}">Voltar</a>
+    </div>
+
+    <div class="card" style="max-width:820px;">
+        <form method="post">
+            {% csrf_token %}
+            {% for field in form %}
+                <div>
+                    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {{ field }}
+                    {% if field.help_text %}<small class="muted">{{ field.help_text }}</small>{% endif %}
+                    {% if field.errors %}
+                        <div class="msg error">{{ field.errors|striptags }}</div>
+                    {% endif %}
+                </div>
+            {% endfor %}
+            <div class="page-actions">
+                <button class="btn" type="submit">Salvar cliente</button>
+                <a class="btn secondary" href="{% url 'seller_dashboard' %}">Cancelar</a>
+            </div>
+        </form>
+    </div>
 </div>
 {% endblock %}

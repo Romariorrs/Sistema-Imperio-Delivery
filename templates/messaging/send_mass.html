@@ -1,28 +1,84 @@
 {% extends "base.html" %}
 {% block title %}Envio em Massa{% endblock %}
 {% block content %}
-<div class="card">
-    <h2>Envio em massa</h2>
-    <form method="post" id="mass-form">
-        {% csrf_token %}
-        <div style="display:flex;align-items:center;gap:12px;">
-            <label style="margin:0;">
-                <input type="checkbox" id="select-all" name="select_all" {% if form.select_all.value %}checked{% endif %}>
-                Selecionar todos os clientes
-            </label>
+<div class="page-shell">
+    <div class="page-head">
+        <div>
+            <h2>Envio em Massa</h2>
+            <div class="muted">Gere cobrancas em lote e acompanhe fila de envio.</div>
         </div>
-        <label>Clientes</label>
-        {{ form.clients }}
-        <div class="chips" id="clients-chips"></div>
-        <label>Template</label>
-        {{ form.template }}
-        <label>Valor (opcional)</label>
-        {{ form.amount }}
-        <label>Vencimento (opcional)</label>
-        {{ form.due_date }}
-        <button class="btn" type="submit">Gerar cobranças e enfileirar</button>
-    </form>
+    </div>
+
+    <div class="card">
+        <form method="post" id="mass-form">
+            {% csrf_token %}
+            <div class="inline-actions">
+                <label style="margin:0; display:inline-flex; align-items:center; gap:8px;">
+                    <input type="checkbox" id="select-all" name="select_all" {% if form.select_all.value %}checked{% endif %}>
+                    Selecionar todos os clientes
+                </label>
+            </div>
+            <label>Clientes</label>
+            {{ form.clients }}
+            <div class="chips" id="clients-chips"></div>
+            <label>Template</label>
+            {{ form.template }}
+            <label>Valor (opcional)</label>
+            {{ form.amount }}
+            <label>Vencimento (opcional)</label>
+            {{ form.due_date }}
+            <div class="page-actions">
+                <button class="btn" type="submit">Gerar cobrancas e enfileirar</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="card">
+        <div class="page-head">
+            <h3>Fila recente</h3>
+            <form method="post" action="{% url 'queue_clear' %}" onsubmit="return confirm('Deseja limpar toda a fila?');">
+                {% csrf_token %}
+                <button class="btn secondary" type="submit">Limpar fila</button>
+            </form>
+        </div>
+        <div class="inline-actions" style="margin:10px 0;">
+            <button class="btn" type="button" id="send-now-btn">Enviar fila agora (WhatsApp)</button>
+            <span id="send-now-status" class="muted"></span>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Cliente</th>
+                        <th>Status</th>
+                        <th>Ultima tentativa</th>
+                        <th>Erro</th>
+                        <th>Acoes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for item in queue %}
+                    <tr>
+                        <td>{{ item.client.name }}</td>
+                        <td>{{ item.get_status_display }}</td>
+                        <td>{{ item.sent_at|default:"-" }}</td>
+                        <td>{% if item.status == 'error' %}{{ item.error_message|default:"(sem detalhes)" }}{% else %}-{% endif %}</td>
+                        <td>
+                            <form method="post" action="{% url 'queue_delete' item.id %}" onsubmit="return confirm('Remover este item da fila?');">
+                                {% csrf_token %}
+                                <button class="btn secondary" type="submit">Remover</button>
+                            </form>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="5">Nenhuma mensagem enfileirada.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
 </div>
+
 <script>
 const selectAllCheckbox = document.getElementById('select-all');
 const clientsSelect = document.getElementById('{{ form.clients.id_for_label }}');
@@ -52,49 +108,6 @@ function renderChips() {
 clientsSelect && clientsSelect.addEventListener('change', renderChips);
 renderChips();
 </script>
-
-<div class="card" style="margin-top:16px;">
-    <div style="display:flex;justify-content:space-between;align-items:center;">
-        <h3>Fila recente</h3>
-        <form method="post" action="{% url 'queue_clear' %}" onsubmit="return confirm('Deseja limpar toda a fila?');">
-            {% csrf_token %}
-            <button class="btn secondary" type="submit">Limpar fila</button>
-        </form>
-    </div>
-    <div style="margin-top:8px; display:flex; gap:10px; align-items:center;">
-        <button class="btn" style="background: linear-gradient(90deg, #2d5be3, #28d1a5);" type="button" id="send-now-btn">Enviar fila agora (WhatsApp)</button>
-        <span id="send-now-status" style="color:var(--muted);"></span>
-    </div>
-    <table>
-        <thead>
-            <tr>
-                <th>Cliente</th>
-                <th>Status</th>
-                <th>Última tentativa</th>
-                <th>Erro</th>
-                <th>Ações</th>
-            </tr>
-        </thead>
-        <tbody>
-        {% for item in queue %}
-            <tr>
-                <td>{{ item.client.name }}</td>
-                <td>{{ item.get_status_display }}</td>
-                <td>{{ item.sent_at|default:"—" }}</td>
-                <td>{% if item.status == 'error' %}{{ item.error_message|default:"(sem detalhes)" }}{% else %}—{% endif %}</td>
-                <td>
-                    <form method="post" action="{% url 'queue_delete' item.id %}" onsubmit="return confirm('Remover este item da fila?');">
-                        {% csrf_token %}
-                        <button class="btn secondary" type="submit">Remover</button>
-                    </form>
-                </td>
-            </tr>
-        {% empty %}
-            <tr><td colspan="5">Nenhuma mensagem enfileirada.</td></tr>
-        {% endfor %}
-        </tbody>
-    </table>
-</div>
 
 <form id="csrf-send-now">{% csrf_token %}</form>
 <script>

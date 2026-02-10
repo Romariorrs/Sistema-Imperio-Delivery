@@ -1,24 +1,48 @@
 {% extends "base.html" %}
-{% block title %}Dashboard Vendedor{% endblock %}
+{% block title %}Dashboard vendedor{% endblock %}
 {% block content %}
-<h1>Dashboard do Vendedor</h1>
-<div class="grid">
-    <div class="card">
-        <div class="muted">Total de boletos enviados</div>
-        <h2>{{ total_boletos }}</h2>
+<div class="page-shell">
+    <div class="page-head">
+        <div>
+            <h2>Painel do vendedor</h2>
+            <div class="muted">Visao rapida de cobrancas, faturamento e comissao.</div>
+        </div>
+        <div class="inline-actions">
+            <span class="chip">Vendedor: {{ seller.name }}</span>
+            <span class="chip">Tipo comissao: {{ seller.get_commission_type_display }}</span>
+        </div>
     </div>
-    <div class="card">
-        <div class="muted">Valor total em boletos</div>
-        <h2>R$ {{ valor_total|floatformat:2 }}</h2>
+
+    <div class="kpi-grid">
+        <div class="kpi-card">
+            <div class="kpi-label">Boletos gerados</div>
+            <div class="kpi-value">{{ total_boletos }}</div>
+            <div class="kpi-note">Total de cobrancas cadastradas</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-label">Valor total</div>
+            <div class="kpi-value">R$ {{ valor_total|floatformat:2 }}</div>
+            <div class="kpi-note">Somatorio de todos os boletos</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-label">Valor pago</div>
+            <div class="kpi-value">R$ {{ valor_total_pago|floatformat:2 }}</div>
+            <div class="kpi-note">Apenas cobrancas compensadas</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-label">Comissao estimada</div>
+            <div class="kpi-value">R$ {{ comissao_estimada|floatformat:2 }}</div>
+            <div class="kpi-note">Calculada sobre boletos pagos</div>
+        </div>
     </div>
+
     <div class="card">
-        <div class="muted">Comissão (apenas pagos)</div>
-        <h2>R$ {{ comissao_estimada|floatformat:2 }}</h2>
+        <h3 style="margin-bottom:10px;">Acoes rapidas</h3>
+        <div class="page-actions">
+            <a class="btn" href="{% url 'seller_client_create' %}">Cadastrar cliente</a>
+            <a class="btn secondary" href="{% url 'seller_billing_create' %}">Gerar boleto</a>
+            <a class="btn secondary" href="{% url 'seller_logout' %}">Sair</a>
+        </div>
     </div>
-</div>
-<div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
-    <a class="btn" href="{% url 'seller_client_create' %}">Cadastrar cliente</a>
-    <a class="btn" href="{% url 'seller_billing_create' %}">Gerar boleto</a>
-    <a class="btn secondary" href="{% url 'seller_logout' %}">Sair</a>
 </div>
 {% endblock %}

@@ -1,150 +1,153 @@
-﻿{% extends "base.html" %}
-{% block title %}Usuarios do Sistema{% endblock %}
-{% block content %}
+{% extends "base.html" %}
+{% block title %}Administracao de usuarios{% endblock %}
+{% block extra_head %}
 <style>
-.admin-grid {display:grid;grid-template-columns:1.2fr 1fr;gap:16px;align-items:start;}
-.panel {background:rgba(12,18,28,0.35);border:1px solid var(--border);border-radius:14px;padding:14px;}
-.check-pill {display:inline-flex;align-items:center;gap:8px;background:rgba(22,34,54,0.6);border:1px solid var(--border);border-radius:999px;padding:6px 10px;margin-right:8px;}
-.btn-small {padding:6px 10px;font-size:12px;}
-.btn-danger {background:#b53b3b;color:#fff;border:1px solid #c05252;}
-.badge {display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;}
-.badge-yes {background:#1f8a6a;color:#e8fff6;}
-.badge-no {background:#2b3444;color:#cbd5e1;}
-.actions {display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+    .admin-layout { display:grid; gap:14px; }
+    .admin-form-grid { display:grid; grid-template-columns: 1.3fr .9fr; gap:12px; }
+    .admin-panel {
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 12px;
+        background: rgba(255,255,255,0.02);
+    }
+    .admin-alerts { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:10px; }
+    .admin-alert { border:1px solid var(--border); border-radius:12px; padding:10px; background: rgba(255,255,255,0.02); }
+    .admin-alert.warning { border-color: rgba(255, 107, 107, .4); background: rgba(255, 107, 107, .1); }
+    .admin-alert.success { border-color: rgba(45, 212, 191, .35); background: rgba(45, 212, 191, .1); }
+    .admin-inline { display:inline-flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .admin-table-actions { display:flex; gap:8px; flex-wrap:wrap; }
+    .admin-check {
+        display:inline-flex;
+        align-items:center;
+        gap:8px;
+        border:1px solid var(--border);
+        border-radius:999px;
+        padding:6px 10px;
+        background: rgba(255,255,255,0.04);
+        color: #d7d7d7;
+        font-size: 12px;
+    }
+    @media (max-width: 980px) { .admin-form-grid { grid-template-columns: 1fr; } }
 </style>
+{% endblock %}
+{% block content %}
+<div class="admin-layout">
+    <div class="page-head">
+        <div>
+            <h2>Administracao de usuarios</h2>
+            <div class="muted">Controle de acesso e configuracao de vendedor.</div>
+        </div>
+    </div>
 
-<div class="card">
-    <h2>Alertas do sistema</h2>
-    {% if alerts %}
-        <ul style="list-style:none;padding:0;margin:10px 0 0 0;display:flex;flex-direction:column;gap:8px;">
-        {% for alert in alerts %}
-            <li style="padding:10px;border:1px solid var(--border);border-radius:10px;background:rgba(255,255,255,0.02);">
-                {% if alert.level == 'warning' %}
-                    <span class="badge danger">Atenção</span>
-                {% elif alert.level == 'success' %}
-                    <span class="badge success">OK</span>
-                {% else %}
-                    <span class="badge">Info</span>
-                {% endif %}
-                <strong style="margin-left:6px;">{{ alert.title }}</strong><br>
-                <span class="muted">{{ alert.detail }}</span>
-            </li>
-        {% endfor %}
-        </ul>
-    {% else %}
-        <p class="muted">Nenhum alerta.</p>
-    {% endif %}
-</div>
+    <div class="card">
+        <h3 style="margin-bottom:10px;">Alertas do sistema</h3>
+        <div class="admin-alerts">
+            {% for alert in alerts %}
+                <div class="admin-alert {{ alert.level }}">
+                    {% if alert.level == "warning" %}
+                        <span class="badge danger">Atencao</span>
+                    {% elif alert.level == "success" %}
+                        <span class="badge success">OK</span>
+                    {% else %}
+                        <span class="badge">Info</span>
+                    {% endif %}
+                    <div style="margin-top:8px; font-weight:600;">{{ alert.title }}</div>
+                    <div class="muted" style="margin-top:4px;">{{ alert.detail }}</div>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
 
-<div class="card" style="margin-top:16px;">
-    <h2>Usuarios do Sistema</h2>
-    <form method="post">
-        {% csrf_token %}
-        <input type="hidden" name="user_id" value="{% if edit_user %}{{ edit_user.id }}{% endif %}">
-        <div class="admin-grid">
-            <div class="panel">
-                <h4 style="margin:0 0 10px 0;">Dados do usuario</h4>
-                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;">
+    <div class="card">
+        <h3 style="margin-bottom:10px;">{% if edit_user %}Editar usuario{% else %}Criar usuario{% endif %}</h3>
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="user_id" value="{% if edit_user %}{{ edit_user.id }}{% endif %}">
+            <div class="admin-form-grid">
+                <div class="admin-panel">
+                    <h4 style="margin:0 0 10px;">Dados de acesso</h4>
                     <div>
                         <label>Usuario</label>
                         <input type="text" name="username" value="{% if edit_user %}{{ edit_user.username }}{% endif %}" required>
                     </div>
                     <div>
-                        <label>Senha</label>
+                        <label>Senha{% if edit_user %} (opcional){% endif %}</label>
                         <input type="password" name="password" {% if not edit_user %}required{% endif %} placeholder="{% if edit_user %}Deixe em branco para manter{% endif %}">
                     </div>
+                    <div class="admin-inline" style="margin-top:10px;">
+                        <label class="admin-check"><input type="checkbox" name="is_staff" {% if edit_user and edit_user.is_staff %}checked{% endif %}> Staff</label>
+                        <label class="admin-check"><input type="checkbox" name="is_superuser" {% if edit_user and edit_user.is_superuser %}checked{% endif %}> Superuser</label>
+                    </div>
                 </div>
-                <div style="margin-top:12px;">
-                    <label class="check-pill"><input type="checkbox" name="is_staff" {% if edit_user and edit_user.is_staff %}checked{% endif %}> Staff</label>
-                    <label class="check-pill"><input type="checkbox" name="is_superuser" {% if edit_user and edit_user.is_superuser %}checked{% endif %}> Superuser</label>
-                </div>
-            </div>
-            <div class="panel">
-                <h4 style="margin:0 0 10px 0;">Configuracao de vendedor</h4>
-                <div>
-                    <label class="check-pill"><input type="checkbox" name="is_seller" id="is_seller" {% if edit_seller and edit_seller.active %}checked{% endif %}> E vendedor</label>
-                </div>
-                <div style="margin-top:10px;display:grid;gap:10px;">
+
+                <div class="admin-panel">
+                    <h4 style="margin:0 0 10px;">Perfil vendedor</h4>
+                    <label class="admin-check" style="margin-bottom:10px;"><input type="checkbox" name="is_seller" {% if edit_seller and edit_seller.active %}checked{% endif %}> Habilitar como vendedor</label>
                     <div>
-                        <label>Nome do vendedor</label>
-                        <input type="text" name="seller_name" placeholder="Nome do vendedor" value="{% if edit_seller %}{{ edit_seller.name }}{% endif %}">
+                        <label>Nome vendedor</label>
+                        <input type="text" name="seller_name" value="{% if edit_seller %}{{ edit_seller.name }}{% elif edit_user %}{{ edit_user.username }}{% endif %}" placeholder="Nome exibido">
                     </div>
                     <div>
-                        <label>Tipo de comissao</label>
+                        <label>Tipo comissao</label>
                         <select name="commission_type">
-                            {% for k,v in commission_choices %}
-                            <option value="{{ k }}" {% if edit_seller and edit_seller.commission_type == k %}selected{% endif %}>{{ v }}</option>
+                            {% for k, v in commission_choices %}
+                                <option value="{{ k }}" {% if edit_seller and edit_seller.commission_type == k %}selected{% endif %}>{{ v }}</option>
                             {% endfor %}
                         </select>
                     </div>
                     <div>
-                        <label>Valor ou percentual</label>
-                        <input type="number" step="0.01" name="commission_value" value="{% if edit_seller %}{{ edit_seller.commission_value }}{% else %}0{% endif %}">
+                        <label>Valor comissao</label>
+                        <input type="number" step="0.01" min="0" name="commission_value" value="{% if edit_seller %}{{ edit_seller.commission_value }}{% else %}0{% endif %}">
                     </div>
                 </div>
             </div>
-        </div>
-        <div class="actions" style="margin-top:14px;">
-            <button class="btn" type="submit">{% if edit_user %}Salvar usuario{% else %}Criar usuario{% endif %}</button>
-            {% if edit_user %}
-            <a class="btn secondary" href="{% url 'admin_users' %}">Cancelar edicao</a>
-            {% endif %}
-        </div>
-    </form>
-</div>
 
-<div class="card" style="margin-top:16px;">
-    <h3>Lista de usuarios</h3>
-    <table>
-        <thead>
-            <tr>
-                <th>Usuario</th>
-                <th>Staff</th>
-                <th>Superuser</th>
-                <th>Vendedor</th>
-                <th>Acao</th>
-            </tr>
-        </thead>
-        <tbody>
-        {% for u in users %}
-            <tr>
-                <td>{{ u.username }}</td>
-                <td>
-                    {% if u.is_staff %}
-                        <span class="badge badge-yes">Sim</span>
-                    {% else %}
-                        <span class="badge badge-no">Nao</span>
-                    {% endif %}
-                </td>
-                <td>
-                    {% if u.is_superuser %}
-                        <span class="badge badge-yes">Sim</span>
-                    {% else %}
-                        <span class="badge badge-no">Nao</span>
-                    {% endif %}
-                </td>
-                <td>
-                    {% if u.seller_profile and u.seller_profile.active %}
-                        <span class="badge badge-yes">Sim</span>
-                    {% else %}
-                        <span class="badge badge-no">Nao</span>
-                    {% endif %}
-                </td>
-                <td>
-                    <div class="actions">
-                        <a class="btn secondary btn-small" href="?edit={{ u.id }}">Editar</a>
-                        <form method="post" style="display:inline;">
-                            {% csrf_token %}
-                            <input type="hidden" name="delete_user_id" value="{{ u.id }}">
-                            <button class="btn btn-small btn-danger" type="submit" onclick="return confirm('Excluir usuario {{ u.username }}?');">Excluir</button>
-                        </form>
-                    </div>
-                </td>
-            </tr>
-        {% empty %}
-            <tr><td colspan="5">Nenhum usuario.</td></tr>
-        {% endfor %}
-        </tbody>
-    </table>
+            <div class="page-actions" style="margin-top:12px;">
+                <button class="btn" type="submit">{% if edit_user %}Salvar alteracoes{% else %}Criar usuario{% endif %}</button>
+                {% if edit_user %}
+                    <a class="btn secondary" href="{% url 'admin_users' %}">Cancelar edicao</a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+
+    <div class="card">
+        <h3 style="margin-bottom:10px;">Usuarios cadastrados</h3>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Usuario</th>
+                        <th>Staff</th>
+                        <th>Superuser</th>
+                        <th>Vendedor</th>
+                        <th>Acoes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for u in users %}
+                    <tr>
+                        <td>{{ u.username }}</td>
+                        <td>{% if u.is_staff %}<span class="badge success">Sim</span>{% else %}<span class="badge">Nao</span>{% endif %}</td>
+                        <td>{% if u.is_superuser %}<span class="badge success">Sim</span>{% else %}<span class="badge">Nao</span>{% endif %}</td>
+                        <td>{% if u.seller_profile and u.seller_profile.active %}<span class="badge success">Sim</span>{% else %}<span class="badge">Nao</span>{% endif %}</td>
+                        <td>
+                            <div class="admin-table-actions">
+                                <a class="btn secondary" href="?edit={{ u.id }}">Editar</a>
+                                <form method="post" style="display:inline;">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="delete_user_id" value="{{ u.id }}">
+                                    <button class="btn danger" type="submit" onclick="return confirm('Excluir usuario {{ u.username }}?');">Excluir</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="5">Nenhum usuario.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
 </div>
 {% endblock %}

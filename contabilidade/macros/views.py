@@ -3,7 +3,7 @@ import io
 import json
 import logging
 import secrets
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 import zipfile
 from typing import Iterable
@@ -127,6 +127,17 @@ def _lead_sources():
     )
 
 
+def _macro_agent_version_meta():
+    version = (settings.MACRO_AGENT_VERSION or "").strip() or "v0.0.0"
+    exe_path = Path(settings.MACRO_LOCAL_AGENT_EXE_PATH)
+    build = ""
+    if exe_path.exists():
+        modified_at = datetime.fromtimestamp(exe_path.stat().st_mtime)
+        build = modified_at.strftime("%Y%m%d-%H%M")
+    label = f"{version}-{build}" if build else version
+    return {"version": version, "build": build, "label": label}
+
+
 def _staff_or_token(request):
     if request.user.is_authenticated and _staff_access(request.user):
         return True
@@ -189,6 +200,7 @@ def _rows_from_json_payload(payload) -> Iterable[dict]:
 @login_required
 @user_passes_test(_staff_access)
 def macro_list(request):
+    version_meta = _macro_agent_version_meta()
     all_queryset = MacroLead.objects.all()
     filtered_queryset = _apply_filters(request, queryset=all_queryset)
     paginator = Paginator(filtered_queryset, 100)
@@ -273,7 +285,9 @@ def macro_list(request):
         "filter_querystring": query_params.urlencode(),
         "recent_runs": recent_runs,
         "local_agent_url": settings.MACRO_LOCAL_AGENT_URL,
-        "macro_agent_version": settings.MACRO_AGENT_VERSION,
+        "macro_agent_version": version_meta["version"],
+        "macro_agent_build": version_meta["build"],
+        "macro_agent_label": version_meta["label"],
         "stats": stats,
         "page_duplicate_phone_norms": page_duplicate_phone_norms,
         "last_capture_at": last_capture_at,
@@ -289,6 +303,7 @@ def macro_list(request):
 @login_required
 @user_passes_test(_staff_access)
 def macro_collect(request):
+    version_meta = _macro_agent_version_meta()
     last_success_run = MacroRun.objects.filter(status="success").first()
     last_error_run = MacroRun.objects.filter(status="error").first()
     runs_24h = MacroRun.objects.filter(started_at__gte=timezone.now() - timedelta(hours=24))
@@ -301,7 +316,9 @@ def macro_collect(request):
         "recent_runs": MacroRun.objects.all()[:12],
         "local_agent_url": settings.MACRO_LOCAL_AGENT_URL,
         "local_agent_exe_available": exe_path.exists(),
-        "macro_agent_version": settings.MACRO_AGENT_VERSION,
+        "macro_agent_version": version_meta["version"],
+        "macro_agent_build": version_meta["build"],
+        "macro_agent_label": version_meta["label"],
         "total_records": MacroLead.objects.count(),
         "last_capture_at": MacroLead.objects.order_by("-last_seen_at").values_list("last_seen_at", flat=True).first(),
         "last_success_run": last_success_run,

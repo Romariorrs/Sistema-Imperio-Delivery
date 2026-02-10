@@ -1,25 +1,35 @@
 {% extends "base.html" %}
 {% block title %}Envio Individual{% endblock %}
 {% block content %}
-<div class="card" style="max-width:720px;">
-    <h2>Envio individual</h2>
-    <form method="post">
-        {% csrf_token %}
-        <label>Cliente</label>
-        {{ form.client }}
-        <label>Template</label>
-        {{ form.template }}
-        <label>Valor (opcional)</label>
-        {{ form.amount }}
-        <label>Vencimento</label>
-        {{ form.due_date }}
-        <button class="btn" type="submit">Gerar cobrança e enfileirar</button>
-    </form>
-    {% if payment_link %}
-        <div style="margin-top:12px;">
-            <div class="badge success">Link gerado</div>
-            <p><a href="{{ payment_link }}" target="_blank">{{ payment_link }}</a></p>
+<div class="page-shell">
+    <div class="page-head">
+        <div>
+            <h2>Envio Individual</h2>
+            <div class="muted">Geracao de cobranca unica com mensagem imediata.</div>
         </div>
-    {% endif %}
+    </div>
+
+    <div class="card" style="max-width:760px;">
+        <form method="post">
+            {% csrf_token %}
+            <label>Cliente</label>
+            {{ form.client }}
+            <label>Template</label>
+            {{ form.template }}
+            <label>Valor (opcional)</label>
+            {{ form.amount }}
+            <label>Vencimento</label>
+            {{ form.due_date }}
+            <div class="page-actions">
+                <button class="btn" type="submit">Gerar cobranca e enfileirar</button>
+            </div>
+        </form>
+        {% if payment_link %}
+            <div style="margin-top:12px;">
+                <div class="badge success">Link gerado</div>
+                <p><a href="{{ payment_link }}" target="_blank">{{ payment_link }}</a></p>
+            </div>
+        {% endif %}
+    </div>
 </div>
 {% endblock %}

@@ -1,15 +1,204 @@
 {% extends "base.html" %}
-{% block title %}Login Vendedor{% endblock %}
+{% load static %}
+{% block title %}Login Vendedor - Imperio Delivery{% endblock %}
+{% block extra_head %}
+<style>
+    .auth-shell {
+        width: min(1180px, 100%);
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: 1.08fr .92fr;
+        gap: 18px;
+        align-items: stretch;
+    }
+    .auth-visual {
+        border: 1px solid rgba(255,255,255,.15);
+        border-radius: 24px;
+        background:
+            linear-gradient(165deg, rgba(249,115,22,.2), rgba(5,5,5,.88) 55%),
+            url("{% static 'lumina/assets/6e8af32c-e155-4b33-9e0a-eb91a9_c1c7ef5e7858.webp' %}") center/cover no-repeat;
+        position: relative;
+        overflow: hidden;
+        padding: 28px;
+        min-height: 620px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+    }
+    .auth-visual::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(circle at 78% 12%, rgba(251,146,60,.38), transparent 42%);
+        pointer-events: none;
+    }
+    .auth-kicker {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        width: fit-content;
+        border: 1px solid rgba(255,255,255,.2);
+        border-radius: 999px;
+        padding: 6px 10px;
+        color: #ffbe8b;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: .12em;
+        font-weight: 700;
+        background: rgba(0,0,0,.35);
+    }
+    .auth-kicker i {
+        width: 7px;
+        height: 7px;
+        border-radius: 999px;
+        background: #f97316;
+        box-shadow: 0 0 12px rgba(249,115,22,.85);
+    }
+    .auth-title {
+        margin-top: 26px;
+        max-width: 15ch;
+        font-size: clamp(2.2rem, 4.8vw, 4.8rem);
+        line-height: .9;
+        letter-spacing: -.03em;
+        color: #fff;
+    }
+    .auth-title span {
+        color: transparent;
+        background: linear-gradient(90deg, #fff, #d4d4d4 45%, #f97316);
+        -webkit-background-clip: text;
+        background-clip: text;
+    }
+    .auth-sub {
+        margin-top: 14px;
+        max-width: 52ch;
+        color: #d0d0d0;
+        font-size: 15px;
+        line-height: 1.6;
+    }
+    .auth-stats {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 28px;
+    }
+    .auth-stat {
+        border: 1px solid rgba(255,255,255,.2);
+        border-radius: 14px;
+        background: rgba(8,8,8,.55);
+        padding: 12px;
+        backdrop-filter: blur(7px);
+    }
+    .auth-stat b {
+        display: block;
+        font-size: 20px;
+        color: #fff;
+        margin-bottom: 3px;
+    }
+    .auth-stat span {
+        color: #b9b9b9;
+        font-size: 12px;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+    }
+    .auth-bottom {
+        margin-top: auto;
+        color: #d2d2d2;
+        border-top: 1px solid rgba(255,255,255,.15);
+        padding-top: 16px;
+        font-size: 14px;
+        line-height: 1.5;
+    }
+    .auth-panel {
+        border: 1px solid rgba(255,255,255,.16);
+        border-radius: 24px;
+        background: linear-gradient(180deg, rgba(19,19,19,.82), rgba(11,11,11,.95));
+        box-shadow: 0 22px 56px rgba(0,0,0,.42);
+        padding: 28px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+    .auth-panel h2 { margin-bottom: 6px; }
+    .auth-panel p {
+        margin: 0 0 20px;
+        color: #b4b4b4;
+        font-size: 14px;
+    }
+    .auth-form { gap: 14px; }
+    .field-icon { position: relative; }
+    .field-icon input { padding-right: 42px; }
+    .field-icon svg {
+        position: absolute;
+        right: 14px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 16px;
+        height: 16px;
+        color: #8b8b8b;
+    }
+    .btn-auth {
+        margin-top: 8px;
+        width: 100%;
+        min-height: 46px;
+        letter-spacing: .12em;
+    }
+    .auth-help {
+        margin-top: 12px;
+        color: #9c9c9c;
+        font-size: 12px;
+        text-align: center;
+        text-transform: uppercase;
+        letter-spacing: .08em;
+    }
+    @media (max-width: 980px) {
+        .auth-shell { grid-template-columns: 1fr; }
+        .auth-visual { min-height: 420px; }
+        .auth-stats { grid-template-columns: 1fr; }
+    }
+</style>
+{% endblock %}
 {% block content %}
-<div class="card" style="max-width:420px;margin:40px auto;">
-    <h2>Login Vendedor</h2>
-    <form method="post">
-        {% csrf_token %}
-        <label>Usuário</label>
-        <input type="text" name="username" required>
-        <label>Senha</label>
-        <input type="password" name="password" required>
-        <button class="btn" type="submit">Entrar</button>
-    </form>
+<div class="auth-shell">
+    <section class="auth-visual">
+        <div>
+            <div class="auth-kicker"><i></i> Area Comercial</div>
+            <h1 class="auth-title">Painel de <span>vendas de alta conversao</span></h1>
+            <p class="auth-sub">
+                Cadastre clientes, gere cobrancas e acompanhe comissao em um fluxo direto.
+                Interface orientada para velocidade no dia a dia do vendedor.
+            </p>
+            <div class="auth-stats">
+                <div class="auth-stat"><b>+Clientes</b><span>Captacao diaria</span></div>
+                <div class="auth-stat"><b>Boleto</b><span>Geracao rapida</span></div>
+                <div class="auth-stat"><b>Comissao</b><span>Acompanhamento</span></div>
+            </div>
+        </div>
+        <div class="auth-bottom">
+            Seller Workspace<br>
+            Fluxo de venda, cobranca e acompanhamento em uma so tela.
+        </div>
+    </section>
+
+    <section class="auth-panel">
+        <h2>Login Vendedor</h2>
+        <p>Entre com seu usuario vendedor para continuar.</p>
+        <form method="post" class="auth-form">
+            {% csrf_token %}
+            <label>Usuario</label>
+            <div class="field-icon">
+                <input type="text" name="username" autocomplete="username" required>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21a8 8 0 1 0-16 0"/><circle cx="12" cy="7" r="4"/></svg>
+            </div>
+
+            <label>Senha</label>
+            <div class="field-icon">
+                <input type="password" name="password" autocomplete="current-password" required>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V8a5 5 0 0 1 10 0v3"/></svg>
+            </div>
+
+            <button class="btn btn-auth" type="submit">Entrar</button>
+        </form>
+        <div class="auth-help">acesso de vendedor</div>
+    </section>
 </div>
 {% endblock %}

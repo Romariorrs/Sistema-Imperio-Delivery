@@ -92,12 +92,20 @@
         box-shadow: 0 0 12px rgba(249,115,22,.85);
     }
     .auth-title {
-        margin-top: 26px;
+        margin-top: 16px;
         max-width: 14ch;
         font-size: clamp(2.3rem, 4.9vw, 4.9rem);
         line-height: .9;
         letter-spacing: -.03em;
         color: #fff;
+    }
+    .auth-company {
+        margin-top: 18px;
+        color: #ffd3ab;
+        font-size: 13px;
+        letter-spacing: .18em;
+        text-transform: uppercase;
+        font-weight: 700;
     }
     .auth-title span {
         color: transparent;
@@ -105,18 +113,11 @@
         -webkit-background-clip: text;
         background-clip: text;
     }
-    .auth-sub {
-        margin-top: 14px;
-        max-width: 52ch;
-        color: #d0d0d0;
-        font-size: 15px;
-        line-height: 1.6;
-    }
     .auth-stats {
         display: grid;
         grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 10px;
-        margin-top: 28px;
+        margin-top: 22px;
     }
     .auth-stat {
         border: 1px solid rgba(255,255,255,.2);
@@ -180,6 +181,40 @@
         width: 100%;
         min-height: 46px;
         letter-spacing: .12em;
+        position: relative;
+        overflow: hidden;
+        isolation: isolate;
+        border: 1px solid transparent;
+        background: transparent !important;
+        box-shadow: none;
+    }
+    .btn-auth::before {
+        content: "";
+        position: absolute;
+        inset: -2px;
+        border-radius: inherit;
+        background: conic-gradient(
+            from 0deg,
+            rgba(255, 132, 36, 0) 0deg,
+            rgba(255, 132, 36, 0) 305deg,
+            rgba(255, 132, 36, 0.96) 332deg,
+            rgba(255, 132, 36, 0) 360deg
+        );
+        animation: auth-btn-orbit 2.5s linear infinite;
+        z-index: -2;
+    }
+    .btn-auth::after {
+        content: "";
+        position: absolute;
+        inset: 1px;
+        border-radius: inherit;
+        background:
+            radial-gradient(70% 120% at 50% 120%, rgba(251, 191, 36, 0.75) 0%, rgba(251, 191, 36, 0) 72%),
+            linear-gradient(180deg, #ff8d2f, #f97316);
+        z-index: -1;
+    }
+    @keyframes auth-btn-orbit {
+        to { transform: rotate(1turn); }
     }
     .auth-help {
         margin-top: 12px;
@@ -202,11 +237,8 @@
         <div class="auth-rain" aria-hidden="true"></div>
         <div>
             <div class="auth-kicker"><i></i> Plataforma Inteligente</div>
-            <h1 class="auth-title">Gestao com <span>performance visual</span></h1>
-            <p class="auth-sub">
-                Dashboard, cobranca, WhatsApp, macros e banco de leads em um fluxo unico.
-                Entre para operar tudo com velocidade e clareza.
-            </p>
+            <div class="auth-company">Imperio Delivery</div>
+            <h1 class="auth-title">Gestao com <span>Performace</span></h1>
             <div class="auth-stats">
                 <div class="auth-stat"><b>+4</b><span>Modulos ativos</span></div>
                 <div class="auth-stat"><b>24/7</b><span>Operacao</span></div>

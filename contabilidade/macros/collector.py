@@ -73,21 +73,32 @@ CHROME_ARGS = [
 
 def _make_chrome_driver(opts: ChromeOptions):
     """
-    Tenta primeiro Selenium Manager (mais estavel em maquinas de usuario final)
-    e usa webdriver_manager como fallback.
+    Usa webdriver_manager em pasta ASCII para evitar falhas em Windows
+    com usuario contendo acentos no caminho.
     """
+    wdm_root = os.getenv("WDM_ROOT", r"C:\ImperioMacro\wdm").strip() or r"C:\ImperioMacro\wdm"
+    os.makedirs(wdm_root, exist_ok=True)
+
     last_error = None
     try:
-        return webdriver.Chrome(options=opts)
+        driver_path = ChromeDriverManager(path=wdm_root).install()
+        return webdriver.Chrome(service=Service(driver_path), options=opts)
     except Exception as exc:
         last_error = exc
-        logger.warning("Falha ao iniciar Chrome com Selenium Manager: %s", exc)
+        logger.warning("Falha ao iniciar Chrome com webdriver_manager: %s", exc)
 
-    try:
-        return webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=opts)
-    except Exception as exc:
-        logger.error("Falha ao iniciar Chrome com webdriver_manager: %s", exc)
-        raise RuntimeError(f"Nao foi possivel iniciar o navegador Chrome: {exc}") from (last_error or exc)
+    # Fallback opcional para Selenium Manager.
+    if _env_bool("USE_SELENIUM_MANAGER_FALLBACK", False):
+        try:
+            return webdriver.Chrome(options=opts)
+        except Exception as exc:
+            logger.error("Falha ao iniciar Chrome com Selenium Manager fallback: %s", exc)
+            raise RuntimeError(f"Nao foi possivel iniciar o navegador Chrome: {exc}") from (last_error or exc)
+
+    raise RuntimeError(
+        "Nao foi possivel iniciar o navegador Chrome. "
+        "Verifique instalacao do Chrome e permissao para executar o driver."
+    ) from last_error
 
 
 def _env_bool(name: str, default: bool = False) -> bool:

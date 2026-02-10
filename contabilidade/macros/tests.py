@@ -37,10 +37,12 @@ class MacroServicesTests(TestCase):
             "Nome do estabelecimento": "Loja Data",
             "Telefone do representante do estabelecimento": "11999990000",
             "Horario de criacao do lead": "2026-02-02 13:45:20 UTC-3",
+            "Seu Negocio na 99": "Nao ativado",
         }
         upsert_rows([row], default_source="api")
         lead = MacroLead.objects.first()
         self.assertIsNotNone(lead.lead_created_at)
+        self.assertEqual(lead.business_99_status, "Nao ativado")
 
     def test_upsert_trims_oversized_values(self):
         row = {

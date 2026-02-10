@@ -17,6 +17,7 @@ EXPORT_COLUMNS = (
     ("establishment_name", "Nome do estabelecimento"),
     ("representative_name", "Nome do representante 99"),
     ("contract_status", "Status do contrato"),
+    ("business_99_status", "Seu Negocio na 99"),
     ("representative_phone", "Telefone do representante do estabelecimento"),
     ("company_category", "Categoria da empresa"),
     ("address", "Endereco"),
@@ -39,6 +40,10 @@ HEADER_ALIASES = {
     "representative_name": "representative_name",
     "status do contrato": "contract_status",
     "contract_status": "contract_status",
+    "seu negocio na 99": "business_99_status",
+    "seu_negocio_na_99": "business_99_status",
+    "business 99 status": "business_99_status",
+    "business_99_status": "business_99_status",
     "telefone do representante do estabelecimento": "representative_phone",
     "representative_phone": "representative_phone",
     "categoria da empresa": "company_category",
@@ -55,6 +60,7 @@ FIELD_MAX_LENGTHS = {
     "establishment_name": 255,
     "representative_name": 255,
     "contract_status": 100,
+    "business_99_status": 100,
     "representative_phone": 50,
     "representative_phone_norm": 20,
     "company_category": 255,
@@ -90,7 +96,7 @@ def normalize_phone(value: Any) -> str:
 
 def normalize_value(field: str, value: Any) -> str:
     text = str(value or "").strip()
-    if field in {"city", "target_region", "contract_status", "company_category"}:
+    if field in {"city", "target_region", "contract_status", "business_99_status", "company_category"}:
         return normalize_text(text)
     if field in {"establishment_name", "representative_name", "address"}:
         return re.sub(r"\s+", " ", text).strip()

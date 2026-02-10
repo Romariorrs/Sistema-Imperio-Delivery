@@ -43,6 +43,7 @@ FIELD_TARGETS = [
     "Nome do estabelecimento",
     "Nome do representante 99",
     "Status do contrato",
+    "Seu Negocio na 99",
     "Telefone do representante do estabelecimento",
     "Categoria da empresa",
     "Endereco",
@@ -55,6 +56,7 @@ FALLBACK_INDICES = {
     "Nome do estabelecimento": 5,
     "Nome do representante 99": 9,
     "Status do contrato": 10,
+    "Seu Negocio na 99": 12,
     "Telefone do representante do estabelecimento": 13,
     "Categoria da empresa": 26,
     "Endereco": 27,
@@ -156,6 +158,8 @@ def extract_rows(driver, pos: Dict[str, int]) -> List[List[str]]:
                     candidates.append(primary)
                 if "Telefone do representante" in field:
                     candidates.extend([13, len(cells) - 1])
+                elif "Seu Negocio na 99" in field:
+                    candidates.extend([12, 11, 13])
                 elif "Categoria da empresa" in field:
                     candidates.extend([26, 25, 27, 28, 24, 29])
                 elif "Endereco" in field:

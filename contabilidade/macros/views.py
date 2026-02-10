@@ -38,6 +38,7 @@ def _apply_filters(request=None, queryset=None, params=None):
     q_digits = "".join(char for char in q if char.isdigit())
     city = (params.get("city") or "").strip()
     contract_status = (params.get("contract_status") or "").strip()
+    business_99_status = (params.get("business_99_status") or "").strip()
     company_category = (params.get("company_category") or "").strip()
     blocked = (params.get("blocked") or "").strip().lower()
     phone_dup = (params.get("phone_dup") or "").strip().lower()
@@ -58,6 +59,7 @@ def _apply_filters(request=None, queryset=None, params=None):
             | Q(establishment_name__icontains=q)
             | Q(representative_name__icontains=q)
             | Q(contract_status__icontains=q)
+            | Q(business_99_status__icontains=q)
             | Q(representative_phone__icontains=q)
             | Q(company_category__icontains=q)
             | Q(address__icontains=q)
@@ -69,6 +71,8 @@ def _apply_filters(request=None, queryset=None, params=None):
         queryset = queryset.filter(city=city)
     if contract_status:
         queryset = queryset.filter(contract_status=contract_status)
+    if business_99_status:
+        queryset = queryset.filter(business_99_status=business_99_status)
     if company_category:
         queryset = queryset.filter(company_category=company_category)
     if blocked == "yes":
@@ -105,6 +109,7 @@ def _filtered_delete_redirect(params):
             "q",
             "city",
             "contract_status",
+            "business_99_status",
             "company_category",
             "blocked",
             "phone_dup",
@@ -262,6 +267,12 @@ def macro_list(request):
         .annotate(total=Count("id"))
         .order_by("-total", "contract_status")[:10]
     )
+    business_99_breakdown = (
+        all_queryset.exclude(business_99_status="")
+        .values("business_99_status")
+        .annotate(total=Count("id"))
+        .order_by("-total", "business_99_status")[:10]
+    )
     last_capture_at = all_queryset.order_by("-last_seen_at").values_list("last_seen_at", flat=True).first()
     recent_runs = MacroRun.objects.all()[:12]
     last_success_run = MacroRun.objects.filter(status="success").first()
@@ -275,6 +286,10 @@ def macro_list(request):
         .values_list("contract_status", flat=True)
         .distinct()
         .order_by("contract_status"),
+        "business_99_statuses": MacroLead.objects.exclude(business_99_status="")
+        .values_list("business_99_status", flat=True)
+        .distinct()
+        .order_by("business_99_status"),
         "categories": MacroLead.objects.exclude(company_category="")
         .values_list("company_category", flat=True)
         .distinct()
@@ -295,6 +310,7 @@ def macro_list(request):
         "city_breakdown": city_breakdown,
         "category_breakdown": category_breakdown,
         "status_breakdown": status_breakdown,
+        "business_99_breakdown": business_99_breakdown,
         "sources": _lead_sources(),
     }
     return render(request, "macros/list.html", context)

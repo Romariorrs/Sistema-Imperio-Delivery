@@ -10,6 +10,7 @@ class MacroLead(models.Model):
     establishment_name = models.CharField(max_length=255, blank=True, db_index=True)
     representative_name = models.CharField(max_length=255, blank=True, db_index=True)
     contract_status = models.CharField(max_length=100, blank=True, db_index=True)
+    business_99_status = models.CharField(max_length=100, blank=True, db_index=True)
     representative_phone = models.CharField(max_length=50, blank=True, db_index=True)
     representative_phone_norm = models.CharField(max_length=20, blank=True, db_index=True)
     is_blocked_number = models.BooleanField(default=False, db_index=True)

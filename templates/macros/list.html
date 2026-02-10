@@ -92,7 +92,7 @@
     .macro-kpi-value { font-size: 24px; font-weight: 600; line-height: 1.1; }
     .macro-kpi-note { color: var(--muted); font-size: 12px; margin-top: 4px; }
     .macro-insights { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
-    .macro-filter-form { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr auto; gap: 10px; align-items: end; }
+    .macro-filter-form { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr auto; gap: 10px; align-items: end; }
     .macro-pagination { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
     .macro-danger-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 10px; }
     .macro-danger-box { border: 1px dashed rgba(255, 107, 107, 0.45); border-radius: 12px; padding: 10px; }
@@ -161,6 +161,7 @@
                     <input type="hidden" name="q" value="{{ request.GET.q }}">
                     <input type="hidden" name="city" value="{{ request.GET.city }}">
                     <input type="hidden" name="contract_status" value="{{ request.GET.contract_status }}">
+                    <input type="hidden" name="business_99_status" value="{{ request.GET.business_99_status }}">
                     <input type="hidden" name="company_category" value="{{ request.GET.company_category }}">
                     <input type="hidden" name="blocked" value="{{ request.GET.blocked }}">
                     <input type="hidden" name="phone_dup" value="{{ request.GET.phone_dup }}">
@@ -178,6 +179,7 @@
                     <input type="hidden" name="q" value="{{ request.GET.q }}">
                     <input type="hidden" name="city" value="{{ request.GET.city }}">
                     <input type="hidden" name="contract_status" value="{{ request.GET.contract_status }}">
+                    <input type="hidden" name="business_99_status" value="{{ request.GET.business_99_status }}">
                     <input type="hidden" name="company_category" value="{{ request.GET.company_category }}">
                     <input type="hidden" name="blocked" value="{{ request.GET.blocked }}">
                     <input type="hidden" name="phone_dup" value="{{ request.GET.phone_dup }}">
@@ -322,6 +324,19 @@
                 </tbody>
             </table>
         </div>
+        <div class="card">
+            <h3 style="margin:0;">Seu Negocio na 99</h3>
+            <table>
+                <thead><tr><th>Status</th><th>Quantidade</th></tr></thead>
+                <tbody>
+                {% for row in business_99_breakdown %}
+                    <tr><td>{{ row.business_99_status }}</td><td>{{ row.total }}</td></tr>
+                {% empty %}
+                    <tr><td colspan="2">Sem dados.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
 
     <div class="card">
@@ -392,6 +407,15 @@
                 </select>
             </div>
             <div>
+                <label>Seu Negocio na 99</label>
+                <select name="business_99_status">
+                    <option value="">Todos</option>
+                    {% for value in business_99_statuses %}
+                        <option value="{{ value }}" {% if request.GET.business_99_status == value %}selected{% endif %}>{{ value }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
                 <label>Categoria</label>
                 <select name="company_category">
                     <option value="">Todas</option>
@@ -445,6 +469,7 @@
                     <th>Estabelecimento</th>
                     <th>Representante</th>
                     <th>Status</th>
+                    <th>Seu Negocio na 99</th>
                     <th>Telefone</th>
                     <th>Categoria</th>
                     <th>Endereco</th>
@@ -461,6 +486,7 @@
                     <td>{{ item.establishment_name }}</td>
                     <td>{{ item.representative_name }}</td>
                     <td>{{ item.contract_status }}</td>
+                    <td>{{ item.business_99_status|default:"--" }}</td>
                     <td>
                         {{ item.representative_phone|default:"--" }}
                         {% if item.is_blocked_number %}
@@ -488,6 +514,7 @@
                                     <input type="hidden" name="q" value="{{ request.GET.q }}">
                                     <input type="hidden" name="city" value="{{ request.GET.city }}">
                                     <input type="hidden" name="contract_status" value="{{ request.GET.contract_status }}">
+                                    <input type="hidden" name="business_99_status" value="{{ request.GET.business_99_status }}">
                                     <input type="hidden" name="company_category" value="{{ request.GET.company_category }}">
                                     <input type="hidden" name="blocked" value="{{ request.GET.blocked }}">
                                     <input type="hidden" name="phone_dup" value="{{ request.GET.phone_dup }}">
@@ -501,6 +528,7 @@
                                     <input type="hidden" name="q" value="{{ request.GET.q }}">
                                     <input type="hidden" name="city" value="{{ request.GET.city }}">
                                     <input type="hidden" name="contract_status" value="{{ request.GET.contract_status }}">
+                                    <input type="hidden" name="business_99_status" value="{{ request.GET.business_99_status }}">
                                     <input type="hidden" name="company_category" value="{{ request.GET.company_category }}">
                                     <input type="hidden" name="blocked" value="{{ request.GET.blocked }}">
                                     <input type="hidden" name="phone_dup" value="{{ request.GET.phone_dup }}">
@@ -513,7 +541,7 @@
                     </td>
                 </tr>
             {% empty %}
-                <tr><td colspan="11">Nenhum dado encontrado.</td></tr>
+                <tr><td colspan="12">Nenhum dado encontrado.</td></tr>
             {% endfor %}
             </tbody>
         </table>

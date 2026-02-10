@@ -25,12 +25,49 @@
         flex-direction: column;
         justify-content: space-between;
     }
+    .auth-visual > * {
+        position: relative;
+        z-index: 2;
+    }
     .auth-visual::before {
         content: "";
         position: absolute;
         inset: 0;
         background: radial-gradient(circle at 78% 12%, rgba(251,146,60,.38), transparent 42%);
         pointer-events: none;
+    }
+    .auth-rain {
+        position: absolute;
+        inset: 0;
+        z-index: 1;
+        pointer-events: none;
+        overflow: hidden;
+    }
+    .auth-rain::before,
+    .auth-rain::after {
+        content: "";
+        position: absolute;
+        inset: -140% -35%;
+        background:
+            linear-gradient(180deg, rgba(249,115,22,0) 0%, rgba(249,115,22,.45) 44%, rgba(249,115,22,0) 100%),
+            repeating-linear-gradient(
+                90deg,
+                transparent 0 86px,
+                rgba(249,115,22,.38) 86px 87px,
+                transparent 87px 170px
+            );
+        transform: translateY(-34%) skewY(-10deg);
+        animation: auth-rain-fall 11s linear infinite;
+        opacity: .28;
+    }
+    .auth-rain::after {
+        animation-duration: 17s;
+        animation-delay: -4s;
+        opacity: .14;
+    }
+    @keyframes auth-rain-fall {
+        from { transform: translateY(-36%) skewY(-10deg); }
+        to { transform: translateY(34%) skewY(-10deg); }
     }
     .auth-kicker {
         display: inline-flex;
@@ -160,6 +197,7 @@
 {% block content %}
 <div class="auth-shell">
     <section class="auth-visual">
+        <div class="auth-rain" aria-hidden="true"></div>
         <div>
             <div class="auth-kicker"><i></i> Area Comercial</div>
             <h1 class="auth-title">Painel de <span>vendas de alta conversao</span></h1>

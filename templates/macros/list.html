@@ -26,6 +26,60 @@
         background: var(--accent);
         font-weight: 600;
     }
+    .macro-orbit {
+        --orbit-surface: rgba(22, 22, 22, 0.9);
+        position: relative;
+        isolation: isolate;
+        overflow: hidden;
+        border: 1px solid transparent !important;
+    }
+    .macro-orbit::before {
+        content: "";
+        position: absolute;
+        inset: -2px;
+        border-radius: inherit;
+        background: conic-gradient(
+            from 0deg,
+            rgba(255, 132, 36, 0) 0deg,
+            rgba(255, 132, 36, 0) 300deg,
+            rgba(255, 132, 36, 0.95) 330deg,
+            rgba(255, 132, 36, 0) 360deg
+        );
+        animation: macro-orbit-spin 2.6s linear infinite;
+        z-index: -2;
+    }
+    .macro-orbit::after {
+        content: "";
+        position: absolute;
+        inset: 1px;
+        border-radius: inherit;
+        background: var(--orbit-surface);
+        z-index: -1;
+    }
+    .macro-nav .tab.macro-orbit {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .macro-nav .tab.macro-orbit.active {
+        --orbit-surface: linear-gradient(180deg, #ff912e, #f97316);
+        color: #091018;
+        font-weight: 700;
+    }
+    .btn.macro-orbit {
+        box-shadow: none;
+        background: transparent !important;
+    }
+    .btn.secondary.macro-orbit {
+        color: #efe8df;
+    }
+    .btn.macro-orbit:not(.secondary) {
+        --orbit-surface: linear-gradient(180deg, #ff912e, #f97316);
+        color: #fff;
+    }
+    @keyframes macro-orbit-spin {
+        to { transform: rotate(1turn); }
+    }
     .macro-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
     .macro-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
     .macro-kpi {
@@ -81,18 +135,18 @@
             <span class="macro-tag">{{ macro_agent_label }}</span>
         </div>
         <div class="macro-nav">
-            <a class="tab {% if active_tab == 'database' %}active{% endif %}" href="{% url 'macro_list' %}">Banco de dados</a>
-            <a class="tab {% if active_tab == 'collect' %}active{% endif %}" href="{% url 'macro_collect' %}">Coleta local</a>
+            <a class="tab macro-orbit {% if active_tab == 'database' %}active{% endif %}" href="{% url 'macro_list' %}">Banco de dados</a>
+            <a class="tab macro-orbit {% if active_tab == 'collect' %}active{% endif %}" href="{% url 'macro_collect' %}">Coleta local</a>
         </div>
     </div>
 
     <div class="macro-actions">
-        <a class="btn secondary" href="{% url 'macro_export_csv' %}?{{ filter_querystring }}">Exportar CSV</a>
-        <a class="btn secondary" href="{% url 'macro_export_xlsx' %}?{{ filter_querystring }}">Exportar XLSX</a>
+        <a class="btn secondary macro-orbit" href="{% url 'macro_export_csv' %}?{{ filter_querystring }}">Exportar CSV</a>
+        <a class="btn secondary macro-orbit" href="{% url 'macro_export_xlsx' %}?{{ filter_querystring }}">Exportar XLSX</a>
         <form method="post" action="{% url 'macro_import_csv' %}" enctype="multipart/form-data" style="display:flex;gap:8px;align-items:center;">
             {% csrf_token %}
             <input type="file" name="file" accept=".csv" required style="max-width:180px;">
-            <button class="btn secondary" type="submit">Importar CSV</button>
+            <button class="btn secondary macro-orbit" type="submit">Importar CSV</button>
         </form>
     </div>
 
@@ -372,8 +426,8 @@
                 <input type="date" name="lead_date_to" value="{{ request.GET.lead_date_to }}">
             </div>
             <div style="display:flex;gap:8px;">
-                <button class="btn" type="submit">Filtrar</button>
-                <a class="btn secondary" href="{% url 'macro_list' %}">Limpar</a>
+                <button class="btn macro-orbit" type="submit">Filtrar</button>
+                <a class="btn secondary macro-orbit" href="{% url 'macro_list' %}">Limpar</a>
             </div>
         </form>
     </div>

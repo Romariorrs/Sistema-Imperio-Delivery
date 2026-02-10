@@ -26,6 +26,60 @@
         background: var(--accent);
         font-weight: 600;
     }
+    .macro-orbit {
+        --orbit-surface: rgba(22, 22, 22, 0.9);
+        position: relative;
+        isolation: isolate;
+        overflow: hidden;
+        border: 1px solid transparent !important;
+    }
+    .macro-orbit::before {
+        content: "";
+        position: absolute;
+        inset: -2px;
+        border-radius: inherit;
+        background: conic-gradient(
+            from 0deg,
+            rgba(255, 132, 36, 0) 0deg,
+            rgba(255, 132, 36, 0) 300deg,
+            rgba(255, 132, 36, 0.95) 330deg,
+            rgba(255, 132, 36, 0) 360deg
+        );
+        animation: macro-orbit-spin 2.6s linear infinite;
+        z-index: -2;
+    }
+    .macro-orbit::after {
+        content: "";
+        position: absolute;
+        inset: 1px;
+        border-radius: inherit;
+        background: var(--orbit-surface);
+        z-index: -1;
+    }
+    .macro-nav .tab.macro-orbit {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .macro-nav .tab.macro-orbit.active {
+        --orbit-surface: linear-gradient(180deg, #ff912e, #f97316);
+        color: #091018;
+        font-weight: 700;
+    }
+    .btn.macro-orbit {
+        box-shadow: none;
+        background: transparent !important;
+    }
+    .btn.secondary.macro-orbit {
+        color: #efe8df;
+    }
+    .btn.macro-orbit:not(.secondary) {
+        --orbit-surface: linear-gradient(180deg, #ff912e, #f97316);
+        color: #fff;
+    }
+    @keyframes macro-orbit-spin {
+        to { transform: rotate(1turn); }
+    }
     .macro-muted { color: var(--muted); margin: 0; }
     .macro-steps { display: grid; gap: 8px; margin: 12px 0; }
     .macro-step { display: flex; gap: 10px; align-items: center; color: var(--muted); }
@@ -78,14 +132,14 @@
             <span class="macro-tag">{{ macro_agent_label }}</span>
         </div>
         <div class="macro-nav">
-            <a class="tab {% if active_tab == 'database' %}active{% endif %}" href="{% url 'macro_list' %}">Banco de dados</a>
-            <a class="tab {% if active_tab == 'collect' %}active{% endif %}" href="{% url 'macro_collect' %}">Coleta local</a>
+            <a class="tab macro-orbit {% if active_tab == 'database' %}active{% endif %}" href="{% url 'macro_list' %}">Banco de dados</a>
+            <a class="tab macro-orbit {% if active_tab == 'collect' %}active{% endif %}" href="{% url 'macro_collect' %}">Coleta local</a>
         </div>
     </div>
 
     <div id="versionAlert" class="version-alert">
         <p><strong>NOVA VERSAO DISPONIVEL:</strong> baixe novamente o Coletor (EXE) para usar a versao <b>{{ macro_agent_label }}</b>.</p>
-        <button id="markVersionBtn" class="btn secondary" type="button">Ja baixei esta versao</button>
+        <button id="markVersionBtn" class="btn secondary macro-orbit" type="button">Ja baixei esta versao</button>
     </div>
     <div id="versionOk" class="version-ok">
         Coletor local atualizado para a versao {{ macro_agent_label }} neste navegador.
@@ -100,9 +154,9 @@
             <div class="macro-step"><b>3</b><span>Faca login/filtro no portal e clique em Comecar coleta no painel local.</span></div>
         </div>
         <div class="macro-main-actions">
-            <a class="btn" href="{{ local_agent_url }}?api_url={{ api_import_url|urlencode }}&target_url={{ macro_target_url|urlencode }}" target="_blank" rel="noopener">Abrir painel local</a>
-            <a class="btn secondary js-download-agent" href="{% url 'macro_download_local_agent_exe' %}">Baixar Coletor (EXE)</a>
-            <a class="btn secondary js-download-agent" href="{% url 'macro_download_local_agent_mac' %}">Baixar Coletor (macOS)</a>
+            <a class="btn macro-orbit" href="{{ local_agent_url }}?api_url={{ api_import_url|urlencode }}&target_url={{ macro_target_url|urlencode }}" target="_blank" rel="noopener">Abrir painel local</a>
+            <a class="btn secondary macro-orbit js-download-agent" href="{% url 'macro_download_local_agent_exe' %}">Baixar Coletor (EXE)</a>
+            <a class="btn secondary macro-orbit js-download-agent" href="{% url 'macro_download_local_agent_mac' %}">Baixar Coletor (macOS)</a>
         </div>
         <p style="margin:10px 0 0;color:var(--muted);">Versao do coletor: {{ macro_agent_label }}</p>
         {% if not local_agent_exe_available %}

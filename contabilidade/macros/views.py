@@ -202,9 +202,33 @@ def _rows_from_json_payload(payload) -> Iterable[dict]:
     return []
 
 
+def _safe_int(value, default=0):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _close_stale_running_runs() -> int:
+    stale_minutes = max(1, int(getattr(settings, "MACRO_RUN_STALE_MINUTES", 30) or 30))
+    cutoff = timezone.now() - timedelta(minutes=stale_minutes)
+    stale_qs = MacroRun.objects.filter(status="running", started_at__lt=cutoff, finished_at__isnull=True)
+    stale_count = stale_qs.count()
+    if stale_count:
+        stale_qs.update(
+            status="error",
+            finished_at=timezone.now(),
+            message=f"Execucao encerrada automaticamente apos {stale_minutes} minutos sem finalizacao.",
+        )
+    return stale_count
+
+
 @login_required
 @user_passes_test(_staff_access)
 def macro_list(request):
+    stale_count = _close_stale_running_runs()
+    if stale_count:
+        messages.warning(request, f"{stale_count} execucao(oes) antiga(s) em andamento foram encerradas automaticamente.")
     version_meta = _macro_agent_version_meta()
     all_queryset = MacroLead.objects.all()
     filtered_queryset = _apply_filters(request, queryset=all_queryset)
@@ -319,6 +343,9 @@ def macro_list(request):
 @login_required
 @user_passes_test(_staff_access)
 def macro_collect(request):
+    stale_count = _close_stale_running_runs()
+    if stale_count:
+        messages.warning(request, f"{stale_count} execucao(oes) antiga(s) em andamento foram encerradas automaticamente.")
     version_meta = _macro_agent_version_meta()
     last_success_run = MacroRun.objects.filter(status="success").first()
     last_error_run = MacroRun.objects.filter(status="error").first()
@@ -720,6 +747,8 @@ def macro_api_import(request):
     if _rate_limited(request):
         return JsonResponse({"ok": False, "detail": "Rate limit exceeded"}, status=429)
 
+    _close_stale_running_runs()
+
     run_log = MacroRun.objects.create(
         run_type="api",
         status="running",
@@ -737,12 +766,15 @@ def macro_api_import(request):
         run_log.save(update_fields=["status", "message", "finished_at"])
         return JsonResponse({"ok": False, "detail": "Invalid JSON"}, status=400)
 
+    meta = payload.get("meta") if isinstance(payload, dict) and isinstance(payload.get("meta"), dict) else {}
     rows = _rows_from_json_payload(payload)
     if not rows:
         run_log.status = "error"
+        run_log.pages_processed = _safe_int(meta.get("pages_processed"), 0)
+        run_log.total_collected = _safe_int(meta.get("collected_total"), 0)
         run_log.message = "Payload sem linhas."
         run_log.finished_at = timezone.now()
-        run_log.save(update_fields=["status", "message", "finished_at"])
+        run_log.save(update_fields=["status", "message", "finished_at", "pages_processed", "total_collected"])
         return JsonResponse({"ok": False, "detail": "Payload sem linhas"}, status=400)
 
     try:
@@ -751,26 +783,44 @@ def macro_api_import(request):
         logger.exception("Falha interna no import da macro API")
         run_log.status = "error"
         run_log.finished_at = timezone.now()
-        run_log.total_collected = len(rows)
+        run_log.total_collected = _safe_int(meta.get("collected_total"), len(rows))
+        run_log.pages_processed = _safe_int(meta.get("pages_processed"), 0)
         run_log.message = "Erro interno ao processar lote da API."
-        run_log.save(update_fields=["status", "finished_at", "total_collected", "message"])
+        run_log.save(update_fields=["status", "finished_at", "total_collected", "pages_processed", "message"])
         return JsonResponse({"ok": False, "detail": "Internal processing error"}, status=500)
+
+    batch_index = _safe_int(meta.get("batch_index"), 0)
+    batch_total = _safe_int(meta.get("batch_total"), 0)
+    pages_processed = _safe_int(meta.get("pages_processed"), 0)
+    collected_total = _safe_int(meta.get("collected_total"), 0)
+    sent_after = _safe_int(meta.get("sent_after"), result["processed"])
+    message_parts = ["Importacao API concluida."]
+    if batch_total > 1 and batch_index > 0:
+        message_parts.append(f"Lote {batch_index}/{batch_total}.")
+    if pages_processed > 0:
+        message_parts.append(f"Paginas: {pages_processed}.")
+    if collected_total > 0:
+        message_parts.append(f"Coletados: {collected_total}.")
 
     run_log.status = "success"
     run_log.finished_at = timezone.now()
-    run_log.total_collected = result["processed"]
+    run_log.total_collected = collected_total or result["processed"]
     run_log.total_received = result["processed"]
+    run_log.total_sent = sent_after
+    run_log.pages_processed = pages_processed
     run_log.created_count = result["created"]
     run_log.updated_count = result["updated"]
     run_log.ignored_count = result["ignored"]
     run_log.invalid_count = result["invalid"]
-    run_log.message = "Importacao API concluida."
+    run_log.message = " ".join(message_parts)
     run_log.save(
         update_fields=[
             "status",
             "finished_at",
             "total_collected",
             "total_received",
+            "total_sent",
+            "pages_processed",
             "created_count",
             "updated_count",
             "ignored_count",

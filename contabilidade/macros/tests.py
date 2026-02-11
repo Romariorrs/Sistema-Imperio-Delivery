@@ -5,6 +5,8 @@ from django.contrib.auth.models import User
 from django.core.cache import cache
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
+from datetime import timedelta
 
 from contabilidade.macros.models import MacroLead, MacroRun
 from contabilidade.macros.services import upsert_rows
@@ -116,6 +118,31 @@ class MacroApiImportTests(TestCase):
         )
         self.assertEqual(first.status_code, 200)
         self.assertEqual(second.status_code, 429)
+
+    def test_api_import_saves_meta_pages_and_collected_total(self):
+        payload = {
+            "rows": [{"Cidade": "Recife", "Nome do estabelecimento": "Loja Meta"}],
+            "meta": {
+                "pages_processed": 62,
+                "collected_total": 3072,
+                "batch_index": 1,
+                "batch_total": 8,
+                "sent_after": 400,
+            },
+        }
+        resp = self.client.post(
+            self.url,
+            data=json.dumps(payload),
+            content_type="application/json",
+            HTTP_AUTHORIZATION="Bearer token123",
+        )
+        self.assertEqual(resp.status_code, 200)
+        run = MacroRun.objects.first()
+        self.assertIsNotNone(run)
+        self.assertEqual(run.pages_processed, 62)
+        self.assertEqual(run.total_collected, 3072)
+        self.assertEqual(run.total_sent, 400)
+        self.assertIn("Lote 1/8", run.message)
 
 
 class MacroScreenTests(TestCase):
@@ -405,3 +432,18 @@ class MacroScreenTests(TestCase):
         self.assertEqual(unique_resp.status_code, 200)
         self.assertEqual(len(unique_page), 1)
         self.assertEqual(unique_page[0].city, "Sao Paulo")
+
+    @override_settings(MACRO_RUN_STALE_MINUTES=1)
+    def test_collect_page_closes_stale_running_runs(self):
+        run = MacroRun.objects.create(
+            run_type="api",
+            status="running",
+            source="api",
+            message="aguardando",
+        )
+        MacroRun.objects.filter(id=run.id).update(started_at=timezone.now() - timedelta(minutes=10))
+        resp = self.client.get(reverse("macro_collect"))
+        self.assertEqual(resp.status_code, 200)
+        run.refresh_from_db()
+        self.assertEqual(run.status, "error")
+        self.assertIsNotNone(run.finished_at)

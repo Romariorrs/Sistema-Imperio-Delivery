@@ -56,6 +56,7 @@ class MacroRun(models.Model):
     request_ip = models.GenericIPAddressField(null=True, blank=True)
     total_collected = models.PositiveIntegerField(default=0)
     total_received = models.PositiveIntegerField(default=0)
+    pages_processed = models.PositiveIntegerField(default=0)
     total_sent = models.PositiveIntegerField(default=0)
     created_count = models.PositiveIntegerField(default=0)
     updated_count = models.PositiveIntegerField(default=0)

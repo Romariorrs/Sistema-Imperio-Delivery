@@ -131,7 +131,7 @@ MACRO_TARGET_URL = os.getenv(
 ).strip()
 MACRO_IMPORT_API_URL = os.getenv("MACRO_IMPORT_API_URL", "").strip()
 MACRO_LOCAL_AGENT_URL = os.getenv("MACRO_LOCAL_AGENT_URL", "http://127.0.0.1:8765/").strip()
-MACRO_AGENT_VERSION = os.getenv("MACRO_AGENT_VERSION", "2026.02.10-8").strip()
+MACRO_AGENT_VERSION = os.getenv("MACRO_AGENT_VERSION", "2026.02.11-1").strip()
 MACRO_LOCAL_AGENT_EXE_PATH = os.getenv(
     "MACRO_LOCAL_AGENT_EXE_PATH",
     str(BASE_DIR / "downloads" / "ColetorMacro.exe"),
@@ -142,3 +142,7 @@ try:
     MACRO_API_RATE_LIMIT_PER_MINUTE = int(os.getenv("MACRO_API_RATE_LIMIT_PER_MINUTE", "60"))
 except ValueError:
     MACRO_API_RATE_LIMIT_PER_MINUTE = 60
+try:
+    MACRO_RUN_STALE_MINUTES = int(os.getenv("MACRO_RUN_STALE_MINUTES", "30"))
+except ValueError:
+    MACRO_RUN_STALE_MINUTES = 30

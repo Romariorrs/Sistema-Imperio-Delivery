@@ -65,11 +65,13 @@ class Command(BaseCommand):
             )
             run_log.status = "success"
             run_log.finished_at = timezone.now()
-            run_log.total_collected = result["deduplicated"]
+            run_log.total_collected = result["collected"]
             run_log.total_received = result["deduplicated"]
+            run_log.pages_processed = int(result.get("pages_processed") or 0)
             run_log.total_sent = result["sent"]
             run_log.message = (
-                f"Macro concluida. Coletadas={result['collected']}, "
+                f"Macro concluida. Paginas={result.get('pages_processed', 0)}, "
+                f"coletadas={result['collected']}, "
                 f"deduplicadas={result['deduplicated']}, enviadas={result['sent']}."
             )
             run_log.save(
@@ -78,6 +80,7 @@ class Command(BaseCommand):
                     "finished_at",
                     "total_collected",
                     "total_received",
+                    "pages_processed",
                     "total_sent",
                     "message",
                 ]

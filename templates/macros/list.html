@@ -361,9 +361,11 @@
                         <th>Inicio</th>
                         <th>Tipo</th>
                         <th>Status</th>
+                        <th>Coletados</th>
                         <th>Recebidos</th>
                         <th>Novos</th>
                         <th>Atualizados</th>
+                        <th>Paginas</th>
                         <th>IP</th>
                         <th>Mensagem</th>
                         <th>Acoes</th>
@@ -375,9 +377,11 @@
                         <td>{{ run.started_at|date:"d/m/Y H:i" }}</td>
                         <td>{{ run.get_run_type_display }}</td>
                         <td>{{ run.get_status_display }}</td>
+                        <td>{{ run.total_collected }}</td>
                         <td>{{ run.total_received }}</td>
                         <td>{{ run.created_count }}</td>
                         <td>{{ run.updated_count }}</td>
+                        <td>{{ run.pages_processed|default:"0" }}</td>
                         <td>{{ run.request_ip|default:"-" }}</td>
                         <td>{{ run.message|default:"-" }}</td>
                         <td>
@@ -389,7 +393,7 @@
                         </td>
                     </tr>
                 {% empty %}
-                    <tr><td colspan="9">Sem execucoes ainda.</td></tr>
+                    <tr><td colspan="11">Sem execucoes ainda.</td></tr>
                 {% endfor %}
                 </tbody>
             </table>

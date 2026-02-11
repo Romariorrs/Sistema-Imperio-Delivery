@@ -3,6 +3,7 @@ import os
 import re
 import time
 import unicodedata
+import uuid
 from typing import Dict, List, Optional, Sequence, Tuple
 
 import requests
@@ -352,6 +353,7 @@ def send_rows_to_api(
     api_url: Optional[str] = None,
     api_token: Optional[str] = None,
     timeout: int = API_TIMEOUT,
+    run_meta: Optional[Dict[str, int | str]] = None,
 ) -> Tuple[int, int]:
     endpoint = (api_url or API_URL).strip()
     if not endpoint:
@@ -367,11 +369,27 @@ def send_rows_to_api(
     total = len(rows)
     sent = 0
     batch_size = max(1, API_BATCH_SIZE)
+    batch_total = (total + batch_size - 1) // batch_size
+    base_meta = dict(run_meta or {})
     for start in range(0, total, batch_size):
         end = min(start + batch_size, total)
         chunk = payload[start:end]
+        batch_index = (start // batch_size) + 1
+        batch_payload = {
+            "rows": chunk,
+            "meta": {
+                **base_meta,
+                "batch_index": batch_index,
+                "batch_total": batch_total,
+                "batch_start": start + 1,
+                "batch_end": end,
+                "sent_before": sent,
+                "sent_after": sent + len(chunk),
+                "received_in_batch": len(chunk),
+            },
+        }
         try:
-            resp = requests.post(endpoint, json=chunk, headers=headers, timeout=timeout)
+            resp = requests.post(endpoint, json=batch_payload, headers=headers, timeout=timeout)
             resp.raise_for_status()
             sent += len(chunk)
         except Exception as exc:
@@ -424,6 +442,7 @@ def run_with_metrics(
     all_rows: List[List[str]] = []
     sent = 0
     to_send = 0
+    pages_processed = 0
     try:
         driver = existing_driver if existing_driver is not None else build_driver(headless=headless)
         final_target_url = (target_url or os.getenv("MACRO_TARGET_URL", URL)).strip() or URL
@@ -478,6 +497,7 @@ def run_with_metrics(
                     break
                 human_pause(0.3)
             human_pause()
+        pages_processed = page
 
         dedup_rows: List[List[str]] = []
         seen = set()
@@ -489,7 +509,19 @@ def run_with_metrics(
             dedup_rows.append(row)
 
         if send_api and dedup_rows:
-            sent, to_send = send_rows_to_api(dedup_rows, api_url=api_url, api_token=api_token)
+            run_meta = {
+                "execution_id": uuid.uuid4().hex,
+                "pages_processed": pages_processed,
+                "collected_total": len(all_rows),
+                "deduplicated_total": len(dedup_rows),
+                "to_send_total": len(dedup_rows),
+            }
+            sent, to_send = send_rows_to_api(
+                dedup_rows,
+                api_url=api_url,
+                api_token=api_token,
+                run_meta=run_meta,
+            )
             logger.info("Enviado para API: %s de %s linhas.", sent, to_send)
 
         return {
@@ -498,6 +530,7 @@ def run_with_metrics(
             "deduplicated": len(dedup_rows),
             "sent": sent,
             "to_send": to_send,
+            "pages_processed": pages_processed,
         }
     finally:
         if (

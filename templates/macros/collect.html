@@ -265,7 +265,8 @@
                     <th>Tipo</th>
                     <th>Status</th>
                     <th>Coletados</th>
-                    <th>Recebidos</th>
+                    <th>Unicos</th>
+                    <th>Enviados</th>
                     <th>Novos</th>
                     <th>Atualizados</th>
                     <th>Paginas</th>
@@ -281,7 +282,8 @@
                     <td>{{ run.get_run_type_display }}</td>
                     <td>{{ run.get_status_display }}</td>
                     <td>{{ run.total_collected }}</td>
-                    <td>{{ run.total_received }}</td>
+                    <td>{% if run.total_deduplicated %}{{ run.total_deduplicated }}{% else %}{{ run.total_received }}{% endif %}</td>
+                    <td>{% if run.total_sent %}{{ run.total_sent }}{% else %}{{ run.total_received }}{% endif %}</td>
                     <td>{{ run.created_count }}</td>
                     <td>{{ run.updated_count }}</td>
                     <td>{{ run.pages_processed|default:"0" }}</td>
@@ -296,7 +298,7 @@
                     </td>
                 </tr>
             {% empty %}
-                <tr><td colspan="11">Sem execucoes ainda.</td></tr>
+                <tr><td colspan="12">Sem execucoes ainda.</td></tr>
             {% endfor %}
             </tbody>
         </table>

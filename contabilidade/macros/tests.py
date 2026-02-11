@@ -123,10 +123,12 @@ class MacroApiImportTests(TestCase):
         payload = {
             "rows": [{"Cidade": "Recife", "Nome do estabelecimento": "Loja Meta"}],
             "meta": {
+                "execution_id": "exec-meta-1",
                 "pages_processed": 62,
                 "collected_total": 3072,
+                "deduplicated_total": 1800,
                 "batch_index": 1,
-                "batch_total": 8,
+                "batch_total": 1,
                 "sent_after": 400,
             },
         }
@@ -141,8 +143,56 @@ class MacroApiImportTests(TestCase):
         self.assertIsNotNone(run)
         self.assertEqual(run.pages_processed, 62)
         self.assertEqual(run.total_collected, 3072)
+        self.assertEqual(run.total_deduplicated, 1800)
         self.assertEqual(run.total_sent, 400)
-        self.assertIn("Lote 1/8", run.message)
+        self.assertEqual(run.status, "success")
+        self.assertIn("Importacao API concluida.", run.message)
+
+    def test_api_import_consolidates_batches_by_execution_id(self):
+        headers = {
+            "content_type": "application/json",
+            "HTTP_AUTHORIZATION": "Bearer token123",
+        }
+        first_payload = {
+            "rows": [{"Cidade": "Recife", "Nome do estabelecimento": "Loja Lote 1"}],
+            "meta": {
+                "execution_id": "exec-batch-1",
+                "batch_index": 1,
+                "batch_total": 2,
+                "pages_processed": 18,
+                "collected_total": 2625,
+                "deduplicated_total": 475,
+                "sent_after": 400,
+            },
+        }
+        second_payload = {
+            "rows": [{"Cidade": "Recife", "Nome do estabelecimento": "Loja Lote 2"}],
+            "meta": {
+                "execution_id": "exec-batch-1",
+                "batch_index": 2,
+                "batch_total": 2,
+                "pages_processed": 18,
+                "collected_total": 2625,
+                "deduplicated_total": 475,
+                "sent_after": 475,
+            },
+        }
+
+        first_resp = self.client.post(self.url, data=json.dumps(first_payload), **headers)
+        second_resp = self.client.post(self.url, data=json.dumps(second_payload), **headers)
+
+        self.assertEqual(first_resp.status_code, 200)
+        self.assertEqual(second_resp.status_code, 200)
+
+        runs = MacroRun.objects.filter(run_type="api", execution_id="exec-batch-1")
+        self.assertEqual(runs.count(), 1)
+        run = runs.first()
+        self.assertEqual(run.status, "success")
+        self.assertEqual(run.total_collected, 2625)
+        self.assertEqual(run.total_deduplicated, 475)
+        self.assertEqual(run.total_sent, 475)
+        self.assertEqual(run.pages_processed, 18)
+        self.assertIn("Lote 2/2", run.message)
 
 
 class MacroScreenTests(TestCase):

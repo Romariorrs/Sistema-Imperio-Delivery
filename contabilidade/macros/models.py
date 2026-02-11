@@ -54,7 +54,9 @@ class MacroRun(models.Model):
         related_name="macro_runs",
     )
     request_ip = models.GenericIPAddressField(null=True, blank=True)
+    execution_id = models.CharField(max_length=64, blank=True, db_index=True)
     total_collected = models.PositiveIntegerField(default=0)
+    total_deduplicated = models.PositiveIntegerField(default=0)
     total_received = models.PositiveIntegerField(default=0)
     pages_processed = models.PositiveIntegerField(default=0)
     total_sent = models.PositiveIntegerField(default=0)

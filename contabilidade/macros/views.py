@@ -747,34 +747,67 @@ def macro_api_import(request):
     if _rate_limited(request):
         return JsonResponse({"ok": False, "detail": "Rate limit exceeded"}, status=429)
 
-    _close_stale_running_runs()
-
-    run_log = MacroRun.objects.create(
-        run_type="api",
-        status="running",
-        source="api",
-        triggered_by=request.user if request.user.is_authenticated else None,
-        request_ip=_client_ip(request) or None,
-    )
-
     try:
         payload = json.loads(request.body.decode("utf-8"))
     except Exception:
-        run_log.status = "error"
-        run_log.message = "JSON invalido."
-        run_log.finished_at = timezone.now()
-        run_log.save(update_fields=["status", "message", "finished_at"])
         return JsonResponse({"ok": False, "detail": "Invalid JSON"}, status=400)
 
     meta = payload.get("meta") if isinstance(payload, dict) and isinstance(payload.get("meta"), dict) else {}
+    execution_id = str(meta.get("execution_id") or "").strip()
+    batch_index = _safe_int(meta.get("batch_index"), 0)
+    batch_total = _safe_int(meta.get("batch_total"), 0)
+    pages_processed = _safe_int(meta.get("pages_processed"), 0)
+    collected_total = _safe_int(meta.get("collected_total"), 0)
+    deduplicated_total = _safe_int(meta.get("deduplicated_total"), 0)
+    sent_after = _safe_int(meta.get("sent_after"), 0)
+    client_ip = _client_ip(request) or None
+
+    _close_stale_running_runs()
+
+    run_log = None
+    if execution_id:
+        run_log = (
+            MacroRun.objects.filter(run_type="api", execution_id=execution_id)
+            .order_by("-started_at")
+            .first()
+        )
+    if run_log is None:
+        run_log = MacroRun.objects.create(
+            run_type="api",
+            status="running",
+            source="api",
+            execution_id=execution_id,
+            triggered_by=request.user if request.user.is_authenticated else None,
+            request_ip=client_ip,
+        )
+    elif run_log.status != "running":
+        run_log.status = "running"
+        run_log.finished_at = None
+        run_log.save(update_fields=["status", "finished_at"])
+
     rows = _rows_from_json_payload(payload)
     if not rows:
         run_log.status = "error"
-        run_log.pages_processed = _safe_int(meta.get("pages_processed"), 0)
-        run_log.total_collected = _safe_int(meta.get("collected_total"), 0)
+        run_log.pages_processed = max(run_log.pages_processed, pages_processed)
+        run_log.total_collected = max(run_log.total_collected, collected_total)
+        run_log.total_deduplicated = max(run_log.total_deduplicated, deduplicated_total)
+        run_log.total_sent = max(run_log.total_sent, sent_after)
+        if client_ip:
+            run_log.request_ip = client_ip
         run_log.message = "Payload sem linhas."
         run_log.finished_at = timezone.now()
-        run_log.save(update_fields=["status", "message", "finished_at", "pages_processed", "total_collected"])
+        run_log.save(
+            update_fields=[
+                "status",
+                "message",
+                "finished_at",
+                "pages_processed",
+                "total_collected",
+                "total_deduplicated",
+                "total_sent",
+                "request_ip",
+            ]
+        )
         return JsonResponse({"ok": False, "detail": "Payload sem linhas"}, status=400)
 
     try:
@@ -783,41 +816,70 @@ def macro_api_import(request):
         logger.exception("Falha interna no import da macro API")
         run_log.status = "error"
         run_log.finished_at = timezone.now()
-        run_log.total_collected = _safe_int(meta.get("collected_total"), len(rows))
-        run_log.pages_processed = _safe_int(meta.get("pages_processed"), 0)
+        run_log.total_collected = max(run_log.total_collected, collected_total, len(rows))
+        run_log.total_deduplicated = max(run_log.total_deduplicated, deduplicated_total, len(rows))
+        run_log.pages_processed = max(run_log.pages_processed, pages_processed)
+        run_log.total_sent = max(run_log.total_sent, sent_after)
+        if client_ip:
+            run_log.request_ip = client_ip
         run_log.message = "Erro interno ao processar lote da API."
-        run_log.save(update_fields=["status", "finished_at", "total_collected", "pages_processed", "message"])
+        run_log.save(
+            update_fields=[
+                "status",
+                "finished_at",
+                "total_collected",
+                "total_deduplicated",
+                "pages_processed",
+                "total_sent",
+                "request_ip",
+                "message",
+            ]
+        )
         return JsonResponse({"ok": False, "detail": "Internal processing error"}, status=500)
 
-    batch_index = _safe_int(meta.get("batch_index"), 0)
-    batch_total = _safe_int(meta.get("batch_total"), 0)
-    pages_processed = _safe_int(meta.get("pages_processed"), 0)
-    collected_total = _safe_int(meta.get("collected_total"), 0)
-    sent_after = _safe_int(meta.get("sent_after"), result["processed"])
-    message_parts = ["Importacao API concluida."]
+    final_batch = batch_total <= 1 or (batch_index > 0 and batch_index >= batch_total)
+    message_parts = []
+    if final_batch:
+        message_parts.append("Importacao API concluida.")
+    else:
+        message_parts.append("Importacao API em andamento.")
     if batch_total > 1 and batch_index > 0:
         message_parts.append(f"Lote {batch_index}/{batch_total}.")
     if pages_processed > 0:
         message_parts.append(f"Paginas: {pages_processed}.")
     if collected_total > 0:
-        message_parts.append(f"Coletados: {collected_total}.")
+        message_parts.append(f"Coletados brutos: {collected_total}.")
+    if deduplicated_total > 0:
+        message_parts.append(f"Unicos: {deduplicated_total}.")
 
-    run_log.status = "success"
-    run_log.finished_at = timezone.now()
-    run_log.total_collected = collected_total or result["processed"]
-    run_log.total_received = result["processed"]
-    run_log.total_sent = sent_after
-    run_log.pages_processed = pages_processed
-    run_log.created_count = result["created"]
-    run_log.updated_count = result["updated"]
-    run_log.ignored_count = result["ignored"]
-    run_log.invalid_count = result["invalid"]
+    if final_batch:
+        run_log.status = "success"
+        run_log.finished_at = timezone.now()
+    else:
+        run_log.status = "running"
+        run_log.finished_at = None
+    run_log.total_collected = max(run_log.total_collected, collected_total, result["processed"])
+    run_log.total_deduplicated = max(run_log.total_deduplicated, deduplicated_total, result["processed"])
+    if sent_after > 0:
+        run_log.total_received = max(run_log.total_received, sent_after)
+        run_log.total_sent = max(run_log.total_sent, sent_after)
+    else:
+        run_log.total_received = max(run_log.total_received, result["processed"])
+    run_log.pages_processed = max(run_log.pages_processed, pages_processed)
+    run_log.created_count = run_log.created_count + result["created"]
+    run_log.updated_count = run_log.updated_count + result["updated"]
+    run_log.ignored_count = run_log.ignored_count + result["ignored"]
+    run_log.invalid_count = run_log.invalid_count + result["invalid"]
+    if client_ip:
+        run_log.request_ip = client_ip
     run_log.message = " ".join(message_parts)
     run_log.save(
         update_fields=[
             "status",
             "finished_at",
+            "request_ip",
             "total_collected",
+            "total_deduplicated",
             "total_received",
             "total_sent",
             "pages_processed",

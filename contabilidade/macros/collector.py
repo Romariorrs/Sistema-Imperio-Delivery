@@ -35,6 +35,8 @@ API_TOKEN = os.getenv("API_TOKEN", "").strip()
 API_TIMEOUT = int(os.getenv("API_TIMEOUT", "180"))
 API_BATCH_SIZE = int(os.getenv("API_BATCH_SIZE", "400"))
 API_BATCH_SLEEP = float(os.getenv("API_BATCH_SLEEP", "0.4"))
+API_BATCH_MAX_RETRIES = int(os.getenv("API_BATCH_MAX_RETRIES", "3"))
+API_BATCH_RETRY_SLEEP = float(os.getenv("API_BATCH_RETRY_SLEEP", "1.5"))
 
 logger = logging.getLogger(__name__)
 
@@ -388,12 +390,35 @@ def send_rows_to_api(
                 "received_in_batch": len(chunk),
             },
         }
-        try:
-            resp = requests.post(endpoint, json=batch_payload, headers=headers, timeout=timeout)
-            resp.raise_for_status()
-            sent += len(chunk)
-        except Exception as exc:
-            logger.error("Falha no envio para API no lote %s-%s: %s", start + 1, end, exc)
+        retries = max(1, API_BATCH_MAX_RETRIES)
+        batch_ok = False
+        for attempt in range(1, retries + 1):
+            try:
+                resp = requests.post(endpoint, json=batch_payload, headers=headers, timeout=timeout)
+                resp.raise_for_status()
+                sent += len(chunk)
+                batch_ok = True
+                break
+            except Exception as exc:
+                if attempt < retries:
+                    logger.warning(
+                        "Falha no envio do lote %s-%s (tentativa %s/%s): %s. Tentando novamente...",
+                        start + 1,
+                        end,
+                        attempt,
+                        retries,
+                        exc,
+                    )
+                    time.sleep(max(0.1, API_BATCH_RETRY_SLEEP))
+                else:
+                    logger.error(
+                        "Falha no envio para API no lote %s-%s apos %s tentativa(s): %s",
+                        start + 1,
+                        end,
+                        retries,
+                        exc,
+                    )
+        if not batch_ok:
             return sent, total
         if API_BATCH_SLEEP > 0 and end < total:
             time.sleep(API_BATCH_SLEEP)

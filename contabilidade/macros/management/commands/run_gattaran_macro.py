@@ -66,6 +66,7 @@ class Command(BaseCommand):
             run_log.status = "success"
             run_log.finished_at = timezone.now()
             run_log.total_collected = result["collected"]
+            run_log.total_deduplicated = result["deduplicated"]
             run_log.total_received = result["deduplicated"]
             run_log.pages_processed = int(result.get("pages_processed") or 0)
             run_log.total_sent = result["sent"]
@@ -79,6 +80,7 @@ class Command(BaseCommand):
                     "status",
                     "finished_at",
                     "total_collected",
+                    "total_deduplicated",
                     "total_received",
                     "pages_processed",
                     "total_sent",

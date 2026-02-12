@@ -403,8 +403,14 @@
         </div>
     </div>
 
-    <div class="card">
-        <h3 style="margin:0 0 8px;">Historico de execucoes</h3>
+    <div class="card macro-collapsible-card" id="macroRunHistory">
+        <div class="macro-collapse-head">
+            <h3>Historico de execucoes</h3>
+            <button class="macro-collapse-toggle" type="button" id="macroRunHistoryBtn" aria-expanded="false" aria-controls="macroRunHistoryContent" title="Mostrar/ocultar historico de execucoes">
+                <span class="macro-collapse-icon" aria-hidden="true"></span>
+            </button>
+        </div>
+        <div class="macro-collapsible-content" id="macroRunHistoryContent">
         <div class="table-wrap">
             <table>
                 <thead>
@@ -450,6 +456,7 @@
                 {% endfor %}
                 </tbody>
             </table>
+        </div>
         </div>
     </div>
 
@@ -632,26 +639,30 @@
 </div>
 <script>
 (() => {
-    const card = document.getElementById("macroDataTools");
-    const btn = document.getElementById("macroDataToolsBtn");
-    if (!card || !btn) return;
+    const initCollapse = (cardId, btnId, storageKey) => {
+        const card = document.getElementById(cardId);
+        const btn = document.getElementById(btnId);
+        if (!card || !btn) return;
 
-    const key = "macro_data_tools_open";
-    const saved = localStorage.getItem(key);
-    const open = saved === "1";
+        const saved = localStorage.getItem(storageKey);
+        const open = saved === "1";
 
-    const applyState = (isOpen) => {
-        card.classList.toggle("open", isOpen);
-        btn.setAttribute("aria-expanded", isOpen ? "true" : "false");
+        const applyState = (isOpen) => {
+            card.classList.toggle("open", isOpen);
+            btn.setAttribute("aria-expanded", isOpen ? "true" : "false");
+        };
+
+        applyState(open);
+
+        btn.addEventListener("click", () => {
+            const next = !card.classList.contains("open");
+            applyState(next);
+            localStorage.setItem(storageKey, next ? "1" : "0");
+        });
     };
 
-    applyState(open);
-
-    btn.addEventListener("click", () => {
-        const next = !card.classList.contains("open");
-        applyState(next);
-        localStorage.setItem(key, next ? "1" : "0");
-    });
+    initCollapse("macroDataTools", "macroDataToolsBtn", "macro_data_tools_open");
+    initCollapse("macroRunHistory", "macroRunHistoryBtn", "macro_run_history_open");
 })();
 </script>
 {% endblock %}

@@ -108,6 +108,50 @@
     .macro-danger-box { border: 1px dashed rgba(255, 107, 107, 0.45); border-radius: 12px; padding: 10px; }
     .macro-danger-title { margin: 0 0 6px; color: #ffb3b3; font-size: 13px; font-weight: 600; }
     .macro-danger-help { margin: 0 0 8px; color: var(--muted); font-size: 12px; }
+    .macro-collapse-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+    }
+    .macro-collapse-head h3 { margin: 0; }
+    .macro-collapse-toggle {
+        width: 34px;
+        height: 34px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: rgba(255,255,255,0.04);
+        color: var(--text);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: border-color .2s ease, background .2s ease;
+    }
+    .macro-collapse-toggle:hover {
+        border-color: rgba(255, 146, 66, 0.7);
+        background: rgba(255, 146, 66, 0.08);
+    }
+    .macro-collapse-icon {
+        width: 8px;
+        height: 8px;
+        border-right: 2px solid currentColor;
+        border-bottom: 2px solid currentColor;
+        transform: rotate(45deg);
+        transition: transform .2s ease;
+        margin-top: -3px;
+    }
+    .macro-collapsible-content {
+        display: none;
+        margin-top: 10px;
+    }
+    .macro-collapsible-card.open .macro-collapsible-content {
+        display: block;
+    }
+    .macro-collapsible-card.open .macro-collapse-icon {
+        transform: rotate(-135deg);
+        margin-top: 2px;
+    }
     .macro-inline-form { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
     .macro-inline-form input { width: auto; min-width: 140px; }
     .macro-row-blocked { background: rgba(255, 107, 107, 0.08); }
@@ -163,8 +207,14 @@
         </form>
     </div>
 
-    <div class="card">
-        <h3 style="margin:0 0 8px;">Gestao de dados</h3>
+    <div class="card macro-collapsible-card" id="macroDataTools">
+        <div class="macro-collapse-head">
+            <h3>Gestao de dados</h3>
+            <button class="macro-collapse-toggle" type="button" id="macroDataToolsBtn" aria-expanded="false" aria-controls="macroDataToolsContent" title="Mostrar/ocultar gestao de dados">
+                <span class="macro-collapse-icon" aria-hidden="true"></span>
+            </button>
+        </div>
+        <div class="macro-collapsible-content" id="macroDataToolsContent">
         <div class="macro-danger-grid">
             <div class="macro-danger-box">
                 <div class="macro-danger-title">Excluir dados filtrados</div>
@@ -239,6 +289,7 @@
                     <button class="btn danger" type="submit" onclick="return confirm('Excluir base especifica agora?')">Excluir base especifica</button>
                 </form>
             </div>
+        </div>
         </div>
     </div>
 
@@ -579,4 +630,28 @@
         </div>
     </div>
 </div>
+<script>
+(() => {
+    const card = document.getElementById("macroDataTools");
+    const btn = document.getElementById("macroDataToolsBtn");
+    if (!card || !btn) return;
+
+    const key = "macro_data_tools_open";
+    const saved = localStorage.getItem(key);
+    const open = saved === "1";
+
+    const applyState = (isOpen) => {
+        card.classList.toggle("open", isOpen);
+        btn.setAttribute("aria-expanded", isOpen ? "true" : "false");
+    };
+
+    applyState(open);
+
+    btn.addEventListener("click", () => {
+        const next = !card.classList.contains("open");
+        applyState(next);
+        localStorage.setItem(key, next ? "1" : "0");
+    });
+})();
+</script>
 {% endblock %}

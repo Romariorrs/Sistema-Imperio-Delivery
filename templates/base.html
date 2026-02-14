@@ -96,21 +96,30 @@
             font-weight: 700;
             letter-spacing: .2px;
             margin-right: 8px;
+            color: #fff;
         }
-        .brand-dot {
-            width: 26px;
-            height: 26px;
-            border-radius: 999px;
-            background: linear-gradient(135deg, var(--accent), #f59e0b);
-            position: relative;
-            box-shadow: 0 0 22px rgba(249, 115, 22, 0.35);
+        .brand-badge {
+            width: 34px;
+            height: 34px;
+            border-radius: 11px;
+            background: linear-gradient(180deg, #ff912e, #f97316);
+            box-shadow: 0 0 18px rgba(249, 115, 22, 0.45);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-size: 15px;
+            font-weight: 800;
+            letter-spacing: .02em;
+            font-family: "Space Grotesk", "Manrope", "Segoe UI", sans-serif;
         }
-        .brand-dot::after {
-            content: "";
-            position: absolute;
-            inset: 7px;
-            border-radius: 999px;
-            background: #0f0f0f;
+        .brand-name {
+            font-size: 31px;
+            line-height: 1;
+            color: #f2f2f2;
+            letter-spacing: .01em;
+            font-family: "Space Grotesk", "Manrope", "Segoe UI", sans-serif;
+            font-weight: 700;
         }
         .nav-link {
             color: var(--muted);
@@ -372,8 +381,8 @@
     {% if user.is_authenticated %}
     <nav class="main-nav">
         <a href="{% url 'dashboard' %}" class="brand">
-            <span class="brand-dot"></span>
-            <span>Imperio Delivery</span>
+            <span class="brand-badge">ID</span>
+            <span class="brand-name">Imperio Delivery</span>
         </a>
         {% if user.is_superuser or user.is_staff %}
             <a class="nav-link" href="{% url 'dashboard' %}">Dashboard</a>

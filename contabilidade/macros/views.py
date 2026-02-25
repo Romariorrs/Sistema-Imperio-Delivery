@@ -26,6 +26,16 @@ from .services import EXPORT_COLUMNS, upsert_rows
 
 logger = logging.getLogger(__name__)
 
+EXPORT_EXTRA_COLUMNS = (
+    ("source", "Fonte"),
+    ("first_seen_at", "Primeira captura"),
+    ("last_seen_at", "Ultima captura"),
+)
+EXPORT_FIELD_CHOICES = EXPORT_COLUMNS + EXPORT_EXTRA_COLUMNS
+EXPORT_FIELD_LABELS = {field: label for field, label in EXPORT_FIELD_CHOICES}
+DEFAULT_EXPORT_FIELDS = [field for field, _ in EXPORT_FIELD_CHOICES]
+MAX_EXPORT_LIMIT = 50000
+
 
 def _staff_access(user):
     return user.is_staff or user.is_superuser
@@ -223,6 +233,48 @@ def _close_stale_running_runs() -> int:
     return stale_count
 
 
+def _parse_export_fields(params) -> list[str]:
+    raw_values = []
+    if hasattr(params, "getlist"):
+        raw_values.extend(params.getlist("export_fields"))
+    single = (params.get("export_fields") or "").strip() if hasattr(params, "get") else ""
+    if single and not raw_values:
+        raw_values.append(single)
+
+    selected = []
+    allowed = set(EXPORT_FIELD_LABELS.keys())
+    for raw in raw_values:
+        for token in str(raw).split(","):
+            field = token.strip()
+            if not field or field not in allowed or field in selected:
+                continue
+            selected.append(field)
+
+    if not selected:
+        return list(DEFAULT_EXPORT_FIELDS)
+    return selected
+
+
+def _parse_export_limit(params) -> int | None:
+    raw = (params.get("export_limit") or "").strip() if hasattr(params, "get") else ""
+    if not raw:
+        return None
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return None
+    if value <= 0:
+        return None
+    return min(value, MAX_EXPORT_LIMIT)
+
+
+def _export_cell_value(item: MacroLead, field: str):
+    value = getattr(item, field, "")
+    if field in {"lead_created_at", "first_seen_at", "last_seen_at"} and value:
+        return value.strftime("%Y-%m-%d %H:%M:%S")
+    return value
+
+
 @login_required
 @user_passes_test(_staff_access)
 def macro_list(request):
@@ -336,6 +388,9 @@ def macro_list(request):
         "status_breakdown": status_breakdown,
         "business_99_breakdown": business_99_breakdown,
         "sources": _lead_sources(),
+        "export_field_choices": EXPORT_FIELD_CHOICES,
+        "default_export_fields": DEFAULT_EXPORT_FIELDS,
+        "max_export_limit": MAX_EXPORT_LIMIT,
     }
     return render(request, "macros/list.html", context)
 
@@ -377,26 +432,17 @@ def macro_collect(request):
 @user_passes_test(_staff_access)
 def macro_export_csv(request):
     queryset = _apply_filters(request)
+    export_limit = _parse_export_limit(request.GET)
+    if export_limit:
+        queryset = queryset[:export_limit]
+    selected_fields = _parse_export_fields(request.GET)
     response = HttpResponse(content_type="text/csv")
     response["Content-Disposition"] = 'attachment; filename="macro_leads.csv"'
 
     writer = csv.writer(response)
-    writer.writerow([label for _, label in EXPORT_COLUMNS] + ["Source", "Primeira captura", "Ultima captura"])
+    writer.writerow([EXPORT_FIELD_LABELS[field] for field in selected_fields])
     for item in queryset:
-        row_values = []
-        for field, _ in EXPORT_COLUMNS:
-            value = getattr(item, field, "")
-            if field == "lead_created_at" and value:
-                value = value.strftime("%Y-%m-%d %H:%M:%S")
-            row_values.append(value)
-        writer.writerow(
-            row_values
-            + [
-                item.source,
-                item.first_seen_at.strftime("%Y-%m-%d %H:%M:%S"),
-                item.last_seen_at.strftime("%Y-%m-%d %H:%M:%S"),
-            ]
-        )
+        writer.writerow([_export_cell_value(item, field) for field in selected_fields])
     return response
 
 
@@ -406,6 +452,10 @@ def macro_export_xlsx(request):
     from openpyxl import Workbook
 
     queryset = _apply_filters(request)
+    export_limit = _parse_export_limit(request.GET)
+    if export_limit:
+        queryset = queryset[:export_limit]
+    selected_fields = _parse_export_fields(request.GET)
     response = HttpResponse(
         content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
@@ -414,22 +464,9 @@ def macro_export_xlsx(request):
     wb = Workbook()
     ws = wb.active
     ws.title = "Macro Leads"
-    ws.append([label for _, label in EXPORT_COLUMNS] + ["Source", "Primeira captura", "Ultima captura"])
+    ws.append([EXPORT_FIELD_LABELS[field] for field in selected_fields])
     for item in queryset:
-        row_values = []
-        for field, _ in EXPORT_COLUMNS:
-            value = getattr(item, field, "")
-            if field == "lead_created_at" and value:
-                value = value.strftime("%Y-%m-%d %H:%M:%S")
-            row_values.append(value)
-        ws.append(
-            row_values
-            + [
-                item.source,
-                item.first_seen_at.strftime("%Y-%m-%d %H:%M:%S"),
-                item.last_seen_at.strftime("%Y-%m-%d %H:%M:%S"),
-            ]
-        )
+        ws.append([_export_cell_value(item, field) for field in selected_fields])
     wb.save(response)
     return response
 

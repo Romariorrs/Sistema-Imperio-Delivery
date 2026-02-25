@@ -1,5 +1,7 @@
 import json
+from io import BytesIO
 from unittest.mock import patch
+import csv as csv_reader
 
 from django.contrib.auth.models import User
 from django.core.cache import cache
@@ -227,6 +229,90 @@ class MacroScreenTests(TestCase):
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             resp["Content-Type"],
         )
+
+    def test_export_csv_with_selected_columns_and_limit(self):
+        MacroLead.objects.create(
+            source="api",
+            city="Rio",
+            target_region="Centro",
+            establishment_name="Loja X",
+            representative_name="Ana",
+            contract_status="Ativo",
+            representative_phone="21999998888",
+            representative_phone_norm="5521999998888",
+            company_category="Restaurante",
+            address="Rua Teste",
+            unique_key="csv-k1",
+        )
+        MacroLead.objects.create(
+            source="api",
+            city="Sao Paulo",
+            target_region="Sul",
+            establishment_name="Loja Y",
+            representative_name="Bia",
+            contract_status="Pendente",
+            representative_phone="11999998888",
+            representative_phone_norm="5511999998888",
+            company_category="Pizza",
+            address="Rua Teste 2",
+            unique_key="csv-k2",
+        )
+        resp = self.client.get(
+            reverse("macro_export_csv"),
+            data={
+                "export_limit": "1",
+                "export_fields": ["city", "establishment_name", "representative_phone"],
+            },
+        )
+        self.assertEqual(resp.status_code, 200)
+        body = resp.content.decode("utf-8")
+        rows = list(csv_reader.reader(body.splitlines()))
+        self.assertEqual(rows[0], ["Cidade", "Nome do estabelecimento", "Telefone do representante do estabelecimento"])
+        self.assertEqual(len(rows), 2)
+
+    def test_export_xlsx_with_selected_columns_and_limit(self):
+        from openpyxl import load_workbook
+
+        MacroLead.objects.create(
+            source="api",
+            city="Rio",
+            target_region="Centro",
+            establishment_name="Loja X",
+            representative_name="Ana",
+            contract_status="Ativo",
+            representative_phone="21999998888",
+            representative_phone_norm="5521999998888",
+            company_category="Restaurante",
+            address="Rua Teste",
+            unique_key="xlsx-k1",
+        )
+        MacroLead.objects.create(
+            source="api",
+            city="Sao Paulo",
+            target_region="Sul",
+            establishment_name="Loja Y",
+            representative_name="Bia",
+            contract_status="Pendente",
+            representative_phone="11999998888",
+            representative_phone_norm="5511999998888",
+            company_category="Pizza",
+            address="Rua Teste 2",
+            unique_key="xlsx-k2",
+        )
+
+        resp = self.client.get(
+            reverse("macro_export_xlsx"),
+            data={
+                "export_limit": "1",
+                "export_fields": ["city", "source", "last_seen_at"],
+            },
+        )
+        self.assertEqual(resp.status_code, 200)
+        wb = load_workbook(filename=BytesIO(resp.content))
+        ws = wb.active
+        headers = [cell.value for cell in ws[1]]
+        self.assertEqual(headers, ["Cidade", "Fonte", "Ultima captura"])
+        self.assertEqual(ws.max_row, 2)
 
     def test_download_local_agent_files(self):
         exe_resp = self.client.get(reverse("macro_download_local_agent_exe"))

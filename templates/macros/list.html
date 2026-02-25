@@ -90,6 +90,57 @@
         to { transform: rotate(1turn); }
     }
     .macro-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .macro-export-form {
+        display: grid;
+        gap: 12px;
+        margin-top: 6px;
+    }
+    .macro-export-form-grid {
+        display: grid;
+        grid-template-columns: minmax(180px, 240px) 1fr;
+        gap: 12px;
+        align-items: start;
+    }
+    .macro-export-fields {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 8px;
+        max-height: 160px;
+        overflow: auto;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 10px;
+        background: rgba(255,255,255,0.02);
+    }
+    .macro-export-fields label {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin: 0;
+        color: var(--text);
+        text-transform: none;
+        letter-spacing: .01em;
+        font-weight: 500;
+        font-size: 13px;
+    }
+    .macro-export-fields input[type="checkbox"] {
+        width: auto;
+        margin: 0;
+    }
+    .macro-export-limit-wrap input {
+        width: 100%;
+    }
+    .macro-export-buttons {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+    .macro-export-note {
+        color: var(--muted);
+        font-size: 12px;
+        margin: 0;
+    }
     .macro-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
     .macro-kpi {
         border: 1px solid var(--border);
@@ -181,6 +232,7 @@
     @media (max-width: 980px) {
         .macro-filter-form { grid-template-columns: 1fr; }
         .macro-filter-form > div:last-child { justify-self: start; }
+        .macro-export-form-grid { grid-template-columns: 1fr; }
     }
 </style>
 {% endblock %}
@@ -204,6 +256,42 @@
             {% csrf_token %}
             <input type="file" name="file" accept=".csv" required style="max-width:180px;">
             <button class="btn secondary macro-orbit" type="submit">Importar CSV</button>
+        </form>
+    </div>
+    <div class="card">
+        <h3 style="margin:0 0 8px;">Exportacao personalizada</h3>
+        <form method="get" class="macro-export-form">
+            <input type="hidden" name="q" value="{{ request.GET.q }}">
+            <input type="hidden" name="city" value="{{ request.GET.city }}">
+            <input type="hidden" name="contract_status" value="{{ request.GET.contract_status }}">
+            <input type="hidden" name="business_99_status" value="{{ request.GET.business_99_status }}">
+            <input type="hidden" name="company_category" value="{{ request.GET.company_category }}">
+            <input type="hidden" name="blocked" value="{{ request.GET.blocked }}">
+            <input type="hidden" name="phone_dup" value="{{ request.GET.phone_dup }}">
+            <input type="hidden" name="lead_date_from" value="{{ request.GET.lead_date_from }}">
+            <input type="hidden" name="lead_date_to" value="{{ request.GET.lead_date_to }}">
+            <div class="macro-export-form-grid">
+                <div class="macro-export-limit-wrap">
+                    <label>Quantidade de leads</label>
+                    <input type="number" name="export_limit" min="1" max="{{ max_export_limit }}" placeholder="vazio = todos filtrados">
+                    <p class="macro-export-note">Limite maximo: {{ max_export_limit }} leads.</p>
+                </div>
+                <div>
+                    <label>Colunas para exportar</label>
+                    <div class="macro-export-fields">
+                        {% for field, label in export_field_choices %}
+                            <label>
+                                <input type="checkbox" name="export_fields" value="{{ field }}" {% if field in default_export_fields %}checked{% endif %}>
+                                <span>{{ label }}</span>
+                            </label>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            <div class="macro-export-buttons">
+                <button class="btn secondary macro-orbit" type="submit" formaction="{% url 'macro_export_csv' %}">Exportar CSV personalizado</button>
+                <button class="btn secondary macro-orbit" type="submit" formaction="{% url 'macro_export_xlsx' %}">Exportar XLSX personalizado</button>
+            </div>
         </form>
     </div>
 

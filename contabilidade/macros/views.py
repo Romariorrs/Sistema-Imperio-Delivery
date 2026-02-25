@@ -722,16 +722,52 @@ def macro_download_local_agent_mac(request):
         return HttpResponse("Arquivos do coletor nao encontrados.", status=404)
 
     mac_launcher = """#!/bin/bash
-set -e
+set -euo pipefail
 cd "$(dirname "$0")"
+
+STAMP_FILE=".venv/.deps_ok_v1"
+
 if ! command -v python3 >/dev/null 2>&1; then
-  echo "python3 nao encontrado. Instale via Homebrew: brew install python"
+  echo "python3 nao encontrado."
+  echo "Instale com: xcode-select --install"
+  echo "Ou via Homebrew: brew install python"
   exit 1
 fi
-python3 -m venv .venv
+
+if ! python3 --version >/dev/null 2>&1; then
+  echo "python3 encontrado, mas ainda nao funcional."
+  echo "Conclua a instalacao das Command Line Tools com: xcode-select --install"
+  exit 1
+fi
+
+if [ ! -d ".venv" ]; then
+  echo "[mac-agent] Criando ambiente virtual (.venv)..."
+  python3 -m venv .venv
+fi
+
 source .venv/bin/activate
-pip install --upgrade pip
-pip install selenium webdriver-manager requests
+
+if [ ! -f "$STAMP_FILE" ]; then
+  echo "[mac-agent] Instalando dependencias (primeira execucao)..."
+  python -m pip install --upgrade pip
+  python -m pip install selenium webdriver-manager requests
+  touch "$STAMP_FILE"
+fi
+
+if ! python - <<'PY'
+import importlib.util
+mods = ("selenium", "webdriver_manager", "requests")
+missing = [m for m in mods if importlib.util.find_spec(m) is None]
+raise SystemExit(0 if not missing else 1)
+PY
+then
+  echo "[mac-agent] Dependencias ausentes. Reinstalando..."
+  python -m pip install --upgrade pip
+  python -m pip install selenium webdriver-manager requests
+  touch "$STAMP_FILE"
+fi
+
+echo "[mac-agent] Iniciando painel local em http://127.0.0.1:8765/"
 python local_macro_agent.py
 """
     readme = """Coletor Local para macOS
@@ -739,7 +775,9 @@ python local_macro_agent.py
 1) Extraia este .zip em uma pasta.
 2) No Finder, clique com o botao direito em iniciar_coletor_mac.command e escolha Abrir.
 3) Se o macOS bloquear, va em Ajustes > Privacidade e Seguranca > Abrir Mesmo Assim.
-4) O coletor abrira em http://127.0.0.1:8765
+4) Na primeira execucao ele prepara ambiente e instala dependencias automaticamente.
+5) Depois disso, use apenas duplo clique no iniciar_coletor_mac.command.
+6) O coletor abrira em http://127.0.0.1:8765
 """
 
     content = io.BytesIO()

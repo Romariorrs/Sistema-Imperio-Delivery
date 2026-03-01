@@ -183,6 +183,41 @@ def build_unique_key(parsed_row: Mapping[str, Any]) -> str:
     return hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()
 
 
+def _find_existing_lead(unique_key: str, parsed: Mapping[str, Any]) -> Optional[MacroLead]:
+    lead = MacroLead.objects.filter(unique_key=unique_key).first()
+    if lead:
+        return lead
+
+    phone_norm = parsed.get("representative_phone_norm", "")
+    if phone_norm:
+        lead = (
+            MacroLead.objects.filter(
+                source=parsed["source"],
+                city__iexact=parsed["city"],
+                establishment_name__iexact=parsed["establishment_name"],
+                representative_phone_norm=phone_norm,
+            )
+            .order_by("-last_seen_at")
+            .first()
+        )
+        if lead:
+            return lead
+
+    if parsed.get("address"):
+        return (
+            MacroLead.objects.filter(
+                source=parsed["source"],
+                city__iexact=parsed["city"],
+                establishment_name__iexact=parsed["establishment_name"],
+                address__iexact=parsed["address"],
+            )
+            .order_by("-last_seen_at")
+            .first()
+        )
+
+    return None
+
+
 def upsert_rows(rows: Iterable[Mapping[str, Any]], default_source: str = "gattaran") -> Dict[str, int]:
     created = 0
     updated = 0
@@ -202,30 +237,8 @@ def upsert_rows(rows: Iterable[Mapping[str, Any]], default_source: str = "gattar
         parsed["unique_key"] = build_unique_key(parsed)
         defaults = {**parsed}
         unique_key = defaults.pop("unique_key")
-        lead = MacroLead.objects.filter(unique_key=unique_key).first()
+        lead = _find_existing_lead(unique_key, parsed)
         was_created = False
-        if not lead:
-            lead = (
-                MacroLead.objects.filter(
-                    source=parsed["source"],
-                    city__iexact=parsed["city"],
-                    establishment_name__iexact=parsed["establishment_name"],
-                    representative_phone_norm=parsed["representative_phone_norm"],
-                )
-                .order_by("-last_seen_at")
-                .first()
-            )
-        if not lead and parsed["address"]:
-            lead = (
-                MacroLead.objects.filter(
-                    source=parsed["source"],
-                    city__iexact=parsed["city"],
-                    establishment_name__iexact=parsed["establishment_name"],
-                    address__iexact=parsed["address"],
-                )
-                .order_by("-last_seen_at")
-                .first()
-            )
         if not lead:
             blocked_phone = defaults.get("representative_phone_norm", "")
             is_blocked = False
@@ -234,12 +247,19 @@ def upsert_rows(rows: Iterable[Mapping[str, Any]], default_source: str = "gattar
                     representative_phone_norm=blocked_phone,
                     is_blocked_number=True,
                 ).exists()
-            lead = MacroLead.objects.create(
-                unique_key=unique_key,
-                is_blocked_number=is_blocked,
-                **defaults,
-            )
-            was_created = True
+            try:
+                lead = MacroLead.objects.create(
+                    unique_key=unique_key,
+                    is_blocked_number=is_blocked,
+                    **defaults,
+                )
+                was_created = True
+            except IntegrityError:
+                # Outro lote/processo pode ter criado o mesmo lead no intervalo
+                # entre o lookup e o create. Nesse caso seguimos como update.
+                lead = _find_existing_lead(unique_key, parsed)
+                if not lead:
+                    raise
 
         if was_created:
             created += 1

@@ -2,6 +2,7 @@ import json
 from io import BytesIO
 from unittest.mock import patch
 import csv as csv_reader
+from django.db import IntegrityError
 
 from django.contrib.auth.models import User
 from django.core.cache import cache
@@ -65,6 +66,27 @@ class MacroServicesTests(TestCase):
         self.assertEqual(len(lead.contract_status), 100)
         self.assertEqual(len(lead.representative_phone), 50)
         self.assertEqual(len(lead.company_category), 255)
+
+    def test_upsert_recovers_when_create_hits_unique_race(self):
+        row = {
+            "Cidade": "Sao Paulo",
+            "Nome do estabelecimento": "Loja Corrida",
+            "Telefone do representante do estabelecimento": "11999990000",
+            "Status do contrato": "Ativo",
+        }
+        original_create = MacroLead.objects.create
+
+        def race_create(*args, **kwargs):
+            original_create(*args, **kwargs)
+            raise IntegrityError("duplicate key value violates unique constraint")
+
+        with patch("contabilidade.macros.services.MacroLead.objects.create", side_effect=race_create):
+            result = upsert_rows([row], default_source="api")
+
+        self.assertEqual(result["created"], 0)
+        self.assertEqual(result["updated"], 1)
+        self.assertEqual(MacroLead.objects.count(), 1)
+        self.assertEqual(MacroLead.objects.first().establishment_name, "Loja Corrida")
 
 
 @override_settings(

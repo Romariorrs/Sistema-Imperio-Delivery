@@ -141,6 +141,25 @@
         font-size: 12px;
         margin: 0;
     }
+    .macro-query-tools {
+        margin-top: 14px;
+        padding-top: 14px;
+        border-top: 1px solid rgba(255,255,255,0.08);
+        display: grid;
+        gap: 10px;
+    }
+    .macro-query-tools-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+    .macro-query-tools-head p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 12px;
+    }
     .macro-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
     .macro-kpi {
         border: 1px solid var(--border);
@@ -258,44 +277,6 @@
             <button class="btn secondary macro-orbit" type="submit">Importar CSV</button>
         </form>
     </div>
-    <div class="card">
-        <h3 style="margin:0 0 8px;">Exportacao personalizada</h3>
-        <form method="get" class="macro-export-form">
-            <input type="hidden" name="q" value="{{ request.GET.q }}">
-            <input type="hidden" name="city" value="{{ request.GET.city }}">
-            <input type="hidden" name="contract_status" value="{{ request.GET.contract_status }}">
-            <input type="hidden" name="business_99_status" value="{{ request.GET.business_99_status }}">
-            <input type="hidden" name="company_category" value="{{ request.GET.company_category }}">
-            <input type="hidden" name="representative_presence" value="{{ request.GET.representative_presence }}">
-            <input type="hidden" name="blocked" value="{{ request.GET.blocked }}">
-            <input type="hidden" name="phone_dup" value="{{ request.GET.phone_dup }}">
-            <input type="hidden" name="lead_date_from" value="{{ request.GET.lead_date_from }}">
-            <input type="hidden" name="lead_date_to" value="{{ request.GET.lead_date_to }}">
-            <div class="macro-export-form-grid">
-                <div class="macro-export-limit-wrap">
-                    <label>Quantidade de leads</label>
-                    <input type="number" name="export_limit" min="1" max="{{ max_export_limit }}" value="{{ selected_export_limit }}" placeholder="vazio = todos filtrados">
-                    <p class="macro-export-note">Limite maximo: {{ max_export_limit }} leads.</p>
-                </div>
-                <div>
-                    <label>Colunas para exportar</label>
-                    <div class="macro-export-fields">
-                        {% for field, label in export_field_choices %}
-                            <label>
-                                <input type="checkbox" name="export_fields" value="{{ field }}" {% if field in selected_export_fields %}checked{% endif %}>
-                                <span>{{ label }}</span>
-                            </label>
-                        {% endfor %}
-                    </div>
-                </div>
-            </div>
-            <div class="macro-export-buttons">
-                <button class="btn secondary macro-orbit" type="submit" formaction="{% url 'macro_export_csv' %}">Exportar CSV personalizado</button>
-                <button class="btn secondary macro-orbit" type="submit" formaction="{% url 'macro_export_xlsx' %}">Exportar XLSX personalizado</button>
-            </div>
-        </form>
-    </div>
-
     <div class="card macro-collapsible-card" id="macroDataTools">
         <div class="macro-collapse-head">
             <h3>Gestao de dados</h3>
@@ -631,47 +612,37 @@
                 <button class="btn macro-orbit" type="submit">Filtrar</button>
                 <a class="btn secondary macro-orbit" href="{% url 'macro_list' %}">Limpar</a>
             </div>
+            <div class="macro-query-tools">
+                <div class="macro-query-tools-head">
+                    <div>
+                        <label style="margin:0;">Exportacao da consulta</label>
+                        <p>Exporta exatamente o resultado filtrado abaixo, com limite e colunas escolhidas.</p>
+                    </div>
+                </div>
+                <div class="macro-export-form-grid">
+                    <div class="macro-export-limit-wrap">
+                        <label>Quantidade de leads</label>
+                        <input type="number" name="export_limit" min="1" max="{{ max_export_limit }}" value="{{ selected_export_limit }}" placeholder="vazio = todos filtrados">
+                        <p class="macro-export-note">Limite maximo: {{ max_export_limit }} leads.</p>
+                    </div>
+                    <div>
+                        <label>Colunas para exportar</label>
+                        <div class="macro-export-fields">
+                            {% for field, label in export_field_choices %}
+                                <label>
+                                    <input type="checkbox" name="export_fields" value="{{ field }}" {% if field in selected_export_fields %}checked{% endif %}>
+                                    <span>{{ label }}</span>
+                                </label>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                <div class="macro-export-buttons">
+                    <button class="btn secondary macro-orbit" type="submit" formaction="{% url 'macro_export_csv' %}">Exportar consulta CSV</button>
+                    <button class="btn secondary macro-orbit" type="submit" formaction="{% url 'macro_export_xlsx' %}">Exportar consulta XLSX</button>
+                </div>
+            </div>
         </form>
-        <div class="macro-export-buttons" style="margin-top:12px;">
-            <form method="get" action="{% url 'macro_export_csv' %}" style="display:flex;gap:8px;flex-wrap:wrap;">
-                <input type="hidden" name="q" value="{{ request.GET.q }}">
-                <input type="hidden" name="city" value="{{ request.GET.city }}">
-                <input type="hidden" name="contract_status" value="{{ request.GET.contract_status }}">
-                <input type="hidden" name="business_99_status" value="{{ request.GET.business_99_status }}">
-                <input type="hidden" name="company_category" value="{{ request.GET.company_category }}">
-                <input type="hidden" name="representative_presence" value="{{ request.GET.representative_presence }}">
-                <input type="hidden" name="blocked" value="{{ request.GET.blocked }}">
-                <input type="hidden" name="phone_dup" value="{{ request.GET.phone_dup }}">
-                <input type="hidden" name="lead_date_from" value="{{ request.GET.lead_date_from }}">
-                <input type="hidden" name="lead_date_to" value="{{ request.GET.lead_date_to }}">
-                {% for field in selected_export_fields %}
-                    <input type="hidden" name="export_fields" value="{{ field }}">
-                {% endfor %}
-                {% if selected_export_limit %}
-                    <input type="hidden" name="export_limit" value="{{ selected_export_limit }}">
-                {% endif %}
-                <button class="btn secondary macro-orbit" type="submit">Exportar consulta CSV</button>
-            </form>
-            <form method="get" action="{% url 'macro_export_xlsx' %}" style="display:flex;gap:8px;flex-wrap:wrap;">
-                <input type="hidden" name="q" value="{{ request.GET.q }}">
-                <input type="hidden" name="city" value="{{ request.GET.city }}">
-                <input type="hidden" name="contract_status" value="{{ request.GET.contract_status }}">
-                <input type="hidden" name="business_99_status" value="{{ request.GET.business_99_status }}">
-                <input type="hidden" name="company_category" value="{{ request.GET.company_category }}">
-                <input type="hidden" name="representative_presence" value="{{ request.GET.representative_presence }}">
-                <input type="hidden" name="blocked" value="{{ request.GET.blocked }}">
-                <input type="hidden" name="phone_dup" value="{{ request.GET.phone_dup }}">
-                <input type="hidden" name="lead_date_from" value="{{ request.GET.lead_date_from }}">
-                <input type="hidden" name="lead_date_to" value="{{ request.GET.lead_date_to }}">
-                {% for field in selected_export_fields %}
-                    <input type="hidden" name="export_fields" value="{{ field }}">
-                {% endfor %}
-                {% if selected_export_limit %}
-                    <input type="hidden" name="export_limit" value="{{ selected_export_limit }}">
-                {% endif %}
-                <button class="btn secondary macro-orbit" type="submit">Exportar consulta XLSX</button>
-            </form>
-        </div>
     </div>
 
     <div class="card">

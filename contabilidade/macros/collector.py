@@ -250,10 +250,13 @@ def extract_rows(driver, pos: Dict[str, int]) -> List[List[str]]:
         js_rows = driver.execute_script(
             """
             const tableSelectors = [
+              ".pb-table__fixed table",
+              ".pb-table__body table",
+              ".pb-table__scroll table",
               ".pb-table_fixed table",
               ".pb-table_body table",
               ".pb-table_scroll table",
-              "table.pb-table"
+              "table[class*='pb-table']"
             ];
             const extractColumnNumber = (className) => {
               const match = String(className || '').match(/pb-table(?:_[0-9]+)?_column_([0-9]+)/);
@@ -345,6 +348,9 @@ def extract_rows(driver, pos: Dict[str, int]) -> List[List[str]]:
 
     row_groups: Dict[int, List[dict]] = {}
     row_xpaths = [
+        "//div[contains(@class,'pb-table__fixed')]//tbody//tr",
+        "//div[contains(@class,'pb-table__body')]//tbody//tr",
+        "//div[contains(@class,'pb-table__scroll')]//tbody//tr",
         "//div[contains(@class,'pb-table_fixed')]//tbody//tr",
         "//div[contains(@class,'pb-table_body')]//tbody//tr",
         "//div[contains(@class,'pb-table_scroll')]//tbody//tr",

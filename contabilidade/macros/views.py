@@ -41,6 +41,17 @@ def _staff_access(user):
     return user.is_staff or user.is_superuser
 
 
+def _missing_representative_q() -> Q:
+    return (
+        Q(representative_name="")
+        | Q(representative_name="-")
+        | Q(representative_name="--")
+        | Q(representative_name__iexact="sem representante")
+        | Q(representative_name__iexact="nao informado")
+        | Q(representative_name__iexact="não informado")
+    )
+
+
 def _apply_filters(request=None, queryset=None, params=None):
     queryset = queryset or MacroLead.objects.all()
     params = params or (request.GET if request is not None else {})
@@ -89,9 +100,9 @@ def _apply_filters(request=None, queryset=None, params=None):
     if company_category:
         queryset = queryset.filter(company_category=company_category)
     if representative_presence == "with":
-        queryset = queryset.exclude(representative_name="")
+        queryset = queryset.exclude(_missing_representative_q())
     elif representative_presence == "without":
-        queryset = queryset.filter(representative_name="")
+        queryset = queryset.filter(_missing_representative_q())
     if blocked == "yes":
         queryset = queryset.filter(is_blocked_number=True)
     elif blocked == "no":

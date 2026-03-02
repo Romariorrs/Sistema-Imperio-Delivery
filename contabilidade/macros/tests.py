@@ -629,6 +629,19 @@ class MacroScreenTests(TestCase):
             address="Rua 2",
             unique_key="rep-filter-2",
         )
+        MacroLead.objects.create(
+            source="api",
+            city="Curitiba",
+            target_region="R3",
+            establishment_name="Loja Sem Rep Traco",
+            representative_name="-",
+            contract_status="Ativo",
+            representative_phone="41999998888",
+            representative_phone_norm="5541999998888",
+            company_category="Lanches",
+            address="Rua 3",
+            unique_key="rep-filter-3",
+        )
 
         with_resp = self.client.get(reverse("macro_list"), data={"representative_presence": "with"})
         with_page = list(with_resp.context["page_obj"].object_list)
@@ -639,8 +652,10 @@ class MacroScreenTests(TestCase):
         without_resp = self.client.get(reverse("macro_list"), data={"representative_presence": "without"})
         without_page = list(without_resp.context["page_obj"].object_list)
         self.assertEqual(without_resp.status_code, 200)
-        self.assertEqual(len(without_page), 1)
-        self.assertEqual(without_page[0].establishment_name, "Loja Sem Rep")
+        self.assertEqual(len(without_page), 2)
+        names = {item.establishment_name for item in without_page}
+        self.assertIn("Loja Sem Rep", names)
+        self.assertIn("Loja Sem Rep Traco", names)
 
     def test_export_csv_respects_representative_presence_filter(self):
         MacroLead.objects.create(

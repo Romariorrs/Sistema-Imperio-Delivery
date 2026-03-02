@@ -267,8 +267,7 @@ def extract_rows(driver, pos: Dict[str, int]) -> List[List[str]]:
                 tables.push(table);
               }
             });
-            const getHeaderColumns = (table) => {
-              const headerRow = table.querySelector("thead tr");
+            const toHeaderColumns = (headerRow) => {
               if (!headerRow) return [];
               return Array.from(headerRow.children).map((cell) => {
                 const fromClass = extractColumnNumber(cell.className || '');
@@ -276,6 +275,17 @@ def extract_rows(driver, pos: Dict[str, int]) -> List[List[str]]:
                 const child = cell.querySelector('[class*="pb-table"][class*="column_"]');
                 return child ? extractColumnNumber(child.className || '') : null;
               });
+            };
+            const findHeaderColumns = (row, table) => {
+              const ownHeaderRow = table ? table.querySelector("thead tr") : null;
+              if (ownHeaderRow) return toHeaderColumns(ownHeaderRow);
+              let current = row.parentElement;
+              while (current) {
+                const headerRow = current.querySelector("thead tr");
+                if (headerRow) return toHeaderColumns(headerRow);
+                current = current.parentElement;
+              }
+              return [];
             };
             const readCells = (row, headerColumns) => {
               let cells = Array.from(row.children).filter((node) => node.matches('td, th, div.pb-table_cell'));
@@ -298,9 +308,9 @@ def extract_rows(driver, pos: Dict[str, int]) -> List[List[str]]:
 
             const mergedRows = new Map();
             tables.forEach((table) => {
-              const headerColumns = getHeaderColumns(table);
               const bodyRows = Array.from(table.querySelectorAll('tbody tr'));
               bodyRows.forEach((row, rowIndex) => {
+                const headerColumns = findHeaderColumns(row, table);
                 const cells = readCells(row, headerColumns);
                 if (!cells.length) return;
                 const key = String(rowIndex);
@@ -352,7 +362,12 @@ def extract_rows(driver, pos: Dict[str, int]) -> List[List[str]]:
                 continue
             payload = row_groups.setdefault(row_index, [])
             column_numbers = []
-            header_cells = row.find_elements(By.XPATH, "ancestor::table[1]//thead//tr[1]/*")
+            header_cells = row.find_elements(
+                By.XPATH,
+                (
+                    "ancestor::*[.//thead//tr[1]][1]//thead//tr[1]/*"
+                ),
+            )
             for header_cell in header_cells:
                 column_numbers.append(_extract_column_number(header_cell.get_attribute("class") or ""))
             for cell_index, cell in enumerate(cells):

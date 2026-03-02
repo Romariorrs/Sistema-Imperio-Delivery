@@ -40,7 +40,7 @@ API_BATCH_RETRY_SLEEP = float(os.getenv("API_BATCH_RETRY_SLEEP", "1.5"))
 
 logger = logging.getLogger(__name__)
 
-COLUMN_CLASS_PATTERN = re.compile(r"pb-table(?:_\d+)?_column_(\d+)")
+COLUMN_CLASS_PATTERN = re.compile(r"pb-table(?:_[0-9]+)?_column_([0-9]+)")
 
 FIELD_TARGETS = [
     "ID da loja",
@@ -195,6 +195,16 @@ def _cell_class(cell) -> str:
     return ""
 
 
+def _cell_column(cell) -> int:
+    if isinstance(cell, dict):
+        column = cell.get("column")
+        try:
+            return int(column)
+        except (TypeError, ValueError):
+            pass
+    return _extract_column_number(_cell_class(cell))
+
+
 def _pick_from_cells(cells, field: str, primary: int = -1) -> str:
     field_column_numbers = {
         "ID da loja": [2],
@@ -204,7 +214,7 @@ def _pick_from_cells(cells, field: str, primary: int = -1) -> str:
     if field in field_column_numbers:
         for target_column in field_column_numbers[field]:
             for cell in cells:
-                if _extract_column_number(_cell_class(cell)) == target_column:
+                if _cell_column(cell) == target_column:
                     txt = _cell_text(cell)
                     if txt:
                         return txt
@@ -239,27 +249,75 @@ def extract_rows(driver, pos: Dict[str, int]) -> List[List[str]]:
     try:
         js_rows = driver.execute_script(
             """
-            const rows = Array.from(document.querySelectorAll("tr.pb-table_row, table.pb-table tbody tr"));
-            return rows.map(r => {
-              const directTds = Array.from(r.querySelectorAll(":scope > td"));
-              if (directTds.length) {
-                return directTds.map(c => ({
-                  text: (c.innerText || c.textContent || '').trim(),
-                  cls: c.className || ''
-                }));
+            const tableSelectors = [
+              ".pb-table_fixed table",
+              ".pb-table_body table",
+              ".pb-table_scroll table",
+              "table.pb-table"
+            ];
+            const extractColumnNumber = (className) => {
+              const match = String(className || '').match(/pb-table(?:_[0-9]+)?_column_([0-9]+)/);
+              return match ? Number(match[1]) : null;
+            };
+            const tables = [];
+            const seenTables = new Set();
+            document.querySelectorAll(tableSelectors.join(",")).forEach((table) => {
+              if (!seenTables.has(table)) {
+                seenTables.add(table);
+                tables.push(table);
               }
-              const directCells = Array.from(r.querySelectorAll(":scope > div.pb-table_cell"));
-              if (directCells.length) {
-                return directCells.map(c => ({
-                  text: (c.innerText || c.textContent || '').trim(),
-                  cls: c.className || ''
-                }));
+            });
+            const getHeaderColumns = (table) => {
+              const headerRow = table.querySelector("thead tr");
+              if (!headerRow) return [];
+              return Array.from(headerRow.children).map((cell) => {
+                const fromClass = extractColumnNumber(cell.className || '');
+                if (fromClass !== null) return fromClass;
+                const child = cell.querySelector('[class*="pb-table"][class*="column_"]');
+                return child ? extractColumnNumber(child.className || '') : null;
+              });
+            };
+            const readCells = (row, headerColumns) => {
+              let cells = Array.from(row.children).filter((node) => node.matches('td, th, div.pb-table_cell'));
+              if (!cells.length) {
+                cells = Array.from(row.querySelectorAll(':scope > td, :scope > th, :scope > div.pb-table_cell'));
               }
-              const fallback = Array.from(r.querySelectorAll("td, div.pb-table_cell"));
-              return fallback.map(c => ({
-                text: (c.innerText || c.textContent || '').trim(),
-                cls: c.className || ''
-              }));
+              if (!cells.length) {
+                cells = Array.from(row.querySelectorAll('td, th, div.pb-table_cell'));
+              }
+              return cells.map((cell, index) => {
+                const fromClass = extractColumnNumber(cell.className || '');
+                const column = fromClass !== null ? fromClass : (headerColumns[index] ?? null);
+                return {
+                  text: (cell.innerText || cell.textContent || '').trim(),
+                  cls: cell.className || '',
+                  column,
+                };
+              }).filter((cell) => cell.text || cell.cls || cell.column !== null);
+            };
+
+            const mergedRows = new Map();
+            tables.forEach((table) => {
+              const headerColumns = getHeaderColumns(table);
+              const bodyRows = Array.from(table.querySelectorAll('tbody tr'));
+              bodyRows.forEach((row, rowIndex) => {
+                const cells = readCells(row, headerColumns);
+                if (!cells.length) return;
+                const key = String(rowIndex);
+                const current = mergedRows.get(key) || [];
+                current.push(...cells);
+                mergedRows.set(key, current);
+              });
+            });
+
+            return Array.from(mergedRows.values()).map((cells) => {
+              const seen = new Set();
+              return cells.filter((cell) => {
+                const key = `${cell.column ?? ''}::${cell.cls}::${cell.text}`;
+                if (seen.has(key)) return false;
+                seen.add(key);
+                return true;
+              });
             });
             """
         )
@@ -275,29 +333,51 @@ def extract_rows(driver, pos: Dict[str, int]) -> List[List[str]]:
                 rows_out.append(picked)
         return rows_out
 
-    rows = driver.find_elements(
-        By.XPATH,
-        "//div[contains(@class,'pb-table_body')]//tr"
-        " | //table[contains(@class,'pb-table')]//tbody//tr",
-    )
-    for row in rows:
-        cells = row.find_elements(By.XPATH, "./td")
-        if not cells:
-            cells = row.find_elements(By.XPATH, "./div[contains(@class,'pb-table_cell')]")
-        if not cells:
-            cells = row.find_elements(By.XPATH, ".//td | .//div[contains(@class,'pb-table_cell')]")
+    row_groups: Dict[int, List[dict]] = {}
+    row_xpaths = [
+        "//div[contains(@class,'pb-table_fixed')]//tbody//tr",
+        "//div[contains(@class,'pb-table_body')]//tbody//tr",
+        "//div[contains(@class,'pb-table_scroll')]//tbody//tr",
+        "//table[contains(@class,'pb-table')]//tbody//tr",
+    ]
+    for xpath in row_xpaths:
+        rows = driver.find_elements(By.XPATH, xpath)
+        for row_index, row in enumerate(rows):
+            cells = row.find_elements(By.XPATH, "./td")
+            if not cells:
+                cells = row.find_elements(By.XPATH, "./div[contains(@class,'pb-table_cell')]")
+            if not cells:
+                cells = row.find_elements(By.XPATH, ".//td | .//div[contains(@class,'pb-table_cell')]")
+            if not cells:
+                continue
+            payload = row_groups.setdefault(row_index, [])
+            column_numbers = []
+            header_cells = row.find_elements(By.XPATH, "ancestor::table[1]//thead//tr[1]/*")
+            for header_cell in header_cells:
+                column_numbers.append(_extract_column_number(header_cell.get_attribute("class") or ""))
+            for cell_index, cell in enumerate(cells):
+                payload.append(
+                    {
+                        "text": cell.text.strip() or (cell.get_attribute("textContent") or "").strip(),
+                        "cls": cell.get_attribute("class") or "",
+                        "column": column_numbers[cell_index] if cell_index < len(column_numbers) else None,
+                    }
+                )
+
+    for cells in row_groups.values():
         if not cells:
             continue
-        cell_payload = [
-            {
-                "text": cell.text.strip() or (cell.get_attribute("textContent") or "").strip(),
-                "cls": cell.get_attribute("class") or "",
-            }
-            for cell in cells
-        ]
+        unique_cells = []
+        seen = set()
+        for cell in cells:
+            key = f"{cell.get('cls','')}::{cell.get('text','')}"
+            if key in seen:
+                continue
+            seen.add(key)
+            unique_cells.append(cell)
         picked = []
         for field in FIELD_TARGETS:
-            picked.append(_pick_from_cells(cell_payload, field, pos.get(field, -1)))
+            picked.append(_pick_from_cells(unique_cells, field, pos.get(field, -1)))
         if any(picked):
             rows_out.append(picked)
     return rows_out

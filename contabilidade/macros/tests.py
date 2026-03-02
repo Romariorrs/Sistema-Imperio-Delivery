@@ -591,6 +591,86 @@ class MacroScreenTests(TestCase):
         self.assertEqual(len(unique_page), 1)
         self.assertEqual(unique_page[0].city, "Sao Paulo")
 
+    def test_filter_by_representative_presence(self):
+        MacroLead.objects.create(
+            source="api",
+            city="Rio",
+            target_region="R1",
+            establishment_name="Loja Com Rep",
+            representative_name="Ana",
+            contract_status="Ativo",
+            representative_phone="21999990000",
+            representative_phone_norm="5521999990000",
+            company_category="Brasileira",
+            address="Rua 1",
+            unique_key="rep-filter-1",
+        )
+        MacroLead.objects.create(
+            source="api",
+            city="Sao Paulo",
+            target_region="R2",
+            establishment_name="Loja Sem Rep",
+            representative_name="",
+            contract_status="Ativo",
+            representative_phone="11999998888",
+            representative_phone_norm="5511999998888",
+            company_category="Pizza",
+            address="Rua 2",
+            unique_key="rep-filter-2",
+        )
+
+        with_resp = self.client.get(reverse("macro_list"), data={"representative_presence": "with"})
+        with_page = list(with_resp.context["page_obj"].object_list)
+        self.assertEqual(with_resp.status_code, 200)
+        self.assertEqual(len(with_page), 1)
+        self.assertEqual(with_page[0].establishment_name, "Loja Com Rep")
+
+        without_resp = self.client.get(reverse("macro_list"), data={"representative_presence": "without"})
+        without_page = list(without_resp.context["page_obj"].object_list)
+        self.assertEqual(without_resp.status_code, 200)
+        self.assertEqual(len(without_page), 1)
+        self.assertEqual(without_page[0].establishment_name, "Loja Sem Rep")
+
+    def test_export_csv_respects_representative_presence_filter(self):
+        MacroLead.objects.create(
+            source="api",
+            city="Rio",
+            target_region="R1",
+            establishment_name="Loja Com Rep Export",
+            representative_name="Ana",
+            contract_status="Ativo",
+            representative_phone="21999990000",
+            representative_phone_norm="5521999990000",
+            company_category="Brasileira",
+            address="Rua 1",
+            unique_key="rep-export-1",
+        )
+        MacroLead.objects.create(
+            source="api",
+            city="Sao Paulo",
+            target_region="R2",
+            establishment_name="Loja Sem Rep Export",
+            representative_name="",
+            contract_status="Ativo",
+            representative_phone="11999998888",
+            representative_phone_norm="5511999998888",
+            company_category="Pizza",
+            address="Rua 2",
+            unique_key="rep-export-2",
+        )
+
+        resp = self.client.get(
+            reverse("macro_export_csv"),
+            data={
+                "representative_presence": "without",
+                "export_fields": ["establishment_name", "representative_name"],
+            },
+        )
+        self.assertEqual(resp.status_code, 200)
+        body = resp.content.decode("utf-8")
+        self.assertIn("Loja Sem Rep Export", body)
+        self.assertNotIn("Loja Com Rep Export", body)
+
     @override_settings(MACRO_RUN_STALE_MINUTES=1)
     def test_collect_page_closes_stale_running_runs(self):
         run = MacroRun.objects.create(

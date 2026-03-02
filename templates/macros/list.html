@@ -266,6 +266,7 @@
             <input type="hidden" name="contract_status" value="{{ request.GET.contract_status }}">
             <input type="hidden" name="business_99_status" value="{{ request.GET.business_99_status }}">
             <input type="hidden" name="company_category" value="{{ request.GET.company_category }}">
+            <input type="hidden" name="representative_presence" value="{{ request.GET.representative_presence }}">
             <input type="hidden" name="blocked" value="{{ request.GET.blocked }}">
             <input type="hidden" name="phone_dup" value="{{ request.GET.phone_dup }}">
             <input type="hidden" name="lead_date_from" value="{{ request.GET.lead_date_from }}">
@@ -273,7 +274,7 @@
             <div class="macro-export-form-grid">
                 <div class="macro-export-limit-wrap">
                     <label>Quantidade de leads</label>
-                    <input type="number" name="export_limit" min="1" max="{{ max_export_limit }}" placeholder="vazio = todos filtrados">
+                    <input type="number" name="export_limit" min="1" max="{{ max_export_limit }}" value="{{ selected_export_limit }}" placeholder="vazio = todos filtrados">
                     <p class="macro-export-note">Limite maximo: {{ max_export_limit }} leads.</p>
                 </div>
                 <div>
@@ -281,7 +282,7 @@
                     <div class="macro-export-fields">
                         {% for field, label in export_field_choices %}
                             <label>
-                                <input type="checkbox" name="export_fields" value="{{ field }}" {% if field in default_export_fields %}checked{% endif %}>
+                                <input type="checkbox" name="export_fields" value="{{ field }}" {% if field in selected_export_fields %}checked{% endif %}>
                                 <span>{{ label }}</span>
                             </label>
                         {% endfor %}
@@ -314,6 +315,7 @@
                     <input type="hidden" name="contract_status" value="{{ request.GET.contract_status }}">
                     <input type="hidden" name="business_99_status" value="{{ request.GET.business_99_status }}">
                     <input type="hidden" name="company_category" value="{{ request.GET.company_category }}">
+                    <input type="hidden" name="representative_presence" value="{{ request.GET.representative_presence }}">
                     <input type="hidden" name="blocked" value="{{ request.GET.blocked }}">
                     <input type="hidden" name="phone_dup" value="{{ request.GET.phone_dup }}">
                     <input type="hidden" name="lead_date_from" value="{{ request.GET.lead_date_from }}">
@@ -332,6 +334,7 @@
                     <input type="hidden" name="contract_status" value="{{ request.GET.contract_status }}">
                     <input type="hidden" name="business_99_status" value="{{ request.GET.business_99_status }}">
                     <input type="hidden" name="company_category" value="{{ request.GET.company_category }}">
+                    <input type="hidden" name="representative_presence" value="{{ request.GET.representative_presence }}">
                     <input type="hidden" name="blocked" value="{{ request.GET.blocked }}">
                     <input type="hidden" name="phone_dup" value="{{ request.GET.phone_dup }}">
                     <input type="hidden" name="lead_date_from" value="{{ request.GET.lead_date_from }}">
@@ -592,6 +595,14 @@
                 </select>
             </div>
             <div>
+                <label>Representante</label>
+                <select name="representative_presence">
+                    <option value="" {% if not request.GET.representative_presence %}selected{% endif %}>Todos</option>
+                    <option value="with" {% if request.GET.representative_presence == "with" %}selected{% endif %}>Com representante</option>
+                    <option value="without" {% if request.GET.representative_presence == "without" %}selected{% endif %}>Sem representante</option>
+                </select>
+            </div>
+            <div>
                 <label>Numeros bloqueados</label>
                 <select name="blocked">
                     <option value="" {% if not request.GET.blocked %}selected{% endif %}>Todos</option>
@@ -621,6 +632,46 @@
                 <a class="btn secondary macro-orbit" href="{% url 'macro_list' %}">Limpar</a>
             </div>
         </form>
+        <div class="macro-export-buttons" style="margin-top:12px;">
+            <form method="get" action="{% url 'macro_export_csv' %}" style="display:flex;gap:8px;flex-wrap:wrap;">
+                <input type="hidden" name="q" value="{{ request.GET.q }}">
+                <input type="hidden" name="city" value="{{ request.GET.city }}">
+                <input type="hidden" name="contract_status" value="{{ request.GET.contract_status }}">
+                <input type="hidden" name="business_99_status" value="{{ request.GET.business_99_status }}">
+                <input type="hidden" name="company_category" value="{{ request.GET.company_category }}">
+                <input type="hidden" name="representative_presence" value="{{ request.GET.representative_presence }}">
+                <input type="hidden" name="blocked" value="{{ request.GET.blocked }}">
+                <input type="hidden" name="phone_dup" value="{{ request.GET.phone_dup }}">
+                <input type="hidden" name="lead_date_from" value="{{ request.GET.lead_date_from }}">
+                <input type="hidden" name="lead_date_to" value="{{ request.GET.lead_date_to }}">
+                {% for field in selected_export_fields %}
+                    <input type="hidden" name="export_fields" value="{{ field }}">
+                {% endfor %}
+                {% if selected_export_limit %}
+                    <input type="hidden" name="export_limit" value="{{ selected_export_limit }}">
+                {% endif %}
+                <button class="btn secondary macro-orbit" type="submit">Exportar consulta CSV</button>
+            </form>
+            <form method="get" action="{% url 'macro_export_xlsx' %}" style="display:flex;gap:8px;flex-wrap:wrap;">
+                <input type="hidden" name="q" value="{{ request.GET.q }}">
+                <input type="hidden" name="city" value="{{ request.GET.city }}">
+                <input type="hidden" name="contract_status" value="{{ request.GET.contract_status }}">
+                <input type="hidden" name="business_99_status" value="{{ request.GET.business_99_status }}">
+                <input type="hidden" name="company_category" value="{{ request.GET.company_category }}">
+                <input type="hidden" name="representative_presence" value="{{ request.GET.representative_presence }}">
+                <input type="hidden" name="blocked" value="{{ request.GET.blocked }}">
+                <input type="hidden" name="phone_dup" value="{{ request.GET.phone_dup }}">
+                <input type="hidden" name="lead_date_from" value="{{ request.GET.lead_date_from }}">
+                <input type="hidden" name="lead_date_to" value="{{ request.GET.lead_date_to }}">
+                {% for field in selected_export_fields %}
+                    <input type="hidden" name="export_fields" value="{{ field }}">
+                {% endfor %}
+                {% if selected_export_limit %}
+                    <input type="hidden" name="export_limit" value="{{ selected_export_limit }}">
+                {% endif %}
+                <button class="btn secondary macro-orbit" type="submit">Exportar consulta XLSX</button>
+            </form>
+        </div>
     </div>
 
     <div class="card">
@@ -684,6 +735,7 @@
                                         <input type="hidden" name="contract_status" value="{{ request.GET.contract_status }}">
                                         <input type="hidden" name="business_99_status" value="{{ request.GET.business_99_status }}">
                                         <input type="hidden" name="company_category" value="{{ request.GET.company_category }}">
+                                        <input type="hidden" name="representative_presence" value="{{ request.GET.representative_presence }}">
                                         <input type="hidden" name="blocked" value="{{ request.GET.blocked }}">
                                         <input type="hidden" name="phone_dup" value="{{ request.GET.phone_dup }}">
                                         <input type="hidden" name="lead_date_from" value="{{ request.GET.lead_date_from }}">
@@ -698,6 +750,7 @@
                                         <input type="hidden" name="contract_status" value="{{ request.GET.contract_status }}">
                                         <input type="hidden" name="business_99_status" value="{{ request.GET.business_99_status }}">
                                         <input type="hidden" name="company_category" value="{{ request.GET.company_category }}">
+                                        <input type="hidden" name="representative_presence" value="{{ request.GET.representative_presence }}">
                                         <input type="hidden" name="blocked" value="{{ request.GET.blocked }}">
                                         <input type="hidden" name="phone_dup" value="{{ request.GET.phone_dup }}">
                                         <input type="hidden" name="lead_date_from" value="{{ request.GET.lead_date_from }}">

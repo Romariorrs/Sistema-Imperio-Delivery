@@ -50,6 +50,7 @@ def _apply_filters(request=None, queryset=None, params=None):
     contract_status = (params.get("contract_status") or "").strip()
     business_99_status = (params.get("business_99_status") or "").strip()
     company_category = (params.get("company_category") or "").strip()
+    representative_presence = (params.get("representative_presence") or "").strip().lower()
     blocked = (params.get("blocked") or "").strip().lower()
     phone_dup = (params.get("phone_dup") or "").strip().lower()
     lead_date_from = (params.get("lead_date_from") or "").strip()
@@ -85,6 +86,10 @@ def _apply_filters(request=None, queryset=None, params=None):
         queryset = queryset.filter(business_99_status=business_99_status)
     if company_category:
         queryset = queryset.filter(company_category=company_category)
+    if representative_presence == "with":
+        queryset = queryset.exclude(representative_name="")
+    elif representative_presence == "without":
+        queryset = queryset.filter(representative_name="")
     if blocked == "yes":
         queryset = queryset.filter(is_blocked_number=True)
     elif blocked == "no":
@@ -121,6 +126,7 @@ def _filtered_delete_redirect(params):
             "contract_status",
             "business_99_status",
             "company_category",
+            "representative_presence",
             "blocked",
             "phone_dup",
             "lead_date_from",
@@ -391,6 +397,8 @@ def macro_list(request):
         "export_field_choices": EXPORT_FIELD_CHOICES,
         "default_export_fields": DEFAULT_EXPORT_FIELDS,
         "max_export_limit": MAX_EXPORT_LIMIT,
+        "selected_export_fields": _parse_export_fields(request.GET),
+        "selected_export_limit": request.GET.get("export_limit", "").strip(),
     }
     return render(request, "macros/list.html", context)
 

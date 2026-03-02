@@ -270,9 +270,15 @@ def extract_rows(driver, pos: Dict[str, int]) -> List[List[str]]:
                 tables.push(table);
               }
             });
+            const shouldIgnoreHeaderCell = (cell) => {
+              const className = String(cell.className || '');
+              return className.includes('is-hidden') || className.includes('selection');
+            };
             const toHeaderColumns = (headerRow) => {
               if (!headerRow) return [];
-              return Array.from(headerRow.children).map((cell) => {
+              return Array.from(headerRow.children)
+                .filter((cell) => !shouldIgnoreHeaderCell(cell))
+                .map((cell) => {
                 const fromClass = extractColumnNumber(cell.className || '');
                 if (fromClass !== null) return fromClass;
                 const child = cell.querySelector('[class*="pb-table"][class*="column_"]');
@@ -375,6 +381,9 @@ def extract_rows(driver, pos: Dict[str, int]) -> List[List[str]]:
                 ),
             )
             for header_cell in header_cells:
+                header_class = header_cell.get_attribute("class") or ""
+                if "is-hidden" in header_class or "selection" in header_class:
+                    continue
                 column_numbers.append(_extract_column_number(header_cell.get_attribute("class") or ""))
             for cell_index, cell in enumerate(cells):
                 payload.append(

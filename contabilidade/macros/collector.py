@@ -64,10 +64,10 @@ FALLBACK_INDICES = {
     "Nome do representante 99": 9,
     "Status do contrato": 10,
     "Seu Negocio na 99": 12,
-    "ID do signatario": 13,
-    "Telefone do representante do estabelecimento": 14,
-    "Categoria da empresa": 27,
-    "Endereco": 28,
+    "Telefone do representante do estabelecimento": 13,
+    "ID do signatario": 25,
+    "Categoria da empresa": 26,
+    "Endereco": 27,
 }
 
 CHROME_ARGS = [
@@ -204,17 +204,17 @@ def extract_rows(driver, pos: Dict[str, int]) -> List[List[str]]:
                 if primary >= 0:
                     candidates.append(primary)
                 if "ID da loja" in field:
-                    candidates.extend([1, 2])
+                    candidates.extend([1, 0, 2, 3])
                 elif "ID do signatario" in field:
-                    candidates.extend([13, 14, 12, 15])
+                    candidates.extend([25, 24, 26, 23])
                 elif "Telefone do representante" in field:
-                    candidates.extend([14, 13, len(cells) - 1])
+                    candidates.extend([13, 14, 12, len(cells) - 1])
                 elif "Seu Negocio na 99" in field:
                     candidates.extend([12, 11, 13])
                 elif "Categoria da empresa" in field:
-                    candidates.extend([27, 26, 28, 29, 25, 30])
+                    candidates.extend([26, 25, 27, 28, 24, 29])
                 elif "Endereco" in field:
-                    candidates.extend([28, 29, 27, 26, 30, 25])
+                    candidates.extend([27, 28, 26, 25, 29, 24])
 
                 txt = ""
                 for idx in candidates:
@@ -243,8 +243,20 @@ def extract_rows(driver, pos: Dict[str, int]) -> List[List[str]]:
         picked = []
         for field in FIELD_TARGETS:
             idx = pos.get(field, -1)
-            if idx >= len(cells) and "Telefone" in field:
-                idx = len(cells) - 1
+            if idx >= len(cells):
+                if "ID da loja" in field:
+                    candidates = [1, 0, 2, 3]
+                elif "ID do signatario" in field:
+                    candidates = [25, 24, 26, 23]
+                elif "Telefone" in field:
+                    candidates = [13, 14, len(cells) - 1]
+                elif "Categoria da empresa" in field:
+                    candidates = [26, 25, 27, 28, 24, 29]
+                elif "Endereco" in field:
+                    candidates = [27, 28, 26, 25, 29, 24]
+                else:
+                    candidates = []
+                idx = next((candidate for candidate in candidates if 0 <= candidate < len(cells)), -1)
             if 0 <= idx < len(cells):
                 txt = cells[idx].text.strip() or (cells[idx].get_attribute("textContent") or "").strip()
             else:

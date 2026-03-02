@@ -55,17 +55,19 @@ def _apply_filters(request=None, queryset=None, params=None):
     phone_dup = (params.get("phone_dup") or "").strip().lower()
     lead_date_from = (params.get("lead_date_from") or "").strip()
     lead_date_to = (params.get("lead_date_to") or "").strip()
-    duplicate_phone_norms = (
-        MacroLead.objects.exclude(representative_phone_norm="")
-        .values("representative_phone_norm")
+    duplicate_store_ids = (
+        MacroLead.objects.exclude(store_id="")
+        .values("store_id")
         .annotate(total=Count("id"))
         .filter(total__gt=1)
-        .values_list("representative_phone_norm", flat=True)
+        .values_list("store_id", flat=True)
     )
 
     if q:
         text_filter = (
-            Q(city__icontains=q)
+            Q(store_id__icontains=q)
+            | Q(signatory_id__icontains=q)
+            | Q(city__icontains=q)
             | Q(target_region__icontains=q)
             | Q(establishment_name__icontains=q)
             | Q(representative_name__icontains=q)
@@ -95,13 +97,13 @@ def _apply_filters(request=None, queryset=None, params=None):
     elif blocked == "no":
         queryset = queryset.filter(is_blocked_number=False)
     if phone_dup == "duplicates":
-        queryset = queryset.filter(representative_phone_norm__in=duplicate_phone_norms)
+        queryset = queryset.filter(store_id__in=duplicate_store_ids)
     elif phone_dup == "unique":
-        queryset = queryset.exclude(representative_phone_norm="").exclude(
-            representative_phone_norm__in=duplicate_phone_norms
+        queryset = queryset.exclude(store_id="").exclude(
+            store_id__in=duplicate_store_ids
         )
     elif phone_dup == "empty":
-        queryset = queryset.filter(representative_phone_norm="")
+        queryset = queryset.filter(store_id="")
     if lead_date_from:
         queryset = queryset.filter(lead_created_at__date__gte=lead_date_from)
     if lead_date_to:
@@ -308,28 +310,28 @@ def macro_list(request):
         ),
         total_categories=Count("company_category", distinct=True, filter=~Q(company_category="")),
     )
-    duplicate_phone_stats = (
-        all_queryset.exclude(representative_phone_norm="")
-        .values("representative_phone_norm")
+    duplicate_store_stats = (
+        all_queryset.exclude(store_id="")
+        .values("store_id")
         .annotate(total=Count("id"))
         .filter(total__gt=1)
     )
-    stats["duplicate_phone_numbers"] = duplicate_phone_stats.count()
-    stats["duplicate_phone_leads"] = sum(row["total"] for row in duplicate_phone_stats)
+    stats["duplicate_store_ids"] = duplicate_store_stats.count()
+    stats["duplicate_store_leads"] = sum(row["total"] for row in duplicate_store_stats)
 
-    page_phone_norms = {
-        (item.representative_phone_norm or "").strip()
+    page_store_ids = {
+        (item.store_id or "").strip()
         for item in page_obj.object_list
-        if (item.representative_phone_norm or "").strip()
+        if (item.store_id or "").strip()
     }
-    page_duplicate_phone_norms = set()
-    if page_phone_norms:
-        page_duplicate_phone_norms = set(
-            all_queryset.filter(representative_phone_norm__in=page_phone_norms)
-            .values("representative_phone_norm")
+    page_duplicate_store_ids = set()
+    if page_store_ids:
+        page_duplicate_store_ids = set(
+            all_queryset.filter(store_id__in=page_store_ids)
+            .values("store_id")
             .annotate(total=Count("id"))
             .filter(total__gt=1)
-            .values_list("representative_phone_norm", flat=True)
+            .values_list("store_id", flat=True)
         )
     city_breakdown = (
         all_queryset.exclude(city="")
@@ -386,7 +388,7 @@ def macro_list(request):
         "macro_agent_build": version_meta["build"],
         "macro_agent_label": version_meta["label"],
         "stats": stats,
-        "page_duplicate_phone_norms": page_duplicate_phone_norms,
+        "page_duplicate_store_ids": page_duplicate_store_ids,
         "last_capture_at": last_capture_at,
         "last_success_run": last_success_run,
         "city_breakdown": city_breakdown,

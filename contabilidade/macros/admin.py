@@ -6,6 +6,8 @@ from .models import MacroLead, MacroRun
 @admin.register(MacroLead)
 class MacroLeadAdmin(admin.ModelAdmin):
     list_display = (
+        "store_id",
+        "signatory_id",
         "establishment_name",
         "city",
         "target_region",
@@ -16,6 +18,8 @@ class MacroLeadAdmin(admin.ModelAdmin):
     )
     list_filter = ("city", "contract_status", "company_category", "source", "is_blocked_number")
     search_fields = (
+        "store_id",
+        "signatory_id",
         "establishment_name",
         "representative_name",
         "representative_phone",

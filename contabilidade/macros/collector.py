@@ -41,6 +41,8 @@ API_BATCH_RETRY_SLEEP = float(os.getenv("API_BATCH_RETRY_SLEEP", "1.5"))
 logger = logging.getLogger(__name__)
 
 FIELD_TARGETS = [
+    "ID da loja",
+    "ID do signatario",
     "Cidade",
     "Regiao-alvo",
     "Horario de criacao do lead",
@@ -54,6 +56,7 @@ FIELD_TARGETS = [
 ]
 
 FALLBACK_INDICES = {
+    "ID da loja": 1,
     "Cidade": 2,
     "Regiao-alvo": 3,
     "Horario de criacao do lead": 4,
@@ -61,9 +64,10 @@ FALLBACK_INDICES = {
     "Nome do representante 99": 9,
     "Status do contrato": 10,
     "Seu Negocio na 99": 12,
-    "Telefone do representante do estabelecimento": 13,
-    "Categoria da empresa": 26,
-    "Endereco": 27,
+    "ID do signatario": 13,
+    "Telefone do representante do estabelecimento": 14,
+    "Categoria da empresa": 27,
+    "Endereco": 28,
 }
 
 CHROME_ARGS = [
@@ -199,14 +203,18 @@ def extract_rows(driver, pos: Dict[str, int]) -> List[List[str]]:
                 candidates = []
                 if primary >= 0:
                     candidates.append(primary)
-                if "Telefone do representante" in field:
-                    candidates.extend([13, len(cells) - 1])
+                if "ID da loja" in field:
+                    candidates.extend([1, 2])
+                elif "ID do signatario" in field:
+                    candidates.extend([13, 14, 12, 15])
+                elif "Telefone do representante" in field:
+                    candidates.extend([14, 13, len(cells) - 1])
                 elif "Seu Negocio na 99" in field:
                     candidates.extend([12, 11, 13])
                 elif "Categoria da empresa" in field:
-                    candidates.extend([26, 25, 27, 28, 24, 29])
+                    candidates.extend([27, 26, 28, 29, 25, 30])
                 elif "Endereco" in field:
-                    candidates.extend([27, 28, 26, 25, 29, 24])
+                    candidates.extend([28, 29, 27, 26, 30, 25])
 
                 txt = ""
                 for idx in candidates:

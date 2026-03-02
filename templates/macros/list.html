@@ -411,9 +411,9 @@
             <div class="macro-kpi-note">Unicos: {{ stats.blocked_numbers_unique }}</div>
         </div>
         <div class="macro-kpi">
-            <div class="macro-kpi-label">Numeros duplicados</div>
-            <div class="macro-kpi-value">{{ stats.duplicate_phone_numbers }}</div>
-            <div class="macro-kpi-note">Leads com duplicidade: {{ stats.duplicate_phone_leads }}</div>
+            <div class="macro-kpi-label">IDs de loja duplicados</div>
+            <div class="macro-kpi-value">{{ stats.duplicate_store_ids }}</div>
+            <div class="macro-kpi-note">Leads com duplicidade: {{ stats.duplicate_store_leads }}</div>
         </div>
         <div class="macro-kpi">
             <div class="macro-kpi-label">Categorias cadastradas</div>
@@ -556,7 +556,7 @@
         <form method="get" class="macro-filter-form">
             <div>
                 <label>Busca geral</label>
-                <input type="text" name="q" value="{{ request.GET.q }}" placeholder="Nome, telefone, endereco...">
+                <input type="text" name="q" value="{{ request.GET.q }}" placeholder="ID, nome, telefone, endereco...">
             </div>
             <div>
                 <label>Cidade</label>
@@ -611,12 +611,12 @@
                 </select>
             </div>
             <div>
-                <label>Duplicidade de numero</label>
+                <label>Duplicidade por ID da loja</label>
                 <select name="phone_dup">
                     <option value="" {% if not request.GET.phone_dup %}selected{% endif %}>Todos</option>
                     <option value="duplicates" {% if request.GET.phone_dup == "duplicates" %}selected{% endif %}>Somente duplicados</option>
                     <option value="unique" {% if request.GET.phone_dup == "unique" %}selected{% endif %}>Somente unicos</option>
-                    <option value="empty" {% if request.GET.phone_dup == "empty" %}selected{% endif %}>Sem telefone</option>
+                    <option value="empty" {% if request.GET.phone_dup == "empty" %}selected{% endif %}>Sem ID da loja</option>
                 </select>
             </div>
             <div>
@@ -683,6 +683,8 @@
             <table>
                 <thead>
                     <tr>
+                        <th>ID loja</th>
+                        <th>ID signatario</th>
                         <th>Cidade</th>
                         <th>Regiao</th>
                         <th>Estabelecimento</th>
@@ -700,6 +702,8 @@
                 <tbody>
                 {% for item in page_obj %}
                     <tr class="{% if item.is_blocked_number %}macro-row-blocked{% endif %}">
+                        <td>{{ item.store_id|default:"--" }}</td>
+                        <td>{{ item.signatory_id|default:"--" }}</td>
                         <td>{{ item.city }}</td>
                         <td>{{ item.target_region }}</td>
                         <td>{{ item.establishment_name }}</td>
@@ -711,8 +715,8 @@
                             {% if item.is_blocked_number %}
                                 <span class="macro-phone-chip">Bloqueado</span>
                             {% endif %}
-                            {% if item.representative_phone_norm and item.representative_phone_norm in page_duplicate_phone_norms %}
-                                <span class="macro-phone-chip warn">Duplicado</span>
+                            {% if item.store_id and item.store_id in page_duplicate_store_ids %}
+                                <span class="macro-phone-chip warn">ID duplicado</span>
                             {% endif %}
                         </td>
                         <td>{{ item.company_category }}</td>
@@ -762,7 +766,7 @@
                         </td>
                     </tr>
                 {% empty %}
-                    <tr><td colspan="12">Nenhum dado encontrado.</td></tr>
+                    <tr><td colspan="14">Nenhum dado encontrado.</td></tr>
                 {% endfor %}
                 </tbody>
             </table>

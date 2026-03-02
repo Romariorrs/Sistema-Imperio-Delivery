@@ -18,12 +18,14 @@ from contabilidade.macros.services import upsert_rows
 class MacroServicesTests(TestCase):
     def test_upsert_deduplicates_with_stable_key(self):
         first = {
+            "ID da loja": "1001",
             "Cidade": "Sao Paulo",
             "Nome do estabelecimento": "Loja Teste",
             "Telefone do representante do estabelecimento": "(11) 99999-0000",
             "Status do contrato": "Ativo",
         }
         second = {
+            "ID da loja": "1001",
             "Cidade": "Sao Paulo",
             "Nome do estabelecimento": "Loja Teste",
             "Telefone do representante do estabelecimento": "11999990000",
@@ -38,6 +40,8 @@ class MacroServicesTests(TestCase):
 
     def test_upsert_parses_lead_created_at(self):
         row = {
+            "ID da loja": "1002",
+            "ID do signatario": "9002",
             "Cidade": "Sao Paulo",
             "Nome do estabelecimento": "Loja Data",
             "Telefone do representante do estabelecimento": "11999990000",
@@ -48,9 +52,12 @@ class MacroServicesTests(TestCase):
         lead = MacroLead.objects.first()
         self.assertIsNotNone(lead.lead_created_at)
         self.assertEqual(lead.business_99_status, "Nao ativado")
+        self.assertEqual(lead.store_id, "1002")
+        self.assertEqual(lead.signatory_id, "9002")
 
     def test_upsert_trims_oversized_values(self):
         row = {
+            "ID da loja": "1003",
             "Cidade": "S" * 400,
             "Nome do estabelecimento": "L" * 400,
             "Status do contrato": "A" * 150,
@@ -69,6 +76,7 @@ class MacroServicesTests(TestCase):
 
     def test_upsert_recovers_when_create_hits_unique_race(self):
         row = {
+            "ID da loja": "1004",
             "Cidade": "Sao Paulo",
             "Nome do estabelecimento": "Loja Corrida",
             "Telefone do representante do estabelecimento": "11999990000",
@@ -542,6 +550,7 @@ class MacroScreenTests(TestCase):
     def test_filter_duplicate_phones(self):
         MacroLead.objects.create(
             source="api",
+            store_id="dup-001",
             city="Rio",
             target_region="R1",
             establishment_name="Loja Dup 1",
@@ -555,6 +564,7 @@ class MacroScreenTests(TestCase):
         )
         MacroLead.objects.create(
             source="api",
+            store_id="dup-001",
             city="Niteroi",
             target_region="R2",
             establishment_name="Loja Dup 2",
@@ -568,6 +578,7 @@ class MacroScreenTests(TestCase):
         )
         MacroLead.objects.create(
             source="api",
+            store_id="uniq-001",
             city="Sao Paulo",
             target_region="R3",
             establishment_name="Loja Unica",

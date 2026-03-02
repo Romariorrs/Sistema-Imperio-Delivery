@@ -11,6 +11,8 @@ from django.utils.dateparse import parse_datetime, parse_date
 from .models import MacroLead
 
 EXPORT_COLUMNS = (
+    ("store_id", "ID da loja"),
+    ("signatory_id", "ID do signatario"),
     ("city", "Cidade"),
     ("target_region", "Regiao-alvo"),
     ("lead_created_at", "Horario de criacao do lead"),
@@ -24,6 +26,13 @@ EXPORT_COLUMNS = (
 )
 
 HEADER_ALIASES = {
+    "id da loja": "store_id",
+    "store id": "store_id",
+    "store_id": "store_id",
+    "id do signatario": "signatory_id",
+    "id do signatário": "signatory_id",
+    "signatory id": "signatory_id",
+    "signatory_id": "signatory_id",
     "cidade": "city",
     "city": "city",
     "regiao alvo": "target_region",
@@ -55,6 +64,8 @@ HEADER_ALIASES = {
 
 FIELD_MAX_LENGTHS = {
     "source": 50,
+    "store_id": 80,
+    "signatory_id": 80,
     "city": 255,
     "target_region": 255,
     "establishment_name": 255,
@@ -98,6 +109,8 @@ def normalize_value(field: str, value: Any) -> str:
     text = str(value or "").strip()
     if field in {"city", "target_region", "contract_status", "business_99_status", "company_category"}:
         return normalize_text(text)
+    if field in {"store_id", "signatory_id"}:
+        return re.sub(r"\s+", "", text)
     if field in {"establishment_name", "representative_name", "address"}:
         return re.sub(r"\s+", " ", text).strip()
     if field == "representative_phone":
@@ -170,6 +183,14 @@ def normalize_row(raw_row: Mapping[str, Any], default_source: str = "gattaran") 
 
 
 def build_unique_key(parsed_row: Mapping[str, Any]) -> str:
+    store_id = normalize_header(parsed_row.get("store_id", ""))
+    if store_id:
+        parts = [
+            normalize_header(parsed_row.get("source", "")),
+            store_id,
+        ]
+        return hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()
+
     stable_parts = [
         normalize_header(parsed_row.get("source", "")),
         normalize_header(parsed_row.get("city", "")),
@@ -187,6 +208,19 @@ def _find_existing_lead(unique_key: str, parsed: Mapping[str, Any]) -> Optional[
     lead = MacroLead.objects.filter(unique_key=unique_key).first()
     if lead:
         return lead
+
+    store_id = (parsed.get("store_id") or "").strip()
+    if store_id:
+        lead = (
+            MacroLead.objects.filter(
+                source=parsed["source"],
+                store_id=store_id,
+            )
+            .order_by("-last_seen_at")
+            .first()
+        )
+        if lead:
+            return lead
 
     phone_norm = parsed.get("representative_phone_norm", "")
     if phone_norm:

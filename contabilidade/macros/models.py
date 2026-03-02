@@ -4,6 +4,8 @@ from django.contrib.auth import get_user_model
 
 class MacroLead(models.Model):
     source = models.CharField(max_length=50, default="gattaran", db_index=True)
+    store_id = models.CharField(max_length=80, blank=True, db_index=True)
+    signatory_id = models.CharField(max_length=80, blank=True, db_index=True)
     city = models.CharField(max_length=255, blank=True, db_index=True)
     target_region = models.CharField(max_length=255, blank=True, db_index=True)
     lead_created_at = models.DateTimeField(null=True, blank=True, db_index=True)

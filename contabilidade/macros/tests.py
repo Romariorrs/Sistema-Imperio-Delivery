@@ -2,7 +2,6 @@ import json
 from io import BytesIO
 from unittest.mock import patch
 import csv as csv_reader
-from django.db import IntegrityError
 
 from django.contrib.auth.models import User
 from django.core.cache import cache
@@ -16,7 +15,7 @@ from contabilidade.macros.services import upsert_rows
 
 
 class MacroServicesTests(TestCase):
-    def test_upsert_deduplicates_with_stable_key(self):
+    def test_upsert_inserts_duplicate_rows_with_same_store_id(self):
         first = {
             "ID da loja": "1001",
             "Cidade": "Sao Paulo",
@@ -33,10 +32,17 @@ class MacroServicesTests(TestCase):
         }
         upsert_rows([first], default_source="api")
         result = upsert_rows([second], default_source="api")
-        self.assertEqual(result["created"], 0)
-        self.assertEqual(result["updated"], 1)
-        self.assertEqual(MacroLead.objects.count(), 1)
-        self.assertEqual(MacroLead.objects.first().contract_status, "Pendente")
+        self.assertEqual(result["created"], 1)
+        self.assertEqual(result["updated"], 0)
+        self.assertEqual(MacroLead.objects.count(), 2)
+        self.assertEqual(
+            list(
+                MacroLead.objects.filter(store_id="1001")
+                .values_list("contract_status", flat=True)
+                .order_by("id")
+            ),
+            ["Ativo", "Pendente"],
+        )
 
     def test_upsert_parses_lead_created_at(self):
         row = {
@@ -74,7 +80,7 @@ class MacroServicesTests(TestCase):
         self.assertEqual(len(lead.representative_phone), 50)
         self.assertEqual(len(lead.company_category), 255)
 
-    def test_upsert_recovers_when_create_hits_unique_race(self):
+    def test_upsert_always_creates_new_rows(self):
         row = {
             "ID da loja": "1004",
             "Cidade": "Sao Paulo",
@@ -82,19 +88,11 @@ class MacroServicesTests(TestCase):
             "Telefone do representante do estabelecimento": "11999990000",
             "Status do contrato": "Ativo",
         }
-        original_create = MacroLead.objects.create
-
-        def race_create(*args, **kwargs):
-            original_create(*args, **kwargs)
-            raise IntegrityError("duplicate key value violates unique constraint")
-
-        with patch("contabilidade.macros.services.MacroLead.objects.create", side_effect=race_create):
-            result = upsert_rows([row], default_source="api")
-
-        self.assertEqual(result["created"], 0)
-        self.assertEqual(result["updated"], 1)
-        self.assertEqual(MacroLead.objects.count(), 1)
-        self.assertEqual(MacroLead.objects.first().establishment_name, "Loja Corrida")
+        first = upsert_rows([row], default_source="api")
+        second = upsert_rows([row], default_source="api")
+        self.assertEqual(first["created"], 1)
+        self.assertEqual(second["created"], 1)
+        self.assertEqual(MacroLead.objects.count(), 2)
 
 
 @override_settings(

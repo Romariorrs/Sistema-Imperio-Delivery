@@ -690,25 +690,18 @@ def run_with_metrics(
             human_pause()
         pages_processed = page
 
-        dedup_rows: List[List[str]] = []
-        seen = set()
-        for row in all_rows:
-            key = tuple(row)
-            if key in seen:
-                continue
-            seen.add(key)
-            dedup_rows.append(row)
+        rows_to_send = list(all_rows)
 
-        if send_api and dedup_rows:
+        if send_api and rows_to_send:
             run_meta = {
                 "execution_id": uuid.uuid4().hex,
                 "pages_processed": pages_processed,
                 "collected_total": len(all_rows),
-                "deduplicated_total": len(dedup_rows),
-                "to_send_total": len(dedup_rows),
+                "deduplicated_total": len(rows_to_send),
+                "to_send_total": len(rows_to_send),
             }
             sent, to_send = send_rows_to_api(
-                dedup_rows,
+                rows_to_send,
                 api_url=api_url,
                 api_token=api_token,
                 run_meta=run_meta,
@@ -716,9 +709,9 @@ def run_with_metrics(
             logger.info("Enviado para API: %s de %s linhas.", sent, to_send)
 
         return {
-            "rows": dedup_rows,
+            "rows": rows_to_send,
             "collected": len(all_rows),
-            "deduplicated": len(dedup_rows),
+            "deduplicated": len(rows_to_send),
             "sent": sent,
             "to_send": to_send,
             "pages_processed": pages_processed,
@@ -738,4 +731,4 @@ def run_with_metrics(
 
 if __name__ == "__main__":
     result = run_with_metrics()
-    logger.info("Concluido. Coletadas=%s | Deduplicadas=%s", result["collected"], result["deduplicated"])
+    logger.info("Concluido. Coletadas=%s | Enviadas=%s", result["collected"], result["deduplicated"])

@@ -38,7 +38,7 @@ class MacroRunAdmin(admin.ModelAdmin):
         "total_collected",
         "total_sent",
         "created_count",
-        "updated_count",
+        "ignored_count",
     )
     list_filter = ("run_type", "status", "source")
     search_fields = ("message", "request_ip")

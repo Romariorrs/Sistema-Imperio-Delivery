@@ -946,7 +946,7 @@ def macro_api_import(request):
     if collected_total > 0:
         message_parts.append(f"Coletados brutos: {collected_total}.")
     if deduplicated_total > 0:
-        message_parts.append(f"Unicos: {deduplicated_total}.")
+        message_parts.append(f"Linhas enviadas: {deduplicated_total}.")
 
     if final_batch:
         run_log.status = "success"

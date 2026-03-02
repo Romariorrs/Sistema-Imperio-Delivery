@@ -73,7 +73,7 @@ class Command(BaseCommand):
             run_log.message = (
                 f"Macro concluida. Paginas={result.get('pages_processed', 0)}, "
                 f"coletadas={result['collected']}, "
-                f"deduplicadas={result['deduplicated']}, enviadas={result['sent']}."
+                f"linhas enviadas={result['deduplicated']}, enviadas={result['sent']}."
             )
             run_log.save(
                 update_fields=[
@@ -90,7 +90,7 @@ class Command(BaseCommand):
             self.stdout.write(
                 self.style.SUCCESS(
                     f"Macro concluida. Linhas coletadas: {result['collected']} | "
-                    f"deduplicadas: {result['deduplicated']} | enviadas: {result['sent']}"
+                    f"linhas enviadas: {result['deduplicated']} | enviadas: {result['sent']}"
                 )
             )
         except Exception as exc:

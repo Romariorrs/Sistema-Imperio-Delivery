@@ -1,10 +1,9 @@
-import hashlib
 import re
 import unicodedata
+import uuid
 from datetime import datetime, timezone as dt_timezone, timedelta
 from typing import Any, Dict, Iterable, Mapping, Optional
 
-from django.db import IntegrityError
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime, parse_date
 
@@ -31,6 +30,7 @@ HEADER_ALIASES = {
     "store_id": "store_id",
     "id do signatario": "signatory_id",
     "id do signatário": "signatory_id",
+    "id do signatÃ¡rio": "signatory_id",
     "signatory id": "signatory_id",
     "signatory_id": "signatory_id",
     "cidade": "city",
@@ -76,6 +76,8 @@ FIELD_MAX_LENGTHS = {
     "representative_phone_norm": 20,
     "company_category": 255,
 }
+
+CREATE_BATCH_SIZE = 1000
 
 
 def _trim(value: str, max_length: int) -> str:
@@ -123,14 +125,12 @@ def parse_lead_datetime(value: Any) -> Optional[datetime]:
     if not raw:
         return None
 
-    # Try standard parsers first
     dt = parse_datetime(raw)
     if dt:
         if timezone.is_naive(dt):
             return timezone.make_aware(dt)
         return dt
 
-    # Common formats like "2026-02-02 13:45:20 UTC-3"
     match = re.search(
         r"(?P<date>\d{4}-\d{2}-\d{2})[ T](?P<time>\d{2}:\d{2}(?::\d{2})?)"
         r"(?:\s*UTC(?P<offset>[+-]\d{1,2})(?::?(?P<mins>\d{2}))?)?",
@@ -153,14 +153,13 @@ def parse_lead_datetime(value: Any) -> Optional[datetime]:
             return dt.replace(tzinfo=tz).astimezone(timezone.get_current_timezone())
         return timezone.make_aware(dt)
 
-    # Fallback: date only
-    d = parse_date(raw)
-    if d:
-        return timezone.make_aware(datetime(d.year, d.month, d.day))
+    parsed_date = parse_date(raw)
+    if parsed_date:
+        return timezone.make_aware(datetime(parsed_date.year, parsed_date.month, parsed_date.day))
     return None
 
 
-def normalize_row(raw_row: Mapping[str, Any], default_source: str = "gattaran") -> Dict[str, str]:
+def normalize_row(raw_row: Mapping[str, Any], default_source: str = "gattaran") -> Dict[str, Any]:
     parsed: Dict[str, Any] = {field: "" for field, _ in EXPORT_COLUMNS}
     parsed["lead_created_at"] = None
     parsed["source"] = default_source
@@ -182,81 +181,13 @@ def normalize_row(raw_row: Mapping[str, Any], default_source: str = "gattaran") 
     return parsed
 
 
-def build_unique_key(parsed_row: Mapping[str, Any]) -> str:
-    store_id = normalize_header(parsed_row.get("store_id", ""))
-    if store_id:
-        parts = [
-            normalize_header(parsed_row.get("source", "")),
-            store_id,
-        ]
-        return hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()
-
-    stable_parts = [
-        normalize_header(parsed_row.get("source", "")),
-        normalize_header(parsed_row.get("city", "")),
-        normalize_header(parsed_row.get("establishment_name", "")),
-        normalize_header(parsed_row.get("representative_phone_norm", "")),
-    ]
-    if not stable_parts[-1]:
-        stable_parts.append(normalize_header(parsed_row.get("address", "")))
-        stable_parts.append(normalize_header(parsed_row.get("representative_name", "")))
-    parts = stable_parts
-    return hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()
-
-
-def _find_existing_lead(unique_key: str, parsed: Mapping[str, Any]) -> Optional[MacroLead]:
-    lead = MacroLead.objects.filter(unique_key=unique_key).first()
-    if lead:
-        return lead
-
-    store_id = (parsed.get("store_id") or "").strip()
-    if store_id:
-        lead = (
-            MacroLead.objects.filter(
-                source=parsed["source"],
-                store_id=store_id,
-            )
-            .order_by("-last_seen_at")
-            .first()
-        )
-        if lead:
-            return lead
-
-    phone_norm = parsed.get("representative_phone_norm", "")
-    if phone_norm:
-        lead = (
-            MacroLead.objects.filter(
-                source=parsed["source"],
-                city__iexact=parsed["city"],
-                establishment_name__iexact=parsed["establishment_name"],
-                representative_phone_norm=phone_norm,
-            )
-            .order_by("-last_seen_at")
-            .first()
-        )
-        if lead:
-            return lead
-
-    if parsed.get("address"):
-        return (
-            MacroLead.objects.filter(
-                source=parsed["source"],
-                city__iexact=parsed["city"],
-                establishment_name__iexact=parsed["establishment_name"],
-                address__iexact=parsed["address"],
-            )
-            .order_by("-last_seen_at")
-            .first()
-        )
-
-    return None
-
-
 def upsert_rows(rows: Iterable[Mapping[str, Any]], default_source: str = "gattaran") -> Dict[str, int]:
     created = 0
     updated = 0
     ignored = 0
     invalid = 0
+    parsed_rows: list[Dict[str, Any]] = []
+    phone_norms: set[str] = set()
 
     for raw in rows:
         if not isinstance(raw, Mapping):
@@ -268,68 +199,45 @@ def upsert_rows(rows: Iterable[Mapping[str, Any]], default_source: str = "gattar
             ignored += 1
             continue
 
-        parsed["unique_key"] = build_unique_key(parsed)
-        defaults = {**parsed}
-        unique_key = defaults.pop("unique_key")
-        lead = _find_existing_lead(unique_key, parsed)
-        was_created = False
-        if not lead:
-            blocked_phone = defaults.get("representative_phone_norm", "")
-            is_blocked = False
-            if blocked_phone:
-                is_blocked = MacroLead.objects.filter(
-                    representative_phone_norm=blocked_phone,
-                    is_blocked_number=True,
-                ).exists()
-            try:
-                lead = MacroLead.objects.create(
-                    unique_key=unique_key,
-                    is_blocked_number=is_blocked,
-                    **defaults,
-                )
-                was_created = True
-            except IntegrityError:
-                # Outro lote/processo pode ter criado o mesmo lead no intervalo
-                # entre o lookup e o create. Nesse caso seguimos como update.
-                lead = _find_existing_lead(unique_key, parsed)
-                if not lead:
-                    raise
+        parsed_rows.append(parsed)
+        phone_norm = (parsed.get("representative_phone_norm") or "").strip()
+        if phone_norm:
+            phone_norms.add(phone_norm)
 
-        if was_created:
-            created += 1
-            continue
-
-        changed_fields = []
-        if lead.unique_key != unique_key:
-            lead.unique_key = unique_key
-            changed_fields.append("unique_key")
-        for field in defaults:
-            incoming = defaults[field]
-            if getattr(lead, field) != incoming:
-                setattr(lead, field, incoming)
-                changed_fields.append(field)
-
-        current_phone = lead.representative_phone_norm
-        if current_phone and not lead.is_blocked_number:
-            if MacroLead.objects.filter(
-                representative_phone_norm=current_phone,
+    blocked_phone_norms = set()
+    if phone_norms:
+        blocked_phone_norms = set(
+            MacroLead.objects.filter(
+                representative_phone_norm__in=phone_norms,
                 is_blocked_number=True,
-            ).exclude(id=lead.id).exists():
-                lead.is_blocked_number = True
-                changed_fields.append("is_blocked_number")
+            ).values_list("representative_phone_norm", flat=True)
+        )
 
-        lead.last_seen_at = timezone.now()
-        changed_fields.append("last_seen_at")
-        try:
-            lead.save(update_fields=changed_fields)
-        except IntegrityError:
-            if "unique_key" in changed_fields:
-                lead.unique_key = f"{unique_key[:56]}{lead.id:08d}"[:64]
-                safe_fields = [field for field in changed_fields if field != "unique_key"] + ["unique_key"]
-                lead.save(update_fields=safe_fields)
-            else:
-                raise
-        updated += 1
+    leads_to_create = []
+    for parsed in parsed_rows:
+        lead = MacroLead(
+            unique_key=uuid.uuid4().hex,
+            source=parsed["source"],
+            store_id=parsed["store_id"],
+            signatory_id=parsed["signatory_id"],
+            city=parsed["city"],
+            target_region=parsed["target_region"],
+            lead_created_at=parsed["lead_created_at"],
+            establishment_name=parsed["establishment_name"],
+            representative_name=parsed["representative_name"],
+            contract_status=parsed["contract_status"],
+            business_99_status=parsed["business_99_status"],
+            representative_phone=parsed["representative_phone"],
+            representative_phone_norm=parsed["representative_phone_norm"],
+            is_blocked_number=parsed["representative_phone_norm"] in blocked_phone_norms,
+            company_category=parsed["company_category"],
+            address=parsed["address"],
+        )
+        leads_to_create.append(lead)
+
+    if leads_to_create:
+        MacroLead.objects.bulk_create(leads_to_create, batch_size=CREATE_BATCH_SIZE)
+        created = len(leads_to_create)
 
     return {
         "created": created,

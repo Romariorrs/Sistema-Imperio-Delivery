@@ -40,6 +40,8 @@ API_BATCH_RETRY_SLEEP = float(os.getenv("API_BATCH_RETRY_SLEEP", "1.5"))
 
 logger = logging.getLogger(__name__)
 
+COLUMN_CLASS_PATTERN = re.compile(r"pb-table(?:_\d+)?_column_(\d+)")
+
 FIELD_TARGETS = [
     "ID da loja",
     "ID do signatario",
@@ -171,6 +173,66 @@ def map_header_positions(driver) -> Dict[str, int]:
     return pos
 
 
+def _extract_column_number(class_name: str) -> int:
+    match = COLUMN_CLASS_PATTERN.search(class_name or "")
+    if not match:
+        return -1
+    try:
+        return int(match.group(1))
+    except (TypeError, ValueError):
+        return -1
+
+
+def _cell_text(cell) -> str:
+    if isinstance(cell, dict):
+        return str(cell.get("text") or "").strip()
+    return str(cell or "").strip()
+
+
+def _cell_class(cell) -> str:
+    if isinstance(cell, dict):
+        return str(cell.get("cls") or "")
+    return ""
+
+
+def _pick_from_cells(cells, field: str, primary: int = -1) -> str:
+    field_column_numbers = {
+        "ID da loja": [2],
+        "ID do signatario": [25],
+    }
+
+    if field in field_column_numbers:
+        for target_column in field_column_numbers[field]:
+            for cell in cells:
+                if _extract_column_number(_cell_class(cell)) == target_column:
+                    txt = _cell_text(cell)
+                    if txt:
+                        return txt
+
+    candidates = []
+    if primary >= 0:
+        candidates.append(primary)
+    if "ID da loja" in field:
+        candidates.extend([1, 0, 2, 3])
+    elif "ID do signatario" in field:
+        candidates.extend([25, 24, 26, 23])
+    elif "Telefone do representante" in field:
+        candidates.extend([13, 14, 12, len(cells) - 1])
+    elif "Seu Negocio na 99" in field:
+        candidates.extend([12, 11, 13])
+    elif "Categoria da empresa" in field:
+        candidates.extend([26, 25, 27, 28, 24, 29])
+    elif "Endereco" in field:
+        candidates.extend([27, 28, 26, 25, 29, 24])
+
+    for idx in candidates:
+        if 0 <= idx < len(cells):
+            txt = _cell_text(cells[idx])
+            if txt:
+                return txt
+    return ""
+
+
 def extract_rows(driver, pos: Dict[str, int]) -> List[List[str]]:
     rows_out: List[List[str]] = []
 
@@ -181,14 +243,23 @@ def extract_rows(driver, pos: Dict[str, int]) -> List[List[str]]:
             return rows.map(r => {
               const directTds = Array.from(r.querySelectorAll(":scope > td"));
               if (directTds.length) {
-                return directTds.map(c => (c.innerText || c.textContent || '').trim());
+                return directTds.map(c => ({
+                  text: (c.innerText || c.textContent || '').trim(),
+                  cls: c.className || ''
+                }));
               }
               const directCells = Array.from(r.querySelectorAll(":scope > div.pb-table_cell"));
               if (directCells.length) {
-                return directCells.map(c => (c.innerText || c.textContent || '').trim());
+                return directCells.map(c => ({
+                  text: (c.innerText || c.textContent || '').trim(),
+                  cls: c.className || ''
+                }));
               }
               const fallback = Array.from(r.querySelectorAll("td, div.pb-table_cell"));
-              return fallback.map(c => (c.innerText || c.textContent || '').trim());
+              return fallback.map(c => ({
+                text: (c.innerText || c.textContent || '').trim(),
+                cls: c.className || ''
+              }));
             });
             """
         )
@@ -199,30 +270,7 @@ def extract_rows(driver, pos: Dict[str, int]) -> List[List[str]]:
         for cells in js_rows:
             picked = []
             for field in FIELD_TARGETS:
-                primary = pos.get(field, -1)
-                candidates = []
-                if primary >= 0:
-                    candidates.append(primary)
-                if "ID da loja" in field:
-                    candidates.extend([1, 0, 2, 3])
-                elif "ID do signatario" in field:
-                    candidates.extend([25, 24, 26, 23])
-                elif "Telefone do representante" in field:
-                    candidates.extend([13, 14, 12, len(cells) - 1])
-                elif "Seu Negocio na 99" in field:
-                    candidates.extend([12, 11, 13])
-                elif "Categoria da empresa" in field:
-                    candidates.extend([26, 25, 27, 28, 24, 29])
-                elif "Endereco" in field:
-                    candidates.extend([27, 28, 26, 25, 29, 24])
-
-                txt = ""
-                for idx in candidates:
-                    if 0 <= idx < len(cells):
-                        txt = (cells[idx] or "").strip()
-                        if txt:
-                            break
-                picked.append(txt)
+                picked.append(_pick_from_cells(cells, field, pos.get(field, -1)))
             if any(picked):
                 rows_out.append(picked)
         return rows_out
@@ -240,28 +288,16 @@ def extract_rows(driver, pos: Dict[str, int]) -> List[List[str]]:
             cells = row.find_elements(By.XPATH, ".//td | .//div[contains(@class,'pb-table_cell')]")
         if not cells:
             continue
+        cell_payload = [
+            {
+                "text": cell.text.strip() or (cell.get_attribute("textContent") or "").strip(),
+                "cls": cell.get_attribute("class") or "",
+            }
+            for cell in cells
+        ]
         picked = []
         for field in FIELD_TARGETS:
-            idx = pos.get(field, -1)
-            if idx >= len(cells):
-                if "ID da loja" in field:
-                    candidates = [1, 0, 2, 3]
-                elif "ID do signatario" in field:
-                    candidates = [25, 24, 26, 23]
-                elif "Telefone" in field:
-                    candidates = [13, 14, len(cells) - 1]
-                elif "Categoria da empresa" in field:
-                    candidates = [26, 25, 27, 28, 24, 29]
-                elif "Endereco" in field:
-                    candidates = [27, 28, 26, 25, 29, 24]
-                else:
-                    candidates = []
-                idx = next((candidate for candidate in candidates if 0 <= candidate < len(cells)), -1)
-            if 0 <= idx < len(cells):
-                txt = cells[idx].text.strip() or (cells[idx].get_attribute("textContent") or "").strip()
-            else:
-                txt = ""
-            picked.append(txt)
+            picked.append(_pick_from_cells(cell_payload, field, pos.get(field, -1)))
         if any(picked):
             rows_out.append(picked)
     return rows_out

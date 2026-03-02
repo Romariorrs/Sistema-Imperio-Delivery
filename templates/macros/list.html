@@ -173,6 +173,44 @@
     .macro-insights { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
     .macro-filter-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; align-items: end; }
     .macro-filter-form > div:last-child { justify-self: end; }
+    .macro-filter-actions {
+        display: flex;
+        gap: 8px;
+        align-items: end;
+        flex-wrap: wrap;
+    }
+    .macro-query-tools {
+        margin-top: 14px;
+        padding-top: 14px;
+        border-top: 1px solid rgba(255,255,255,0.08);
+        display: grid;
+        gap: 12px;
+    }
+    .macro-query-tools-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+    .macro-query-tools-head p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 12px;
+        max-width: 720px;
+    }
+    .macro-query-tools-grid {
+        display: grid;
+        grid-template-columns: minmax(180px, 260px) 1fr;
+        gap: 14px;
+        align-items: start;
+    }
+    .macro-query-tools-actions {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
     .macro-pagination { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
     .macro-danger-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 10px; }
     .macro-danger-box { border: 1px dashed rgba(255, 107, 107, 0.45); border-radius: 12px; padding: 10px; }
@@ -252,6 +290,7 @@
         .macro-filter-form { grid-template-columns: 1fr; }
         .macro-filter-form > div:last-child { justify-self: start; }
         .macro-export-form-grid { grid-template-columns: 1fr; }
+        .macro-query-tools-grid { grid-template-columns: 1fr; }
     }
 </style>
 {% endblock %}
@@ -608,7 +647,7 @@
                 <label>Lead ate (data)</label>
                 <input type="date" name="lead_date_to" value="{{ request.GET.lead_date_to }}">
             </div>
-            <div style="display:flex;gap:8px;">
+            <div class="macro-filter-actions">
                 <button class="btn macro-orbit" type="submit">Filtrar</button>
                 <a class="btn secondary macro-orbit" href="{% url 'macro_list' %}">Limpar</a>
             </div>
@@ -619,7 +658,7 @@
                         <p>Exporta exatamente o resultado filtrado abaixo, com limite e colunas escolhidas.</p>
                     </div>
                 </div>
-                <div class="macro-export-form-grid">
+                <div class="macro-query-tools-grid">
                     <div class="macro-export-limit-wrap">
                         <label>Quantidade de leads</label>
                         <input type="number" name="export_limit" min="1" max="{{ max_export_limit }}" value="{{ selected_export_limit }}" placeholder="vazio = todos filtrados">
@@ -637,7 +676,7 @@
                         </div>
                     </div>
                 </div>
-                <div class="macro-export-buttons">
+                <div class="macro-query-tools-actions">
                     <button class="btn secondary macro-orbit" type="submit" formaction="{% url 'macro_export_csv' %}">Exportar consulta CSV</button>
                     <button class="btn secondary macro-orbit" type="submit" formaction="{% url 'macro_export_xlsx' %}">Exportar consulta XLSX</button>
                 </div>

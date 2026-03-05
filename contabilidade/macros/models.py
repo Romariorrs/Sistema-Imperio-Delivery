@@ -18,6 +18,8 @@ class MacroLead(models.Model):
     is_blocked_number = models.BooleanField(default=False, db_index=True)
     company_category = models.CharField(max_length=255, blank=True, db_index=True)
     address = models.TextField(blank=True)
+    exported_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    export_batch_id = models.CharField(max_length=36, blank=True, db_index=True)
     unique_key = models.CharField(max_length=64, unique=True, db_index=True)
     first_seen_at = models.DateTimeField(auto_now_add=True)
     last_seen_at = models.DateTimeField(auto_now=True)

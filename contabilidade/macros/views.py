@@ -3,6 +3,7 @@ import io
 import json
 import logging
 import secrets
+import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
 import zipfile
@@ -30,6 +31,8 @@ EXPORT_EXTRA_COLUMNS = (
     ("source", "Fonte"),
     ("first_seen_at", "Primeira captura"),
     ("last_seen_at", "Ultima captura"),
+    ("exported_at", "Exportado em"),
+    ("export_batch_id", "Lote exportacao"),
 )
 EXPORT_FIELD_CHOICES = EXPORT_COLUMNS + EXPORT_EXTRA_COLUMNS
 EXPORT_FIELD_LABELS = {field: label for field, label in EXPORT_FIELD_CHOICES}
@@ -64,6 +67,7 @@ def _apply_filters(request=None, queryset=None, params=None):
     representative_presence = (params.get("representative_presence") or "").strip().lower()
     blocked = (params.get("blocked") or "").strip().lower()
     phone_dup = (params.get("phone_dup") or "").strip().lower()
+    export_status = (params.get("export_status") or "").strip().lower()
     lead_date_from = (params.get("lead_date_from") or "").strip()
     lead_date_to = (params.get("lead_date_to") or "").strip()
     duplicate_store_ids = (
@@ -115,6 +119,10 @@ def _apply_filters(request=None, queryset=None, params=None):
         )
     elif phone_dup == "empty":
         queryset = queryset.filter(store_id="")
+    if export_status == "exported":
+        queryset = queryset.exclude(exported_at__isnull=True)
+    elif export_status == "not_exported":
+        queryset = queryset.filter(exported_at__isnull=True)
     if lead_date_from:
         queryset = queryset.filter(lead_created_at__date__gte=lead_date_from)
     if lead_date_to:
@@ -142,6 +150,7 @@ def _filtered_delete_redirect(params):
             "representative_presence",
             "blocked",
             "phone_dup",
+            "export_status",
             "lead_date_from",
             "lead_date_to",
         )
@@ -287,9 +296,14 @@ def _parse_export_limit(params) -> int | None:
     return min(value, MAX_EXPORT_LIMIT)
 
 
+def _parse_mark_exported(params) -> bool:
+    raw = (params.get("mark_exported") or "").strip().lower() if hasattr(params, "get") else ""
+    return raw in {"1", "true", "yes", "on"}
+
+
 def _export_cell_value(item: MacroLead, field: str):
     value = getattr(item, field, "")
-    if field in {"lead_created_at", "first_seen_at", "last_seen_at"} and value:
+    if field in {"lead_created_at", "first_seen_at", "last_seen_at", "exported_at"} and value:
         return value.strftime("%Y-%m-%d %H:%M:%S")
     return value
 
@@ -412,6 +426,8 @@ def macro_list(request):
         "max_export_limit": MAX_EXPORT_LIMIT,
         "selected_export_fields": _parse_export_fields(request.GET),
         "selected_export_limit": request.GET.get("export_limit", "").strip(),
+        "selected_export_status": (request.GET.get("export_status") or "").strip().lower(),
+        "selected_mark_exported": _parse_mark_exported(request.GET) if "mark_exported" in request.GET else True,
     }
     return render(request, "macros/list.html", context)
 
@@ -457,12 +473,23 @@ def macro_export_csv(request):
     if export_limit:
         queryset = queryset[:export_limit]
     selected_fields = _parse_export_fields(request.GET)
+    mark_exported = _parse_mark_exported(request.GET)
+    rows = list(queryset)
+    if mark_exported and rows:
+        now = timezone.now()
+        batch_id = str(uuid.uuid4())
+        ids = [item.id for item in rows]
+        MacroLead.objects.filter(id__in=ids).update(exported_at=now, export_batch_id=batch_id)
+        for item in rows:
+            item.exported_at = now
+            item.export_batch_id = batch_id
+
     response = HttpResponse(content_type="text/csv")
     response["Content-Disposition"] = 'attachment; filename="macro_leads.csv"'
 
     writer = csv.writer(response)
     writer.writerow([EXPORT_FIELD_LABELS[field] for field in selected_fields])
-    for item in queryset:
+    for item in rows:
         writer.writerow([_export_cell_value(item, field) for field in selected_fields])
     return response
 
@@ -477,6 +504,17 @@ def macro_export_xlsx(request):
     if export_limit:
         queryset = queryset[:export_limit]
     selected_fields = _parse_export_fields(request.GET)
+    mark_exported = _parse_mark_exported(request.GET)
+    rows = list(queryset)
+    if mark_exported and rows:
+        now = timezone.now()
+        batch_id = str(uuid.uuid4())
+        ids = [item.id for item in rows]
+        MacroLead.objects.filter(id__in=ids).update(exported_at=now, export_batch_id=batch_id)
+        for item in rows:
+            item.exported_at = now
+            item.export_batch_id = batch_id
+
     response = HttpResponse(
         content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
@@ -486,7 +524,7 @@ def macro_export_xlsx(request):
     ws = wb.active
     ws.title = "Macro Leads"
     ws.append([EXPORT_FIELD_LABELS[field] for field in selected_fields])
-    for item in queryset:
+    for item in rows:
         ws.append([_export_cell_value(item, field) for field in selected_fields])
     wb.save(response)
     return response

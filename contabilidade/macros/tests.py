@@ -342,6 +342,91 @@ class MacroScreenTests(TestCase):
         self.assertEqual(headers, ["Cidade", "Fonte", "Ultima captura"])
         self.assertEqual(ws.max_row, 2)
 
+    def test_export_marks_leads_and_export_status_filter(self):
+        lead_exported = MacroLead.objects.create(
+            source="api",
+            city="Rio",
+            target_region="Centro",
+            establishment_name="Loja Exportada",
+            representative_name="Ana",
+            contract_status="Ativo",
+            representative_phone="21999998888",
+            representative_phone_norm="5521999998888",
+            company_category="Restaurante",
+            address="Rua Teste",
+            unique_key="exp-mark-1",
+        )
+        lead_pending = MacroLead.objects.create(
+            source="api",
+            city="Sao Paulo",
+            target_region="Sul",
+            establishment_name="Loja Pendente",
+            representative_name="Bia",
+            contract_status="Pendente",
+            representative_phone="11999998888",
+            representative_phone_norm="5511999998888",
+            company_category="Pizza",
+            address="Rua Teste 2",
+            unique_key="exp-mark-2",
+        )
+
+        export_resp = self.client.get(
+            reverse("macro_export_csv"),
+            data={
+                "q": "Loja Exportada",
+                "mark_exported": "1",
+                "export_fields": ["establishment_name"],
+            },
+        )
+        self.assertEqual(export_resp.status_code, 200)
+
+        lead_exported.refresh_from_db()
+        lead_pending.refresh_from_db()
+        self.assertIsNotNone(lead_exported.exported_at)
+        self.assertTrue(lead_exported.export_batch_id)
+        self.assertIsNone(lead_pending.exported_at)
+        self.assertEqual(lead_pending.export_batch_id, "")
+
+        exported_resp = self.client.get(reverse("macro_list"), data={"export_status": "exported"})
+        exported_names = {
+            row.establishment_name for row in exported_resp.context["page_obj"].object_list
+        }
+        self.assertIn("Loja Exportada", exported_names)
+        self.assertNotIn("Loja Pendente", exported_names)
+
+        not_exported_resp = self.client.get(
+            reverse("macro_list"),
+            data={"export_status": "not_exported"},
+        )
+        not_exported_names = {
+            row.establishment_name for row in not_exported_resp.context["page_obj"].object_list
+        }
+        self.assertIn("Loja Pendente", not_exported_names)
+        self.assertNotIn("Loja Exportada", not_exported_names)
+
+    def test_export_without_mark_keeps_export_fields_empty(self):
+        lead = MacroLead.objects.create(
+            source="api",
+            city="Recife",
+            target_region="Norte",
+            establishment_name="Loja Sem Marca",
+            representative_name="Carlos",
+            contract_status="Ativo",
+            representative_phone="81999998888",
+            representative_phone_norm="5581999998888",
+            company_category="Lanches",
+            address="Rua Teste 3",
+            unique_key="exp-mark-3",
+        )
+        resp = self.client.get(
+            reverse("macro_export_csv"),
+            data={"q": "Loja Sem Marca", "export_fields": ["establishment_name"]},
+        )
+        self.assertEqual(resp.status_code, 200)
+        lead.refresh_from_db()
+        self.assertIsNone(lead.exported_at)
+        self.assertEqual(lead.export_batch_id, "")
+
     def test_download_local_agent_files(self):
         exe_resp = self.client.get(reverse("macro_download_local_agent_exe"))
         mac_resp = self.client.get(reverse("macro_download_local_agent_mac"))

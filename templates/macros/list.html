@@ -211,6 +211,10 @@
         align-items: center;
         flex-wrap: wrap;
     }
+    .macro-query-tools-actions input[type="checkbox"] {
+        width: auto;
+        margin: 0;
+    }
     .macro-pagination { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
     .macro-danger-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 10px; }
     .macro-danger-box { border: 1px dashed rgba(255, 107, 107, 0.45); border-radius: 12px; padding: 10px; }
@@ -308,8 +312,8 @@
     </div>
 
     <div class="macro-actions">
-        <a class="btn secondary macro-orbit" href="{% url 'macro_export_csv' %}?{{ filter_querystring }}">Exportar CSV</a>
-        <a class="btn secondary macro-orbit" href="{% url 'macro_export_xlsx' %}?{{ filter_querystring }}">Exportar XLSX</a>
+        <a class="btn secondary macro-orbit" href="{% url 'macro_export_csv' %}?{% if filter_querystring %}{{ filter_querystring }}&{% endif %}mark_exported=1">Exportar CSV</a>
+        <a class="btn secondary macro-orbit" href="{% url 'macro_export_xlsx' %}?{% if filter_querystring %}{{ filter_querystring }}&{% endif %}mark_exported=1">Exportar XLSX</a>
         <form method="post" action="{% url 'macro_import_csv' %}" enctype="multipart/form-data" style="display:flex;gap:8px;align-items:center;">
             {% csrf_token %}
             <input type="file" name="file" accept=".csv" required style="max-width:180px;">
@@ -338,6 +342,7 @@
                     <input type="hidden" name="representative_presence" value="{{ request.GET.representative_presence }}">
                     <input type="hidden" name="blocked" value="{{ request.GET.blocked }}">
                     <input type="hidden" name="phone_dup" value="{{ request.GET.phone_dup }}">
+                    <input type="hidden" name="export_status" value="{{ request.GET.export_status }}">
                     <input type="hidden" name="lead_date_from" value="{{ request.GET.lead_date_from }}">
                     <input type="hidden" name="lead_date_to" value="{{ request.GET.lead_date_to }}">
                     <input type="text" name="confirm_text" placeholder="EXCLUIR" required>
@@ -357,6 +362,7 @@
                     <input type="hidden" name="representative_presence" value="{{ request.GET.representative_presence }}">
                     <input type="hidden" name="blocked" value="{{ request.GET.blocked }}">
                     <input type="hidden" name="phone_dup" value="{{ request.GET.phone_dup }}">
+                    <input type="hidden" name="export_status" value="{{ request.GET.export_status }}">
                     <input type="hidden" name="lead_date_from" value="{{ request.GET.lead_date_from }}">
                     <input type="hidden" name="lead_date_to" value="{{ request.GET.lead_date_to }}">
                     <input type="text" name="confirm_text" placeholder="EXCLUIR BLOQUEADOS" required>
@@ -640,6 +646,14 @@
                 </select>
             </div>
             <div>
+                <label>Status de exportacao</label>
+                <select name="export_status">
+                    <option value="" {% if not selected_export_status %}selected{% endif %}>Todos</option>
+                    <option value="not_exported" {% if selected_export_status == "not_exported" %}selected{% endif %}>Somente nao exportados</option>
+                    <option value="exported" {% if selected_export_status == "exported" %}selected{% endif %}>Somente exportados</option>
+                </select>
+            </div>
+            <div>
                 <label>Lead de (data)</label>
                 <input type="date" name="lead_date_from" value="{{ request.GET.lead_date_from }}">
             </div>
@@ -677,6 +691,10 @@
                     </div>
                 </div>
                 <div class="macro-query-tools-actions">
+                    <label style="display:inline-flex;align-items:center;gap:6px;margin:0;color:var(--muted);font-size:12px;">
+                        <input type="checkbox" name="mark_exported" value="1" {% if selected_mark_exported %}checked{% endif %}>
+                        Marcar como exportado ao baixar
+                    </label>
                     <button class="btn secondary macro-orbit" type="submit" formaction="{% url 'macro_export_csv' %}">Exportar consulta CSV</button>
                     <button class="btn secondary macro-orbit" type="submit" formaction="{% url 'macro_export_xlsx' %}">Exportar consulta XLSX</button>
                 </div>
@@ -706,6 +724,7 @@
                         <th>Endereco</th>
                         <th>Horario lead</th>
                         <th>Ultima captura</th>
+                        <th>Exportado em</th>
                         <th>Acoes</th>
                     </tr>
                 </thead>
@@ -740,6 +759,13 @@
                         </td>
                         <td>{{ item.last_seen_at|date:"d/m/Y H:i" }}</td>
                         <td>
+                            {% if item.exported_at %}
+                                {{ item.exported_at|date:"d/m/Y H:i" }}
+                            {% else %}
+                                --
+                            {% endif %}
+                        </td>
+                        <td>
                             <div class="macro-row-actions">
                                 {% if item.is_blocked_number %}
                                     <form method="post" action="{% url 'macro_unblock_phone' item.id %}">
@@ -752,6 +778,7 @@
                                         <input type="hidden" name="representative_presence" value="{{ request.GET.representative_presence }}">
                                         <input type="hidden" name="blocked" value="{{ request.GET.blocked }}">
                                         <input type="hidden" name="phone_dup" value="{{ request.GET.phone_dup }}">
+                                        <input type="hidden" name="export_status" value="{{ request.GET.export_status }}">
                                         <input type="hidden" name="lead_date_from" value="{{ request.GET.lead_date_from }}">
                                         <input type="hidden" name="lead_date_to" value="{{ request.GET.lead_date_to }}">
                                         <button class="btn ghost" type="submit">Desbloquear</button>
@@ -767,6 +794,7 @@
                                         <input type="hidden" name="representative_presence" value="{{ request.GET.representative_presence }}">
                                         <input type="hidden" name="blocked" value="{{ request.GET.blocked }}">
                                         <input type="hidden" name="phone_dup" value="{{ request.GET.phone_dup }}">
+                                        <input type="hidden" name="export_status" value="{{ request.GET.export_status }}">
                                         <input type="hidden" name="lead_date_from" value="{{ request.GET.lead_date_from }}">
                                         <input type="hidden" name="lead_date_to" value="{{ request.GET.lead_date_to }}">
                                         <button class="btn danger" type="submit">Bloquear</button>
@@ -776,7 +804,7 @@
                         </td>
                     </tr>
                 {% empty %}
-                    <tr><td colspan="14">Nenhum dado encontrado.</td></tr>
+                    <tr><td colspan="15">Nenhum dado encontrado.</td></tr>
                 {% endfor %}
                 </tbody>
             </table>

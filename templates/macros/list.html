@@ -312,8 +312,8 @@
     </div>
 
     <div class="macro-actions">
-        <a class="btn secondary macro-orbit" href="{% url 'macro_export_csv' %}?{% if filter_querystring %}{{ filter_querystring }}&{% endif %}mark_exported=1">Exportar CSV</a>
-        <a class="btn secondary macro-orbit" href="{% url 'macro_export_xlsx' %}?{% if filter_querystring %}{{ filter_querystring }}&{% endif %}mark_exported=1">Exportar XLSX</a>
+        <a class="btn secondary macro-orbit" href="{% url 'macro_export_csv' %}?{% if filter_querystring %}{{ filter_querystring }}&{% endif %}{% if export_tracking_enabled %}mark_exported=1{% endif %}">Exportar CSV</a>
+        <a class="btn secondary macro-orbit" href="{% url 'macro_export_xlsx' %}?{% if filter_querystring %}{{ filter_querystring }}&{% endif %}{% if export_tracking_enabled %}mark_exported=1{% endif %}">Exportar XLSX</a>
         <form method="post" action="{% url 'macro_import_csv' %}" enctype="multipart/form-data" style="display:flex;gap:8px;align-items:center;">
             {% csrf_token %}
             <input type="file" name="file" accept=".csv" required style="max-width:180px;">
@@ -582,7 +582,7 @@
         <form method="get" class="macro-filter-form">
             <div>
                 <label>Busca geral</label>
-                <input type="text" name="q" value="{{ request.GET.q }}" placeholder="ID, nome, telefone, endereco...">
+                <input type="text" name="q" value="{{ request.GET.q }}" placeholder="{% if store_id_enabled or signatory_id_enabled %}ID, nome, telefone, endereco...{% else %}Nome, telefone, endereco...{% endif %}">
             </div>
             <div>
                 <label>Cidade</label>
@@ -636,23 +636,27 @@
                     <option value="no" {% if request.GET.blocked == "no" %}selected{% endif %}>Somente desbloqueados</option>
                 </select>
             </div>
-            <div>
-                <label>Duplicidade por ID da loja</label>
-                <select name="phone_dup">
-                    <option value="" {% if not request.GET.phone_dup %}selected{% endif %}>Todos</option>
-                    <option value="duplicates" {% if request.GET.phone_dup == "duplicates" %}selected{% endif %}>Somente duplicados</option>
-                    <option value="unique" {% if request.GET.phone_dup == "unique" %}selected{% endif %}>Somente unicos</option>
-                    <option value="empty" {% if request.GET.phone_dup == "empty" %}selected{% endif %}>Sem ID da loja</option>
-                </select>
-            </div>
-            <div>
-                <label>Status de exportacao</label>
-                <select name="export_status">
-                    <option value="" {% if not selected_export_status %}selected{% endif %}>Todos</option>
-                    <option value="not_exported" {% if selected_export_status == "not_exported" %}selected{% endif %}>Somente nao exportados</option>
-                    <option value="exported" {% if selected_export_status == "exported" %}selected{% endif %}>Somente exportados</option>
-                </select>
-            </div>
+            {% if store_id_enabled %}
+                <div>
+                    <label>Duplicidade por ID da loja</label>
+                    <select name="phone_dup">
+                        <option value="" {% if not request.GET.phone_dup %}selected{% endif %}>Todos</option>
+                        <option value="duplicates" {% if request.GET.phone_dup == "duplicates" %}selected{% endif %}>Somente duplicados</option>
+                        <option value="unique" {% if request.GET.phone_dup == "unique" %}selected{% endif %}>Somente unicos</option>
+                        <option value="empty" {% if request.GET.phone_dup == "empty" %}selected{% endif %}>Sem ID da loja</option>
+                    </select>
+                </div>
+            {% endif %}
+            {% if export_tracking_enabled %}
+                <div>
+                    <label>Status de exportacao</label>
+                    <select name="export_status">
+                        <option value="" {% if not selected_export_status %}selected{% endif %}>Todos</option>
+                        <option value="not_exported" {% if selected_export_status == "not_exported" %}selected{% endif %}>Somente nao exportados</option>
+                        <option value="exported" {% if selected_export_status == "exported" %}selected{% endif %}>Somente exportados</option>
+                    </select>
+                </div>
+            {% endif %}
             <div>
                 <label>Lead de (data)</label>
                 <input type="date" name="lead_date_from" value="{{ request.GET.lead_date_from }}">
@@ -691,10 +695,12 @@
                     </div>
                 </div>
                 <div class="macro-query-tools-actions">
-                    <label style="display:inline-flex;align-items:center;gap:6px;margin:0;color:var(--muted);font-size:12px;">
-                        <input type="checkbox" name="mark_exported" value="1" {% if selected_mark_exported %}checked{% endif %}>
-                        Marcar como exportado ao baixar
-                    </label>
+                    {% if export_tracking_enabled %}
+                        <label style="display:inline-flex;align-items:center;gap:6px;margin:0;color:var(--muted);font-size:12px;">
+                            <input type="checkbox" name="mark_exported" value="1" {% if selected_mark_exported %}checked{% endif %}>
+                            Marcar como exportado ao baixar
+                        </label>
+                    {% endif %}
                     <button class="btn secondary macro-orbit" type="submit" formaction="{% url 'macro_export_csv' %}">Exportar consulta CSV</button>
                     <button class="btn secondary macro-orbit" type="submit" formaction="{% url 'macro_export_xlsx' %}">Exportar consulta XLSX</button>
                 </div>
@@ -711,8 +717,12 @@
             <table>
                 <thead>
                     <tr>
-                        <th>ID loja</th>
-                        <th>ID signatario</th>
+                        {% if store_id_enabled %}
+                            <th>ID loja</th>
+                        {% endif %}
+                        {% if signatory_id_enabled %}
+                            <th>ID signatario</th>
+                        {% endif %}
                         <th>Cidade</th>
                         <th>Regiao</th>
                         <th>Estabelecimento</th>
@@ -724,15 +734,21 @@
                         <th>Endereco</th>
                         <th>Horario lead</th>
                         <th>Ultima captura</th>
-                        <th>Exportado em</th>
+                        {% if export_tracking_enabled %}
+                            <th>Exportado em</th>
+                        {% endif %}
                         <th>Acoes</th>
                     </tr>
                 </thead>
                 <tbody>
                 {% for item in page_obj %}
                     <tr class="{% if item.is_blocked_number %}macro-row-blocked{% endif %}">
-                        <td>{{ item.store_id|default:"--" }}</td>
-                        <td>{{ item.signatory_id|default:"--" }}</td>
+                        {% if store_id_enabled %}
+                            <td>{{ item.store_id|default:"--" }}</td>
+                        {% endif %}
+                        {% if signatory_id_enabled %}
+                            <td>{{ item.signatory_id|default:"--" }}</td>
+                        {% endif %}
                         <td>{{ item.city }}</td>
                         <td>{{ item.target_region }}</td>
                         <td>{{ item.establishment_name }}</td>
@@ -744,7 +760,7 @@
                             {% if item.is_blocked_number %}
                                 <span class="macro-phone-chip">Bloqueado</span>
                             {% endif %}
-                            {% if item.store_id and item.store_id in page_duplicate_store_ids %}
+                            {% if store_id_enabled and item.store_id and item.store_id in page_duplicate_store_ids %}
                                 <span class="macro-phone-chip warn">ID duplicado</span>
                             {% endif %}
                         </td>
@@ -758,13 +774,15 @@
                             {% endif %}
                         </td>
                         <td>{{ item.last_seen_at|date:"d/m/Y H:i" }}</td>
-                        <td>
-                            {% if item.exported_at %}
-                                {{ item.exported_at|date:"d/m/Y H:i" }}
-                            {% else %}
-                                --
-                            {% endif %}
-                        </td>
+                        {% if export_tracking_enabled %}
+                            <td>
+                                {% if item.exported_at %}
+                                    {{ item.exported_at|date:"d/m/Y H:i" }}
+                                {% else %}
+                                    --
+                                {% endif %}
+                            </td>
+                        {% endif %}
                         <td>
                             <div class="macro-row-actions">
                                 {% if item.is_blocked_number %}
@@ -804,7 +822,7 @@
                         </td>
                     </tr>
                 {% empty %}
-                    <tr><td colspan="15">Nenhum dado encontrado.</td></tr>
+                    <tr><td colspan="{{ results_colspan }}">Nenhum dado encontrado.</td></tr>
                 {% endfor %}
                 </tbody>
             </table>

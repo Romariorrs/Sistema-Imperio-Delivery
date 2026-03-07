@@ -5,6 +5,7 @@ import logging
 import secrets
 import uuid
 from datetime import datetime, timedelta
+from functools import lru_cache
 from pathlib import Path
 import zipfile
 from typing import Iterable
@@ -15,6 +16,7 @@ from django.core.cache import cache
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.core.paginator import Paginator
+from django.db import connection
 from django.db.models import Count, Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -34,14 +36,76 @@ EXPORT_EXTRA_COLUMNS = (
     ("exported_at", "Exportado em"),
     ("export_batch_id", "Lote exportacao"),
 )
+OPTIONAL_DB_FIELDS = {"store_id", "signatory_id", "exported_at", "export_batch_id"}
+OPTIONAL_RUN_FIELDS = {"execution_id", "total_deduplicated"}
+EXPORT_TRACKING_FIELDS = {"exported_at", "export_batch_id"}
 EXPORT_FIELD_CHOICES = EXPORT_COLUMNS + EXPORT_EXTRA_COLUMNS
-EXPORT_FIELD_LABELS = {field: label for field, label in EXPORT_FIELD_CHOICES}
-DEFAULT_EXPORT_FIELDS = [field for field, _ in EXPORT_FIELD_CHOICES]
 MAX_EXPORT_LIMIT = 50000
 
 
 def _staff_access(user):
     return user.is_staff or user.is_superuser
+
+
+@lru_cache(maxsize=1)
+def _macrolead_db_columns():
+    table_name = MacroLead._meta.db_table
+    with connection.cursor() as cursor:
+        return {column.name for column in connection.introspection.get_table_description(cursor, table_name)}
+
+
+def _macrolead_has_columns(*names: str) -> bool:
+    columns = _macrolead_db_columns()
+    return set(names).issubset(columns)
+
+
+def _export_tracking_enabled() -> bool:
+    return _macrolead_has_columns("exported_at", "export_batch_id")
+
+
+def _base_macrolead_queryset():
+    queryset = MacroLead.objects.all()
+    missing_fields = [field for field in OPTIONAL_DB_FIELDS if field not in _macrolead_db_columns()]
+    if missing_fields:
+        queryset = queryset.defer(*missing_fields)
+    return queryset
+
+
+@lru_cache(maxsize=1)
+def _macrorun_db_columns():
+    table_name = MacroRun._meta.db_table
+    with connection.cursor() as cursor:
+        return {column.name for column in connection.introspection.get_table_description(cursor, table_name)}
+
+
+def _macrorun_has_columns(*names: str) -> bool:
+    columns = _macrorun_db_columns()
+    return set(names).issubset(columns)
+
+
+def _base_macrorun_queryset():
+    queryset = MacroRun.objects.all()
+    missing_fields = [field for field in OPTIONAL_RUN_FIELDS if field not in _macrorun_db_columns()]
+    if missing_fields:
+        queryset = queryset.defer(*missing_fields)
+    return queryset
+
+
+def _available_export_field_choices():
+    choices = []
+    for field, label in EXPORT_FIELD_CHOICES:
+        if field in OPTIONAL_DB_FIELDS and field not in _macrolead_db_columns():
+            continue
+        choices.append((field, label))
+    return tuple(choices)
+
+
+def _available_export_field_labels():
+    return {field: label for field, label in _available_export_field_choices()}
+
+
+def _default_export_fields():
+    return [field for field, _ in _available_export_field_choices()]
 
 
 def _missing_representative_q() -> Q:
@@ -56,7 +120,7 @@ def _missing_representative_q() -> Q:
 
 
 def _apply_filters(request=None, queryset=None, params=None):
-    queryset = queryset or MacroLead.objects.all()
+    queryset = queryset if queryset is not None else _base_macrolead_queryset()
     params = params or (request.GET if request is not None else {})
     q = (params.get("q") or "").strip()
     q_digits = "".join(char for char in q if char.isdigit())
@@ -70,19 +134,22 @@ def _apply_filters(request=None, queryset=None, params=None):
     export_status = (params.get("export_status") or "").strip().lower()
     lead_date_from = (params.get("lead_date_from") or "").strip()
     lead_date_to = (params.get("lead_date_to") or "").strip()
-    duplicate_store_ids = (
-        MacroLead.objects.exclude(store_id="")
-        .values("store_id")
-        .annotate(total=Count("id"))
-        .filter(total__gt=1)
-        .values_list("store_id", flat=True)
-    )
+    store_id_enabled = _macrolead_has_columns("store_id")
+    signatory_id_enabled = _macrolead_has_columns("signatory_id")
+    duplicate_store_ids = []
+    if store_id_enabled:
+        duplicate_store_ids = (
+            _base_macrolead_queryset()
+            .exclude(store_id="")
+            .values("store_id")
+            .annotate(total=Count("id"))
+            .filter(total__gt=1)
+            .values_list("store_id", flat=True)
+        )
 
     if q:
         text_filter = (
-            Q(store_id__icontains=q)
-            | Q(signatory_id__icontains=q)
-            | Q(city__icontains=q)
+            Q(city__icontains=q)
             | Q(target_region__icontains=q)
             | Q(establishment_name__icontains=q)
             | Q(representative_name__icontains=q)
@@ -92,6 +159,10 @@ def _apply_filters(request=None, queryset=None, params=None):
             | Q(company_category__icontains=q)
             | Q(address__icontains=q)
         )
+        if store_id_enabled:
+            text_filter |= Q(store_id__icontains=q)
+        if signatory_id_enabled:
+            text_filter |= Q(signatory_id__icontains=q)
         if q_digits:
             text_filter |= Q(representative_phone_norm__icontains=q_digits)
         queryset = queryset.filter(text_filter)
@@ -111,18 +182,20 @@ def _apply_filters(request=None, queryset=None, params=None):
         queryset = queryset.filter(is_blocked_number=True)
     elif blocked == "no":
         queryset = queryset.filter(is_blocked_number=False)
-    if phone_dup == "duplicates":
-        queryset = queryset.filter(store_id__in=duplicate_store_ids)
-    elif phone_dup == "unique":
-        queryset = queryset.exclude(store_id="").exclude(
-            store_id__in=duplicate_store_ids
-        )
-    elif phone_dup == "empty":
-        queryset = queryset.filter(store_id="")
-    if export_status == "exported":
-        queryset = queryset.exclude(exported_at__isnull=True)
-    elif export_status == "not_exported":
-        queryset = queryset.filter(exported_at__isnull=True)
+    if store_id_enabled:
+        if phone_dup == "duplicates":
+            queryset = queryset.filter(store_id__in=duplicate_store_ids)
+        elif phone_dup == "unique":
+            queryset = queryset.exclude(store_id="").exclude(
+                store_id__in=duplicate_store_ids
+            )
+        elif phone_dup == "empty":
+            queryset = queryset.filter(store_id="")
+    if _export_tracking_enabled():
+        if export_status == "exported":
+            queryset = queryset.exclude(exported_at__isnull=True)
+        elif export_status == "not_exported":
+            queryset = queryset.filter(exported_at__isnull=True)
     if lead_date_from:
         queryset = queryset.filter(lead_created_at__date__gte=lead_date_from)
     if lead_date_to:
@@ -163,7 +236,7 @@ def _filtered_delete_redirect(params):
 
 def _lead_sources():
     return (
-        MacroLead.objects.exclude(source="")
+        _base_macrolead_queryset().exclude(source="")
         .values_list("source", flat=True)
         .distinct()
         .order_by("source")
@@ -270,7 +343,7 @@ def _parse_export_fields(params) -> list[str]:
         raw_values.append(single)
 
     selected = []
-    allowed = set(EXPORT_FIELD_LABELS.keys())
+    allowed = set(_available_export_field_labels().keys())
     for raw in raw_values:
         for token in str(raw).split(","):
             field = token.strip()
@@ -279,7 +352,7 @@ def _parse_export_fields(params) -> list[str]:
             selected.append(field)
 
     if not selected:
-        return list(DEFAULT_EXPORT_FIELDS)
+        return list(_default_export_fields())
     return selected
 
 
@@ -315,7 +388,20 @@ def macro_list(request):
     if stale_count:
         messages.warning(request, f"{stale_count} execucao(oes) antiga(s) em andamento foram encerradas automaticamente.")
     version_meta = _macro_agent_version_meta()
-    all_queryset = MacroLead.objects.all()
+    export_tracking_enabled = _export_tracking_enabled()
+    store_id_enabled = _macrolead_has_columns("store_id")
+    signatory_id_enabled = _macrolead_has_columns("signatory_id")
+    if not export_tracking_enabled:
+        messages.warning(
+            request,
+            "Campos de exportacao ainda nao existem no banco. Aplique a migration 0010 para ativar marcacao de exportados.",
+        )
+    if not store_id_enabled or not signatory_id_enabled:
+        messages.warning(
+            request,
+            "Campos de ID ainda nao existem no banco. Aplique a migration 0009 para ativar ID da loja e ID do signatario.",
+        )
+    all_queryset = _base_macrolead_queryset()
     filtered_queryset = _apply_filters(request, queryset=all_queryset)
     paginator = Paginator(filtered_queryset, 100)
     page_obj = paginator.get_page(request.GET.get("page"))
@@ -335,22 +421,26 @@ def macro_list(request):
         ),
         total_categories=Count("company_category", distinct=True, filter=~Q(company_category="")),
     )
-    duplicate_store_stats = (
-        all_queryset.exclude(store_id="")
-        .values("store_id")
-        .annotate(total=Count("id"))
-        .filter(total__gt=1)
-    )
-    stats["duplicate_store_ids"] = duplicate_store_stats.count()
-    stats["duplicate_store_leads"] = sum(row["total"] for row in duplicate_store_stats)
+    if store_id_enabled:
+        duplicate_store_stats = (
+            all_queryset.exclude(store_id="")
+            .values("store_id")
+            .annotate(total=Count("id"))
+            .filter(total__gt=1)
+        )
+        stats["duplicate_store_ids"] = duplicate_store_stats.count()
+        stats["duplicate_store_leads"] = sum(row["total"] for row in duplicate_store_stats)
+    else:
+        stats["duplicate_store_ids"] = 0
+        stats["duplicate_store_leads"] = 0
 
     page_store_ids = {
         (item.store_id or "").strip()
         for item in page_obj.object_list
-        if (item.store_id or "").strip()
+        if store_id_enabled and (item.store_id or "").strip()
     }
     page_duplicate_store_ids = set()
-    if page_store_ids:
+    if store_id_enabled and page_store_ids:
         page_duplicate_store_ids = set(
             all_queryset.filter(store_id__in=page_store_ids)
             .values("store_id")
@@ -383,23 +473,23 @@ def macro_list(request):
         .order_by("-total", "business_99_status")[:10]
     )
     last_capture_at = all_queryset.order_by("-last_seen_at").values_list("last_seen_at", flat=True).first()
-    recent_runs = MacroRun.objects.all()[:12]
-    last_success_run = MacroRun.objects.filter(status="success").first()
+    recent_runs = _base_macrorun_queryset()[:12]
+    last_success_run = _base_macrorun_queryset().filter(status="success").first()
 
     context = {
         "active_tab": "database",
         "page_obj": page_obj,
         "filtered_count": filtered_queryset.count(),
-        "cities": MacroLead.objects.exclude(city="").values_list("city", flat=True).distinct().order_by("city"),
-        "contract_statuses": MacroLead.objects.exclude(contract_status="")
+        "cities": _base_macrolead_queryset().exclude(city="").values_list("city", flat=True).distinct().order_by("city"),
+        "contract_statuses": _base_macrolead_queryset().exclude(contract_status="")
         .values_list("contract_status", flat=True)
         .distinct()
         .order_by("contract_status"),
-        "business_99_statuses": MacroLead.objects.exclude(business_99_status="")
+        "business_99_statuses": _base_macrolead_queryset().exclude(business_99_status="")
         .values_list("business_99_status", flat=True)
         .distinct()
         .order_by("business_99_status"),
-        "categories": MacroLead.objects.exclude(company_category="")
+        "categories": _base_macrolead_queryset().exclude(company_category="")
         .values_list("company_category", flat=True)
         .distinct()
         .order_by("company_category"),
@@ -421,13 +511,17 @@ def macro_list(request):
         "status_breakdown": status_breakdown,
         "business_99_breakdown": business_99_breakdown,
         "sources": _lead_sources(),
-        "export_field_choices": EXPORT_FIELD_CHOICES,
-        "default_export_fields": DEFAULT_EXPORT_FIELDS,
+        "export_field_choices": _available_export_field_choices(),
+        "default_export_fields": _default_export_fields(),
         "max_export_limit": MAX_EXPORT_LIMIT,
         "selected_export_fields": _parse_export_fields(request.GET),
         "selected_export_limit": request.GET.get("export_limit", "").strip(),
         "selected_export_status": (request.GET.get("export_status") or "").strip().lower(),
-        "selected_mark_exported": _parse_mark_exported(request.GET) if "mark_exported" in request.GET else True,
+        "selected_mark_exported": (_parse_mark_exported(request.GET) if "mark_exported" in request.GET else True) and export_tracking_enabled,
+        "export_tracking_enabled": export_tracking_enabled,
+        "store_id_enabled": store_id_enabled,
+        "signatory_id_enabled": signatory_id_enabled,
+        "results_colspan": 12 + (1 if store_id_enabled else 0) + (1 if signatory_id_enabled else 0) + (1 if export_tracking_enabled else 0),
     }
     return render(request, "macros/list.html", context)
 
@@ -439,8 +533,13 @@ def macro_collect(request):
     if stale_count:
         messages.warning(request, f"{stale_count} execucao(oes) antiga(s) em andamento foram encerradas automaticamente.")
     version_meta = _macro_agent_version_meta()
-    last_success_run = MacroRun.objects.filter(status="success").first()
-    last_error_run = MacroRun.objects.filter(status="error").first()
+    if not _export_tracking_enabled():
+        messages.warning(
+            request,
+            "Campos de exportacao ainda nao existem no banco. Aplique a migration 0010 para ativar marcacao de exportados.",
+        )
+    last_success_run = _base_macrorun_queryset().filter(status="success").first()
+    last_error_run = _base_macrorun_queryset().filter(status="error").first()
     runs_24h = MacroRun.objects.filter(started_at__gte=timezone.now() - timedelta(hours=24))
     exe_path = Path(settings.MACRO_LOCAL_AGENT_EXE_PATH)
     context = {
@@ -448,14 +547,14 @@ def macro_collect(request):
         "api_import_url": request.build_absolute_uri(reverse("macro_api_import")),
         "macro_target_url": settings.MACRO_TARGET_URL,
         "token_configured": bool(settings.MACRO_API_TOKEN),
-        "recent_runs": MacroRun.objects.all()[:12],
+        "recent_runs": _base_macrorun_queryset()[:12],
         "local_agent_url": settings.MACRO_LOCAL_AGENT_URL,
         "local_agent_exe_available": exe_path.exists(),
         "macro_agent_version": version_meta["version"],
         "macro_agent_build": version_meta["build"],
         "macro_agent_label": version_meta["label"],
-        "total_records": MacroLead.objects.count(),
-        "last_capture_at": MacroLead.objects.order_by("-last_seen_at").values_list("last_seen_at", flat=True).first(),
+        "total_records": _base_macrolead_queryset().count(),
+        "last_capture_at": _base_macrolead_queryset().order_by("-last_seen_at").values_list("last_seen_at", flat=True).first(),
         "last_success_run": last_success_run,
         "last_error_run": last_error_run,
         "runs_24h_total": runs_24h.count(),
@@ -475,7 +574,7 @@ def macro_export_csv(request):
     selected_fields = _parse_export_fields(request.GET)
     mark_exported = _parse_mark_exported(request.GET)
     rows = list(queryset)
-    if mark_exported and rows:
+    if mark_exported and rows and _export_tracking_enabled():
         now = timezone.now()
         batch_id = str(uuid.uuid4())
         ids = [item.id for item in rows]
@@ -488,7 +587,8 @@ def macro_export_csv(request):
     response["Content-Disposition"] = 'attachment; filename="macro_leads.csv"'
 
     writer = csv.writer(response)
-    writer.writerow([EXPORT_FIELD_LABELS[field] for field in selected_fields])
+    export_labels = _available_export_field_labels()
+    writer.writerow([export_labels[field] for field in selected_fields])
     for item in rows:
         writer.writerow([_export_cell_value(item, field) for field in selected_fields])
     return response
@@ -506,7 +606,7 @@ def macro_export_xlsx(request):
     selected_fields = _parse_export_fields(request.GET)
     mark_exported = _parse_mark_exported(request.GET)
     rows = list(queryset)
-    if mark_exported and rows:
+    if mark_exported and rows and _export_tracking_enabled():
         now = timezone.now()
         batch_id = str(uuid.uuid4())
         ids = [item.id for item in rows]
@@ -523,7 +623,8 @@ def macro_export_xlsx(request):
     wb = Workbook()
     ws = wb.active
     ws.title = "Macro Leads"
-    ws.append([EXPORT_FIELD_LABELS[field] for field in selected_fields])
+    export_labels = _available_export_field_labels()
+    ws.append([export_labels[field] for field in selected_fields])
     for item in rows:
         ws.append([_export_cell_value(item, field) for field in selected_fields])
     wb.save(response)

@@ -557,7 +557,7 @@
                         <td>{% if run.total_sent %}{{ run.total_sent }}{% else %}{{ run.total_received }}{% endif %}</td>
                         <td>{{ run.created_count }}</td>
                         <td>{{ run.ignored_count }}</td>
-                        <td>{{ run.pages_processed|default:"0" }}</td>
+                        <td>{% if run_pages_enabled %}{{ run.pages_processed|default:"0" }}{% else %}--{% endif %}</td>
                         <td>{{ run.request_ip|default:"-" }}</td>
                         <td>{{ run.message|default:"-" }}</td>
                         <td>
@@ -602,15 +602,17 @@
                     {% endfor %}
                 </select>
             </div>
-            <div>
-                <label>Seu Negocio na 99</label>
-                <select name="business_99_status">
-                    <option value="">Todos</option>
-                    {% for value in business_99_statuses %}
-                        <option value="{{ value }}" {% if request.GET.business_99_status == value %}selected{% endif %}>{{ value }}</option>
-                    {% endfor %}
-                </select>
-            </div>
+            {% if business_99_enabled %}
+                <div>
+                    <label>Seu Negocio na 99</label>
+                    <select name="business_99_status">
+                        <option value="">Todos</option>
+                        {% for value in business_99_statuses %}
+                            <option value="{{ value }}" {% if request.GET.business_99_status == value %}selected{% endif %}>{{ value }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            {% endif %}
             <div>
                 <label>Categoria</label>
                 <select name="company_category">
@@ -628,14 +630,16 @@
                     <option value="without" {% if request.GET.representative_presence == "without" %}selected{% endif %}>Sem representante</option>
                 </select>
             </div>
-            <div>
-                <label>Numeros bloqueados</label>
-                <select name="blocked">
-                    <option value="" {% if not request.GET.blocked %}selected{% endif %}>Todos</option>
-                    <option value="yes" {% if request.GET.blocked == "yes" %}selected{% endif %}>Somente bloqueados</option>
-                    <option value="no" {% if request.GET.blocked == "no" %}selected{% endif %}>Somente desbloqueados</option>
-                </select>
-            </div>
+            {% if blocked_enabled %}
+                <div>
+                    <label>Numeros bloqueados</label>
+                    <select name="blocked">
+                        <option value="" {% if not request.GET.blocked %}selected{% endif %}>Todos</option>
+                        <option value="yes" {% if request.GET.blocked == "yes" %}selected{% endif %}>Somente bloqueados</option>
+                        <option value="no" {% if request.GET.blocked == "no" %}selected{% endif %}>Somente desbloqueados</option>
+                    </select>
+                </div>
+            {% endif %}
             {% if store_id_enabled %}
                 <div>
                     <label>Duplicidade por ID da loja</label>
@@ -657,14 +661,16 @@
                     </select>
                 </div>
             {% endif %}
-            <div>
-                <label>Lead de (data)</label>
-                <input type="date" name="lead_date_from" value="{{ request.GET.lead_date_from }}">
-            </div>
-            <div>
-                <label>Lead ate (data)</label>
-                <input type="date" name="lead_date_to" value="{{ request.GET.lead_date_to }}">
-            </div>
+            {% if lead_created_at_enabled %}
+                <div>
+                    <label>Lead de (data)</label>
+                    <input type="date" name="lead_date_from" value="{{ request.GET.lead_date_from }}">
+                </div>
+                <div>
+                    <label>Lead ate (data)</label>
+                    <input type="date" name="lead_date_to" value="{{ request.GET.lead_date_to }}">
+                </div>
+            {% endif %}
             <div class="macro-filter-actions">
                 <button class="btn macro-orbit" type="submit">Filtrar</button>
                 <a class="btn secondary macro-orbit" href="{% url 'macro_list' %}">Limpar</a>
@@ -728,11 +734,15 @@
                         <th>Estabelecimento</th>
                         <th>Representante</th>
                         <th>Status</th>
-                        <th>Seu Negocio na 99</th>
+                        {% if business_99_enabled %}
+                            <th>Seu Negocio na 99</th>
+                        {% endif %}
                         <th>Telefone</th>
                         <th>Categoria</th>
                         <th>Endereco</th>
-                        <th>Horario lead</th>
+                        {% if lead_created_at_enabled %}
+                            <th>Horario lead</th>
+                        {% endif %}
                         <th>Ultima captura</th>
                         {% if export_tracking_enabled %}
                             <th>Exportado em</th>
@@ -742,7 +752,7 @@
                 </thead>
                 <tbody>
                 {% for item in page_obj %}
-                    <tr class="{% if item.is_blocked_number %}macro-row-blocked{% endif %}">
+                    <tr class="{% if blocked_enabled and item.is_blocked_number %}macro-row-blocked{% endif %}">
                         {% if store_id_enabled %}
                             <td>{{ item.store_id|default:"--" }}</td>
                         {% endif %}
@@ -754,10 +764,12 @@
                         <td>{{ item.establishment_name }}</td>
                         <td>{{ item.representative_name }}</td>
                         <td>{{ item.contract_status }}</td>
-                        <td>{{ item.business_99_status|default:"--" }}</td>
+                        {% if business_99_enabled %}
+                            <td>{{ item.business_99_status|default:"--" }}</td>
+                        {% endif %}
                         <td>
                             {{ item.representative_phone|default:"--" }}
-                            {% if item.is_blocked_number %}
+                            {% if blocked_enabled and item.is_blocked_number %}
                                 <span class="macro-phone-chip">Bloqueado</span>
                             {% endif %}
                             {% if store_id_enabled and item.store_id and item.store_id in page_duplicate_store_ids %}
@@ -766,13 +778,15 @@
                         </td>
                         <td>{{ item.company_category }}</td>
                         <td>{{ item.address }}</td>
-                        <td>
-                            {% if item.lead_created_at %}
-                                {{ item.lead_created_at|date:"d/m/Y H:i" }}
-                            {% else %}
-                                --
-                            {% endif %}
-                        </td>
+                        {% if lead_created_at_enabled %}
+                            <td>
+                                {% if item.lead_created_at %}
+                                    {{ item.lead_created_at|date:"d/m/Y H:i" }}
+                                {% else %}
+                                    --
+                                {% endif %}
+                            </td>
+                        {% endif %}
                         <td>{{ item.last_seen_at|date:"d/m/Y H:i" }}</td>
                         {% if export_tracking_enabled %}
                             <td>
@@ -785,38 +799,42 @@
                         {% endif %}
                         <td>
                             <div class="macro-row-actions">
-                                {% if item.is_blocked_number %}
-                                    <form method="post" action="{% url 'macro_unblock_phone' item.id %}">
-                                        {% csrf_token %}
-                                        <input type="hidden" name="q" value="{{ request.GET.q }}">
-                                        <input type="hidden" name="city" value="{{ request.GET.city }}">
-                                        <input type="hidden" name="contract_status" value="{{ request.GET.contract_status }}">
-                                        <input type="hidden" name="business_99_status" value="{{ request.GET.business_99_status }}">
-                                        <input type="hidden" name="company_category" value="{{ request.GET.company_category }}">
-                                        <input type="hidden" name="representative_presence" value="{{ request.GET.representative_presence }}">
-                                        <input type="hidden" name="blocked" value="{{ request.GET.blocked }}">
-                                        <input type="hidden" name="phone_dup" value="{{ request.GET.phone_dup }}">
-                                        <input type="hidden" name="export_status" value="{{ request.GET.export_status }}">
-                                        <input type="hidden" name="lead_date_from" value="{{ request.GET.lead_date_from }}">
-                                        <input type="hidden" name="lead_date_to" value="{{ request.GET.lead_date_to }}">
-                                        <button class="btn ghost" type="submit">Desbloquear</button>
-                                    </form>
+                                {% if blocked_enabled %}
+                                    {% if item.is_blocked_number %}
+                                        <form method="post" action="{% url 'macro_unblock_phone' item.id %}">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="q" value="{{ request.GET.q }}">
+                                            <input type="hidden" name="city" value="{{ request.GET.city }}">
+                                            <input type="hidden" name="contract_status" value="{{ request.GET.contract_status }}">
+                                            <input type="hidden" name="business_99_status" value="{{ request.GET.business_99_status }}">
+                                            <input type="hidden" name="company_category" value="{{ request.GET.company_category }}">
+                                            <input type="hidden" name="representative_presence" value="{{ request.GET.representative_presence }}">
+                                            <input type="hidden" name="blocked" value="{{ request.GET.blocked }}">
+                                            <input type="hidden" name="phone_dup" value="{{ request.GET.phone_dup }}">
+                                            <input type="hidden" name="export_status" value="{{ request.GET.export_status }}">
+                                            <input type="hidden" name="lead_date_from" value="{{ request.GET.lead_date_from }}">
+                                            <input type="hidden" name="lead_date_to" value="{{ request.GET.lead_date_to }}">
+                                            <button class="btn ghost" type="submit">Desbloquear</button>
+                                        </form>
+                                    {% else %}
+                                        <form method="post" action="{% url 'macro_block_phone' item.id %}">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="q" value="{{ request.GET.q }}">
+                                            <input type="hidden" name="city" value="{{ request.GET.city }}">
+                                            <input type="hidden" name="contract_status" value="{{ request.GET.contract_status }}">
+                                            <input type="hidden" name="business_99_status" value="{{ request.GET.business_99_status }}">
+                                            <input type="hidden" name="company_category" value="{{ request.GET.company_category }}">
+                                            <input type="hidden" name="representative_presence" value="{{ request.GET.representative_presence }}">
+                                            <input type="hidden" name="blocked" value="{{ request.GET.blocked }}">
+                                            <input type="hidden" name="phone_dup" value="{{ request.GET.phone_dup }}">
+                                            <input type="hidden" name="export_status" value="{{ request.GET.export_status }}">
+                                            <input type="hidden" name="lead_date_from" value="{{ request.GET.lead_date_from }}">
+                                            <input type="hidden" name="lead_date_to" value="{{ request.GET.lead_date_to }}">
+                                            <button class="btn danger" type="submit">Bloquear</button>
+                                        </form>
+                                    {% endif %}
                                 {% else %}
-                                    <form method="post" action="{% url 'macro_block_phone' item.id %}">
-                                        {% csrf_token %}
-                                        <input type="hidden" name="q" value="{{ request.GET.q }}">
-                                        <input type="hidden" name="city" value="{{ request.GET.city }}">
-                                        <input type="hidden" name="contract_status" value="{{ request.GET.contract_status }}">
-                                        <input type="hidden" name="business_99_status" value="{{ request.GET.business_99_status }}">
-                                        <input type="hidden" name="company_category" value="{{ request.GET.company_category }}">
-                                        <input type="hidden" name="representative_presence" value="{{ request.GET.representative_presence }}">
-                                        <input type="hidden" name="blocked" value="{{ request.GET.blocked }}">
-                                        <input type="hidden" name="phone_dup" value="{{ request.GET.phone_dup }}">
-                                        <input type="hidden" name="export_status" value="{{ request.GET.export_status }}">
-                                        <input type="hidden" name="lead_date_from" value="{{ request.GET.lead_date_from }}">
-                                        <input type="hidden" name="lead_date_to" value="{{ request.GET.lead_date_to }}">
-                                        <button class="btn danger" type="submit">Bloquear</button>
-                                    </form>
+                                    <span style="color:var(--muted);">--</span>
                                 {% endif %}
                             </div>
                         </td>

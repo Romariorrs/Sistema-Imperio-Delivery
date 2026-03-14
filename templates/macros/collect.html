@@ -286,7 +286,7 @@
                     <td>{% if run.total_sent %}{{ run.total_sent }}{% else %}{{ run.total_received }}{% endif %}</td>
                     <td>{{ run.created_count }}</td>
                     <td>{{ run.ignored_count }}</td>
-                    <td>{{ run.pages_processed|default:"0" }}</td>
+                    <td>{% if run_pages_enabled %}{{ run.pages_processed|default:"0" }}{% else %}--{% endif %}</td>
                     <td>{{ run.request_ip|default:"-" }}</td>
                     <td>{{ run.message|default:"-" }}</td>
                     <td>

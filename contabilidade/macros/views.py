@@ -18,6 +18,7 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.core.paginator import Paginator
 from django.db import connection
 from django.db.models import Count, Q
+from django.db.utils import OperationalError, ProgrammingError
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -36,8 +37,17 @@ EXPORT_EXTRA_COLUMNS = (
     ("exported_at", "Exportado em"),
     ("export_batch_id", "Lote exportacao"),
 )
-OPTIONAL_DB_FIELDS = {"store_id", "signatory_id", "exported_at", "export_batch_id"}
-OPTIONAL_RUN_FIELDS = {"execution_id", "total_deduplicated"}
+OPTIONAL_DB_FIELDS = {
+    "representative_phone_norm",
+    "lead_created_at",
+    "is_blocked_number",
+    "business_99_status",
+    "store_id",
+    "signatory_id",
+    "exported_at",
+    "export_batch_id",
+}
+OPTIONAL_RUN_FIELDS = {"pages_processed", "execution_id", "total_deduplicated"}
 EXPORT_TRACKING_FIELDS = {"exported_at", "export_batch_id"}
 EXPORT_FIELD_CHOICES = EXPORT_COLUMNS + EXPORT_EXTRA_COLUMNS
 MAX_EXPORT_LIMIT = 50000
@@ -50,8 +60,12 @@ def _staff_access(user):
 @lru_cache(maxsize=1)
 def _macrolead_db_columns():
     table_name = MacroLead._meta.db_table
-    with connection.cursor() as cursor:
-        return {column.name for column in connection.introspection.get_table_description(cursor, table_name)}
+    try:
+        with connection.cursor() as cursor:
+            return {column.name for column in connection.introspection.get_table_description(cursor, table_name)}
+    except (OperationalError, ProgrammingError):
+        logger.exception("Nao foi possivel introspectar a tabela de MacroLead.")
+        return set()
 
 
 def _macrolead_has_columns(*names: str) -> bool:
@@ -59,11 +73,17 @@ def _macrolead_has_columns(*names: str) -> bool:
     return set(names).issubset(columns)
 
 
+def _macrolead_table_ready() -> bool:
+    return bool(_macrolead_db_columns())
+
+
 def _export_tracking_enabled() -> bool:
     return _macrolead_has_columns("exported_at", "export_batch_id")
 
 
 def _base_macrolead_queryset():
+    if not _macrolead_table_ready():
+        return MacroLead.objects.none()
     queryset = MacroLead.objects.all()
     missing_fields = [field for field in OPTIONAL_DB_FIELDS if field not in _macrolead_db_columns()]
     if missing_fields:
@@ -74,8 +94,12 @@ def _base_macrolead_queryset():
 @lru_cache(maxsize=1)
 def _macrorun_db_columns():
     table_name = MacroRun._meta.db_table
-    with connection.cursor() as cursor:
-        return {column.name for column in connection.introspection.get_table_description(cursor, table_name)}
+    try:
+        with connection.cursor() as cursor:
+            return {column.name for column in connection.introspection.get_table_description(cursor, table_name)}
+    except (OperationalError, ProgrammingError):
+        logger.exception("Nao foi possivel introspectar a tabela de MacroRun.")
+        return set()
 
 
 def _macrorun_has_columns(*names: str) -> bool:
@@ -83,7 +107,13 @@ def _macrorun_has_columns(*names: str) -> bool:
     return set(names).issubset(columns)
 
 
+def _macrorun_table_ready() -> bool:
+    return bool(_macrorun_db_columns())
+
+
 def _base_macrorun_queryset():
+    if not _macrorun_table_ready():
+        return MacroRun.objects.none()
     queryset = MacroRun.objects.all()
     missing_fields = [field for field in OPTIONAL_RUN_FIELDS if field not in _macrorun_db_columns()]
     if missing_fields:
@@ -134,6 +164,10 @@ def _apply_filters(request=None, queryset=None, params=None):
     export_status = (params.get("export_status") or "").strip().lower()
     lead_date_from = (params.get("lead_date_from") or "").strip()
     lead_date_to = (params.get("lead_date_to") or "").strip()
+    phone_norm_enabled = _macrolead_has_columns("representative_phone_norm")
+    blocked_enabled = _macrolead_has_columns("is_blocked_number")
+    business_99_enabled = _macrolead_has_columns("business_99_status")
+    lead_created_at_enabled = _macrolead_has_columns("lead_created_at")
     store_id_enabled = _macrolead_has_columns("store_id")
     signatory_id_enabled = _macrolead_has_columns("signatory_id")
     duplicate_store_ids = []
@@ -154,23 +188,27 @@ def _apply_filters(request=None, queryset=None, params=None):
             | Q(establishment_name__icontains=q)
             | Q(representative_name__icontains=q)
             | Q(contract_status__icontains=q)
-            | Q(business_99_status__icontains=q)
             | Q(representative_phone__icontains=q)
             | Q(company_category__icontains=q)
             | Q(address__icontains=q)
         )
+        if business_99_enabled:
+            text_filter |= Q(business_99_status__icontains=q)
         if store_id_enabled:
             text_filter |= Q(store_id__icontains=q)
         if signatory_id_enabled:
             text_filter |= Q(signatory_id__icontains=q)
         if q_digits:
-            text_filter |= Q(representative_phone_norm__icontains=q_digits)
+            if phone_norm_enabled:
+                text_filter |= Q(representative_phone_norm__icontains=q_digits)
+            else:
+                text_filter |= Q(representative_phone__icontains=q_digits)
         queryset = queryset.filter(text_filter)
     if city:
         queryset = queryset.filter(city=city)
     if contract_status:
         queryset = queryset.filter(contract_status=contract_status)
-    if business_99_status:
+    if business_99_enabled and business_99_status:
         queryset = queryset.filter(business_99_status=business_99_status)
     if company_category:
         queryset = queryset.filter(company_category=company_category)
@@ -178,10 +216,11 @@ def _apply_filters(request=None, queryset=None, params=None):
         queryset = queryset.exclude(_missing_representative_q())
     elif representative_presence == "without":
         queryset = queryset.filter(_missing_representative_q())
-    if blocked == "yes":
-        queryset = queryset.filter(is_blocked_number=True)
-    elif blocked == "no":
-        queryset = queryset.filter(is_blocked_number=False)
+    if blocked_enabled:
+        if blocked == "yes":
+            queryset = queryset.filter(is_blocked_number=True)
+        elif blocked == "no":
+            queryset = queryset.filter(is_blocked_number=False)
     if store_id_enabled:
         if phone_dup == "duplicates":
             queryset = queryset.filter(store_id__in=duplicate_store_ids)
@@ -196,9 +235,9 @@ def _apply_filters(request=None, queryset=None, params=None):
             queryset = queryset.exclude(exported_at__isnull=True)
         elif export_status == "not_exported":
             queryset = queryset.filter(exported_at__isnull=True)
-    if lead_date_from:
+    if lead_created_at_enabled and lead_date_from:
         queryset = queryset.filter(lead_created_at__date__gte=lead_date_from)
-    if lead_date_to:
+    if lead_created_at_enabled and lead_date_to:
         queryset = queryset.filter(lead_created_at__date__lte=lead_date_to)
     return queryset.order_by("-last_seen_at", "-id")
 
@@ -235,6 +274,8 @@ def _filtered_delete_redirect(params):
 
 
 def _lead_sources():
+    if not _macrolead_table_ready():
+        return []
     return (
         _base_macrolead_queryset().exclude(source="")
         .values_list("source", flat=True)
@@ -321,9 +362,11 @@ def _safe_int(value, default=0):
 
 
 def _close_stale_running_runs() -> int:
+    if not _macrorun_table_ready():
+        return 0
     stale_minutes = max(1, int(getattr(settings, "MACRO_RUN_STALE_MINUTES", 30) or 30))
     cutoff = timezone.now() - timedelta(minutes=stale_minutes)
-    stale_qs = MacroRun.objects.filter(status="running", started_at__lt=cutoff, finished_at__isnull=True)
+    stale_qs = _base_macrorun_queryset().filter(status="running", started_at__lt=cutoff, finished_at__isnull=True)
     stale_count = stale_qs.count()
     if stale_count:
         stale_qs.update(
@@ -381,6 +424,20 @@ def _export_cell_value(item: MacroLead, field: str):
     return value
 
 
+def _empty_macro_stats():
+    return {
+        "total_records": 0,
+        "total_cities": 0,
+        "phones_filled": 0,
+        "phones_unique": 0,
+        "blocked_numbers": 0,
+        "blocked_numbers_unique": 0,
+        "total_categories": 0,
+        "duplicate_store_ids": 0,
+        "duplicate_store_leads": 0,
+    }
+
+
 @login_required
 @user_passes_test(_staff_access)
 def macro_list(request):
@@ -388,48 +445,75 @@ def macro_list(request):
     if stale_count:
         messages.warning(request, f"{stale_count} execucao(oes) antiga(s) em andamento foram encerradas automaticamente.")
     version_meta = _macro_agent_version_meta()
+    lead_table_ready = _macrolead_table_ready()
+    run_table_ready = _macrorun_table_ready()
+    phone_norm_enabled = _macrolead_has_columns("representative_phone_norm")
+    blocked_enabled = _macrolead_has_columns("is_blocked_number")
+    lead_created_at_enabled = _macrolead_has_columns("lead_created_at")
+    business_99_enabled = _macrolead_has_columns("business_99_status")
     export_tracking_enabled = _export_tracking_enabled()
     store_id_enabled = _macrolead_has_columns("store_id")
     signatory_id_enabled = _macrolead_has_columns("signatory_id")
-    if not export_tracking_enabled:
+    run_pages_enabled = _macrorun_has_columns("pages_processed")
+    if not lead_table_ready:
+        messages.warning(
+            request,
+            "Tabela principal da Macro indisponivel no banco. Aplique as migrations pendentes e recarregue a pagina.",
+        )
+    if not run_table_ready:
+        messages.warning(
+            request,
+            "Tabela de historico da Macro indisponivel no banco. O Banco Macro abrira, mas sem historico ate aplicar as migrations.",
+        )
+    if lead_table_ready and not export_tracking_enabled:
         messages.warning(
             request,
             "Campos de exportacao ainda nao existem no banco. Aplique a migration 0010 para ativar marcacao de exportados.",
         )
-    if not store_id_enabled or not signatory_id_enabled:
+    if lead_table_ready and (not store_id_enabled or not signatory_id_enabled):
         messages.warning(
             request,
             "Campos de ID ainda nao existem no banco. Aplique a migration 0009 para ativar ID da loja e ID do signatario.",
         )
-    all_queryset = _base_macrolead_queryset()
-    filtered_queryset = _apply_filters(request, queryset=all_queryset)
-    paginator = Paginator(filtered_queryset, 100)
-    page_obj = paginator.get_page(request.GET.get("page"))
+    if lead_table_ready:
+        all_queryset = _base_macrolead_queryset()
+        filtered_queryset = _apply_filters(request, queryset=all_queryset)
+        paginator = Paginator(filtered_queryset, 100)
+        page_obj = paginator.get_page(request.GET.get("page"))
+    else:
+        all_queryset = None
+        filtered_queryset = None
+        page_obj = Paginator([], 100).get_page(request.GET.get("page"))
     query_params = request.GET.copy()
     query_params.pop("page", None)
 
-    stats = all_queryset.aggregate(
-        total_records=Count("id"),
-        total_cities=Count("city", distinct=True, filter=~Q(city="")),
-        phones_filled=Count("id", filter=~Q(representative_phone_norm="")),
-        phones_unique=Count("representative_phone_norm", distinct=True, filter=~Q(representative_phone_norm="")),
-        blocked_numbers=Count("id", filter=Q(is_blocked_number=True)),
-        blocked_numbers_unique=Count(
-            "representative_phone_norm",
-            distinct=True,
-            filter=Q(is_blocked_number=True) & ~Q(representative_phone_norm=""),
-        ),
-        total_categories=Count("company_category", distinct=True, filter=~Q(company_category="")),
-    )
-    if store_id_enabled:
-        duplicate_store_stats = (
-            all_queryset.exclude(store_id="")
-            .values("store_id")
-            .annotate(total=Count("id"))
-            .filter(total__gt=1)
-        )
-        stats["duplicate_store_ids"] = duplicate_store_stats.count()
-        stats["duplicate_store_leads"] = sum(row["total"] for row in duplicate_store_stats)
+    stats = _empty_macro_stats()
+    if lead_table_ready:
+        phone_field = "representative_phone_norm" if phone_norm_enabled else "representative_phone"
+        aggregate_kwargs = {
+            "total_records": Count("id"),
+            "total_cities": Count("city", distinct=True, filter=~Q(city="")),
+            "phones_filled": Count("id", filter=~Q(**{phone_field: ""})),
+            "phones_unique": Count(phone_field, distinct=True, filter=~Q(**{phone_field: ""})),
+            "total_categories": Count("company_category", distinct=True, filter=~Q(company_category="")),
+        }
+        if blocked_enabled:
+            aggregate_kwargs["blocked_numbers"] = Count("id", filter=Q(is_blocked_number=True))
+            aggregate_kwargs["blocked_numbers_unique"] = Count(
+                phone_field,
+                distinct=True,
+                filter=Q(is_blocked_number=True) & ~Q(**{phone_field: ""}),
+            )
+        stats.update(all_queryset.aggregate(**aggregate_kwargs))
+        if store_id_enabled:
+            duplicate_store_stats = (
+                all_queryset.exclude(store_id="")
+                .values("store_id")
+                .annotate(total=Count("id"))
+                .filter(total__gt=1)
+            )
+            stats["duplicate_store_ids"] = duplicate_store_stats.count()
+            stats["duplicate_store_leads"] = sum(row["total"] for row in duplicate_store_stats)
     else:
         stats["duplicate_store_ids"] = 0
         stats["duplicate_store_leads"] = 0
@@ -437,10 +521,10 @@ def macro_list(request):
     page_store_ids = {
         (item.store_id or "").strip()
         for item in page_obj.object_list
-        if store_id_enabled and (item.store_id or "").strip()
+        if lead_table_ready and store_id_enabled and (item.store_id or "").strip()
     }
     page_duplicate_store_ids = set()
-    if store_id_enabled and page_store_ids:
+    if lead_table_ready and store_id_enabled and page_store_ids:
         page_duplicate_store_ids = set(
             all_queryset.filter(store_id__in=page_store_ids)
             .values("store_id")
@@ -448,51 +532,83 @@ def macro_list(request):
             .filter(total__gt=1)
             .values_list("store_id", flat=True)
         )
-    city_breakdown = (
-        all_queryset.exclude(city="")
-        .values("city")
-        .annotate(total=Count("id"))
-        .order_by("-total", "city")[:10]
-    )
-    category_breakdown = (
-        all_queryset.exclude(company_category="")
-        .values("company_category")
-        .annotate(total=Count("id"))
-        .order_by("-total", "company_category")[:10]
-    )
-    status_breakdown = (
-        all_queryset.exclude(contract_status="")
-        .values("contract_status")
-        .annotate(total=Count("id"))
-        .order_by("-total", "contract_status")[:10]
-    )
-    business_99_breakdown = (
-        all_queryset.exclude(business_99_status="")
-        .values("business_99_status")
-        .annotate(total=Count("id"))
-        .order_by("-total", "business_99_status")[:10]
-    )
-    last_capture_at = all_queryset.order_by("-last_seen_at").values_list("last_seen_at", flat=True).first()
-    recent_runs = _base_macrorun_queryset()[:12]
-    last_success_run = _base_macrorun_queryset().filter(status="success").first()
+    if lead_table_ready:
+        city_breakdown = (
+            all_queryset.exclude(city="")
+            .values("city")
+            .annotate(total=Count("id"))
+            .order_by("-total", "city")[:10]
+        )
+        category_breakdown = (
+            all_queryset.exclude(company_category="")
+            .values("company_category")
+            .annotate(total=Count("id"))
+            .order_by("-total", "company_category")[:10]
+        )
+        status_breakdown = (
+            all_queryset.exclude(contract_status="")
+            .values("contract_status")
+            .annotate(total=Count("id"))
+            .order_by("-total", "contract_status")[:10]
+        )
+        if business_99_enabled:
+            business_99_breakdown = (
+                all_queryset.exclude(business_99_status="")
+                .values("business_99_status")
+                .annotate(total=Count("id"))
+                .order_by("-total", "business_99_status")[:10]
+            )
+            business_99_statuses = (
+                _base_macrolead_queryset().exclude(business_99_status="")
+                .values_list("business_99_status", flat=True)
+                .distinct()
+                .order_by("business_99_status")
+            )
+        else:
+            business_99_breakdown = []
+            business_99_statuses = []
+        last_capture_at = all_queryset.order_by("-last_seen_at").values_list("last_seen_at", flat=True).first()
+        filtered_count = filtered_queryset.count()
+        cities = _base_macrolead_queryset().exclude(city="").values_list("city", flat=True).distinct().order_by("city")
+        contract_statuses = (
+            _base_macrolead_queryset().exclude(contract_status="")
+            .values_list("contract_status", flat=True)
+            .distinct()
+            .order_by("contract_status")
+        )
+        categories = (
+            _base_macrolead_queryset().exclude(company_category="")
+            .values_list("company_category", flat=True)
+            .distinct()
+            .order_by("company_category")
+        )
+    else:
+        city_breakdown = []
+        category_breakdown = []
+        status_breakdown = []
+        business_99_breakdown = []
+        business_99_statuses = []
+        last_capture_at = None
+        filtered_count = 0
+        cities = []
+        contract_statuses = []
+        categories = []
+
+    if run_table_ready:
+        recent_runs = _base_macrorun_queryset()[:12]
+        last_success_run = _base_macrorun_queryset().filter(status="success").first()
+    else:
+        recent_runs = []
+        last_success_run = None
 
     context = {
         "active_tab": "database",
         "page_obj": page_obj,
-        "filtered_count": filtered_queryset.count(),
-        "cities": _base_macrolead_queryset().exclude(city="").values_list("city", flat=True).distinct().order_by("city"),
-        "contract_statuses": _base_macrolead_queryset().exclude(contract_status="")
-        .values_list("contract_status", flat=True)
-        .distinct()
-        .order_by("contract_status"),
-        "business_99_statuses": _base_macrolead_queryset().exclude(business_99_status="")
-        .values_list("business_99_status", flat=True)
-        .distinct()
-        .order_by("business_99_status"),
-        "categories": _base_macrolead_queryset().exclude(company_category="")
-        .values_list("company_category", flat=True)
-        .distinct()
-        .order_by("company_category"),
+        "filtered_count": filtered_count,
+        "cities": cities,
+        "contract_statuses": contract_statuses,
+        "business_99_statuses": business_99_statuses,
+        "categories": categories,
         "api_import_url": request.build_absolute_uri(reverse("macro_api_import")),
         "macro_target_url": settings.MACRO_TARGET_URL,
         "token_configured": bool(settings.MACRO_API_TOKEN),
@@ -519,9 +635,16 @@ def macro_list(request):
         "selected_export_status": (request.GET.get("export_status") or "").strip().lower(),
         "selected_mark_exported": (_parse_mark_exported(request.GET) if "mark_exported" in request.GET else True) and export_tracking_enabled,
         "export_tracking_enabled": export_tracking_enabled,
+        "lead_table_ready": lead_table_ready,
+        "run_table_ready": run_table_ready,
+        "phone_norm_enabled": phone_norm_enabled,
+        "blocked_enabled": blocked_enabled,
+        "lead_created_at_enabled": lead_created_at_enabled,
+        "business_99_enabled": business_99_enabled,
+        "run_pages_enabled": run_pages_enabled,
         "store_id_enabled": store_id_enabled,
         "signatory_id_enabled": signatory_id_enabled,
-        "results_colspan": 12 + (1 if store_id_enabled else 0) + (1 if signatory_id_enabled else 0) + (1 if export_tracking_enabled else 0),
+        "results_colspan": 10 + (1 if store_id_enabled else 0) + (1 if signatory_id_enabled else 0) + (1 if business_99_enabled else 0) + (1 if lead_created_at_enabled else 0) + (1 if export_tracking_enabled else 0),
     }
     return render(request, "macros/list.html", context)
 
@@ -533,33 +656,47 @@ def macro_collect(request):
     if stale_count:
         messages.warning(request, f"{stale_count} execucao(oes) antiga(s) em andamento foram encerradas automaticamente.")
     version_meta = _macro_agent_version_meta()
-    if not _export_tracking_enabled():
+    lead_table_ready = _macrolead_table_ready()
+    run_table_ready = _macrorun_table_ready()
+    run_pages_enabled = _macrorun_has_columns("pages_processed")
+    if not lead_table_ready:
+        messages.warning(
+            request,
+            "Tabela principal da Macro indisponivel no banco. Aplique as migrations pendentes para restaurar a coleta completa.",
+        )
+    if not run_table_ready:
+        messages.warning(
+            request,
+            "Tabela de historico da Macro indisponivel no banco. A coleta local abrira sem o historico ate aplicar as migrations.",
+        )
+    if lead_table_ready and not _export_tracking_enabled():
         messages.warning(
             request,
             "Campos de exportacao ainda nao existem no banco. Aplique a migration 0010 para ativar marcacao de exportados.",
         )
-    last_success_run = _base_macrorun_queryset().filter(status="success").first()
-    last_error_run = _base_macrorun_queryset().filter(status="error").first()
-    runs_24h = MacroRun.objects.filter(started_at__gte=timezone.now() - timedelta(hours=24))
+    last_success_run = _base_macrorun_queryset().filter(status="success").first() if run_table_ready else None
+    last_error_run = _base_macrorun_queryset().filter(status="error").first() if run_table_ready else None
+    runs_24h = _base_macrorun_queryset().filter(started_at__gte=timezone.now() - timedelta(hours=24)) if run_table_ready else []
     exe_path = Path(settings.MACRO_LOCAL_AGENT_EXE_PATH)
     context = {
         "active_tab": "collect",
         "api_import_url": request.build_absolute_uri(reverse("macro_api_import")),
         "macro_target_url": settings.MACRO_TARGET_URL,
         "token_configured": bool(settings.MACRO_API_TOKEN),
-        "recent_runs": _base_macrorun_queryset()[:12],
+        "recent_runs": _base_macrorun_queryset()[:12] if run_table_ready else [],
         "local_agent_url": settings.MACRO_LOCAL_AGENT_URL,
         "local_agent_exe_available": exe_path.exists(),
         "macro_agent_version": version_meta["version"],
         "macro_agent_build": version_meta["build"],
         "macro_agent_label": version_meta["label"],
-        "total_records": _base_macrolead_queryset().count(),
-        "last_capture_at": _base_macrolead_queryset().order_by("-last_seen_at").values_list("last_seen_at", flat=True).first(),
+        "total_records": _base_macrolead_queryset().count() if lead_table_ready else 0,
+        "last_capture_at": _base_macrolead_queryset().order_by("-last_seen_at").values_list("last_seen_at", flat=True).first() if lead_table_ready else None,
         "last_success_run": last_success_run,
         "last_error_run": last_error_run,
-        "runs_24h_total": runs_24h.count(),
-        "runs_24h_error": runs_24h.filter(status="error").count(),
+        "runs_24h_total": runs_24h.count() if run_table_ready else 0,
+        "runs_24h_error": runs_24h.filter(status="error").count() if run_table_ready else 0,
         "sources": _lead_sources(),
+        "run_pages_enabled": run_pages_enabled,
     }
     return render(request, "macros/collect.html", context)
 

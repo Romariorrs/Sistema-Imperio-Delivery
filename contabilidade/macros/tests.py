@@ -237,6 +237,66 @@ class MacroScreenTests(TestCase):
         collect_resp = self.client.get(reverse("macro_collect"))
         self.assertEqual(collect_resp.status_code, 200)
 
+    def test_macro_pages_open_when_optional_columns_are_unavailable(self):
+        lead_columns = {
+            "id",
+            "source",
+            "city",
+            "target_region",
+            "establishment_name",
+            "representative_name",
+            "contract_status",
+            "representative_phone",
+            "company_category",
+            "address",
+            "unique_key",
+            "first_seen_at",
+            "last_seen_at",
+        }
+        run_columns = {
+            "id",
+            "run_type",
+            "status",
+            "source",
+            "started_at",
+            "finished_at",
+            "request_ip",
+            "total_collected",
+            "total_received",
+            "total_sent",
+            "created_count",
+            "updated_count",
+            "ignored_count",
+            "invalid_count",
+            "message",
+            "triggered_by_id",
+        }
+
+        with patch("contabilidade.macros.views._macrolead_db_columns", return_value=lead_columns), patch(
+            "contabilidade.macros.views._macrorun_db_columns", return_value=run_columns
+        ):
+            resp = self.client.get(reverse("macro_list"))
+            self.assertEqual(resp.status_code, 200)
+            self.assertFalse(resp.context["store_id_enabled"])
+            self.assertFalse(resp.context["signatory_id_enabled"])
+            self.assertFalse(resp.context["export_tracking_enabled"])
+            self.assertFalse(resp.context["business_99_enabled"])
+            self.assertFalse(resp.context["lead_created_at_enabled"])
+            self.assertFalse(resp.context["run_pages_enabled"])
+
+            collect_resp = self.client.get(reverse("macro_collect"))
+            self.assertEqual(collect_resp.status_code, 200)
+            self.assertFalse(collect_resp.context["run_pages_enabled"])
+
+    def test_macro_pages_open_when_run_table_is_unavailable(self):
+        with patch("contabilidade.macros.views._macrorun_db_columns", return_value=set()):
+            resp = self.client.get(reverse("macro_list"))
+            self.assertEqual(resp.status_code, 200)
+            self.assertFalse(resp.context["run_table_ready"])
+
+            collect_resp = self.client.get(reverse("macro_collect"))
+            self.assertEqual(collect_resp.status_code, 200)
+
     def test_export_xlsx_works(self):
         MacroLead.objects.create(
             source="api",

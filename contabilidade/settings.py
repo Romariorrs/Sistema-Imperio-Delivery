@@ -39,6 +39,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "contabilidade.middleware.DatabaseRecoveryMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -77,8 +78,21 @@ DATABASES = {
     }
 }
 database_url = os.getenv("DATABASE_URL")
+database_conn_max_age = int(os.getenv("DATABASE_CONN_MAX_AGE", "60"))
 if database_url:
-    DATABASES["default"] = dj_database_url.parse(database_url, conn_max_age=600)
+    try:
+        DATABASES["default"] = dj_database_url.parse(
+            database_url,
+            conn_max_age=database_conn_max_age,
+            conn_health_checks=True,
+        )
+    except TypeError:
+        # Compatibilidade com versoes antigas de dj_database_url.
+        DATABASES["default"] = dj_database_url.parse(
+            database_url,
+            conn_max_age=database_conn_max_age,
+        )
+        DATABASES["default"]["CONN_HEALTH_CHECKS"] = True
 
 AUTH_PASSWORD_VALIDATORS = [
     {

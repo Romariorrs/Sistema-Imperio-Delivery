@@ -3,4 +3,4 @@ builder = "NIXPACKS"
 buildCommand = "python manage.py collectstatic --noinput"
 
 [deploy]
-startCommand = "python manage.py migrate && gunicorn contabilidade.wsgi --log-file - --bind 0.0.0.0:$PORT"
+startCommand = "python scripts/wait_for_db.py && python manage.py migrate && gunicorn contabilidade.wsgi --log-file - --bind 0.0.0.0:$PORT"

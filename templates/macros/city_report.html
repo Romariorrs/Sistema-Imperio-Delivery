@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Relatorio - Cidades{% endblock %}
+{% block extra_head %}
+<style>
+    .city-report {
+        display: grid;
+        gap: 14px;
+        width: min(1200px, calc(100vw - 24px));
+        margin-inline: auto;
+    }
+    .city-report-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+    .city-report-actions {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+    .city-report-filters {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 10px;
+        align-items: end;
+    }
+    .city-report-note {
+        color: var(--muted);
+        font-size: 12px;
+        margin: 0;
+    }
+    .city-report-table {
+        max-height: 70vh;
+        overflow: auto;
+    }
+    @media print {
+        .nav, .city-report-actions, .btn, .city-report-note, .city-report-filters { display: none !important; }
+        body { background: #fff; color: #000; }
+        .card { box-shadow: none; border: none; }
+        .table-wrap table th, .table-wrap table td { color: #000; }
+    }
+</style>
+{% endblock %}
+{% block content %}
+<div class="city-report">
+    <div class="city-report-header">
+        <div>
+            <h2 style="margin:0;">Relatorio por cidade</h2>
+            <p class="city-report-note">Total de cidades: {{ city_total }}</p>
+        </div>
+        <div class="city-report-actions">
+            <a class="btn secondary macro-orbit" href="{% url 'macro_list' %}">Voltar</a>
+            <a class="btn secondary macro-orbit" href="{% url 'macro_city_report_csv' %}?city_contains={{ city_contains }}&min_count={{ min_count }}&max_count={{ max_count }}">Exportar CSV</a>
+            <a class="btn secondary macro-orbit" href="{% url 'macro_city_report_xlsx' %}?city_contains={{ city_contains }}&min_count={{ min_count }}&max_count={{ max_count }}">Exportar XLSX</a>
+            <button class="btn macro-orbit" onclick="window.print()">Imprimir</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <form method="get" class="city-report-filters">
+            <div>
+                <label>Cidade contem</label>
+                <input type="text" name="city_contains" value="{{ city_contains }}" placeholder="Ex: Sao Paulo">
+            </div>
+            <div>
+                <label>Minimo de leads</label>
+                <input type="number" name="min_count" min="0" value="{{ min_count }}" placeholder="Ex: 100">
+            </div>
+            <div>
+                <label>Maximo de leads</label>
+                <input type="number" name="max_count" min="0" value="{{ max_count }}" placeholder="Opcional">
+            </div>
+            <div class="macro-filter-actions">
+                <button class="btn macro-orbit" type="submit">Filtrar</button>
+                <a class="btn secondary macro-orbit" href="{% url 'macro_city_report' %}">Limpar</a>
+            </div>
+        </form>
+    </div>
+
+    <div class="card city-report-table">
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Cidade</th>
+                        <th>Quantidade</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for row in city_rows %}
+                    <tr>
+                        <td>{{ row.city }}</td>
+                        <td>{{ row.total }}</td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="2">Nenhum dado encontrado.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

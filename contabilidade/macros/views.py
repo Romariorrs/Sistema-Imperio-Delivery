@@ -51,6 +51,7 @@ OPTIONAL_RUN_FIELDS = {"pages_processed", "execution_id", "total_deduplicated"}
 EXPORT_TRACKING_FIELDS = {"exported_at", "export_batch_id"}
 EXPORT_FIELD_CHOICES = EXPORT_COLUMNS + EXPORT_EXTRA_COLUMNS
 MAX_EXPORT_LIMIT = 50000
+MAX_CITY_REPORT_EXPORT = 5000
 
 
 def _staff_access(user):
@@ -424,6 +425,29 @@ def _export_cell_value(item: MacroLead, field: str):
     return value
 
 
+def _city_report_queryset(params=None):
+    params = params or {}
+    if not _macrolead_table_ready():
+        return []
+
+    city_qs = _base_macrolead_queryset().exclude(city="")
+    city_contains = (params.get("city_contains") or "").strip()
+    min_count = _safe_int(params.get("min_count"), 0)
+    max_count = _safe_int(params.get("max_count"), 0)
+
+    if city_contains:
+        city_qs = city_qs.filter(city__icontains=city_contains)
+
+    grouped = city_qs.values("city").annotate(total=Count("id")).order_by("-total", "city")
+
+    if min_count:
+        grouped = grouped.filter(total__gte=min_count)
+    if max_count:
+        grouped = grouped.filter(total__lte=max_count)
+
+    return grouped
+
+
 def _empty_macro_stats():
     return {
         "total_records": 0,
@@ -764,6 +788,63 @@ def macro_export_xlsx(request):
     ws.append([export_labels[field] for field in selected_fields])
     for item in rows:
         ws.append([_export_cell_value(item, field) for field in selected_fields])
+    wb.save(response)
+    return response
+
+
+@login_required
+@user_passes_test(_staff_access)
+def macro_city_report(request):
+    grouped = _city_report_queryset(request.GET)
+    city_count = len(grouped) if isinstance(grouped, list) else grouped.count()
+    context = {
+        "active_tab": "database",
+        "macro_agent_label": _macro_agent_version_meta()["label"],
+        "city_rows": grouped,
+        "city_total": city_count,
+        "city_contains": (request.GET.get("city_contains") or "").strip(),
+        "min_count": (request.GET.get("min_count") or "").strip(),
+        "max_count": (request.GET.get("max_count") or "").strip(),
+    }
+    return render(request, "macros/city_report.html", context)
+
+
+@login_required
+@user_passes_test(_staff_access)
+def macro_city_report_csv(request):
+    grouped = _city_report_queryset(request.GET)
+    if not isinstance(grouped, list):
+        grouped = list(grouped[:MAX_CITY_REPORT_EXPORT])
+
+    response = HttpResponse(content_type="text/csv; charset=utf-8")
+    response["Content-Disposition"] = 'attachment; filename="macro_cidades.csv"'
+    writer = csv.writer(response)
+    writer.writerow(["Cidade", "Quantidade"])
+    for row in grouped:
+        writer.writerow([row["city"], row["total"]])
+    return response
+
+
+@login_required
+@user_passes_test(_staff_access)
+def macro_city_report_xlsx(request):
+    from openpyxl import Workbook
+
+    grouped = _city_report_queryset(request.GET)
+    if not isinstance(grouped, list):
+        grouped = list(grouped[:MAX_CITY_REPORT_EXPORT])
+
+    response = HttpResponse(
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    response["Content-Disposition"] = 'attachment; filename="macro_cidades.xlsx"'
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Cidades"
+    ws.append(["Cidade", "Quantidade"])
+    for row in grouped:
+        ws.append([row["city"], row["total"]])
     wb.save(response)
     return response
 

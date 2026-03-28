@@ -17,6 +17,9 @@ from .views import (
     macro_export_csv,
     macro_export_xlsx,
     macro_import_csv,
+    macro_city_report,
+    macro_city_report_csv,
+    macro_city_report_xlsx,
     macro_list,
 )
 
@@ -39,4 +42,7 @@ urlpatterns = [
     path("export/xlsx/", macro_export_xlsx, name="macro_export_xlsx"),
     path("import/", macro_import_csv, name="macro_import_csv"),
     path("api/import/", macro_api_import, name="macro_api_import"),
+    path("relatorios/cidades/", macro_city_report, name="macro_city_report"),
+    path("relatorios/cidades.csv", macro_city_report_csv, name="macro_city_report_csv"),
+    path("relatorios/cidades.xlsx", macro_city_report_xlsx, name="macro_city_report_xlsx"),
 ]

@@ -467,7 +467,13 @@
 
     <div class="macro-insights">
         <div class="card">
-            <h3 style="margin:0;">Top cidades</h3>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
+                <h3 style="margin:0;">Top cidades</h3>
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                    <a class="btn secondary macro-orbit" href="{% url 'macro_city_report' %}">Relatorio completo</a>
+                    <a class="btn secondary macro-orbit" href="{% url 'macro_city_report' %}?print=1" target="_blank">Imprimir</a>
+                </div>
+            </div>
             <table>
                 <thead><tr><th>Cidade</th><th>Quantidade</th></tr></thead>
                 <tbody>

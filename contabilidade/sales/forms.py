@@ -9,7 +9,19 @@ from contabilidade.clients.models import Client
 class SellerClientForm(forms.ModelForm):
     class Meta:
         model = Client
-        fields = ["name", "cpf_cnpj", "email", "phone", "default_amount", "recurring_months"]
+        fields = [
+            "name",
+            "cpf_cnpj",
+            "email",
+            "phone",
+            "postal_code",
+            "address",
+            "address_number",
+            "complement",
+            "province",
+            "default_amount",
+            "recurring_months",
+        ]
 
 
 class SellerBillingForm(forms.ModelForm):

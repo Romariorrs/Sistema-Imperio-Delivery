@@ -6,6 +6,11 @@ class Client(models.Model):
     cpf_cnpj = models.CharField(max_length=20, unique=True)
     phone = models.CharField(max_length=20, blank=True)
     email = models.EmailField(blank=True)
+    postal_code = models.CharField(max_length=10, blank=True, verbose_name="CEP")
+    address = models.CharField(max_length=255, blank=True, verbose_name="Endereco")
+    address_number = models.CharField(max_length=20, blank=True, verbose_name="Numero")
+    complement = models.CharField(max_length=100, blank=True, verbose_name="Complemento")
+    province = models.CharField(max_length=100, blank=True, verbose_name="Bairro")
     default_amount = models.DecimalField(
         max_digits=10, decimal_places=2, default=0, verbose_name="Valor da mensalidade"
     )

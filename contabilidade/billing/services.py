@@ -25,6 +25,43 @@ def _digits_only(value: str) -> str:
     return re.sub(r"\D", "", value or "")
 
 
+def _customer_payload(client: Client):
+    payload = {
+        "name": client.name,
+        "cpfCnpj": _digits_only(client.cpf_cnpj),
+        "mobilePhone": _digits_only(client.phone) or None,
+        "email": client.email or None,
+    }
+    if client.postal_code:
+        payload["postalCode"] = _digits_only(client.postal_code)
+    if client.address:
+        payload["address"] = client.address
+    if client.address_number:
+        payload["addressNumber"] = client.address_number
+    if client.complement:
+        payload["complement"] = client.complement
+    if client.province:
+        payload["province"] = client.province
+    return payload
+
+
+def _validate_checkout_customer_data(client: Client):
+    missing = []
+    if not client.postal_code:
+        missing.append("CEP")
+    if not client.address:
+        missing.append("endereco")
+    if not client.address_number:
+        missing.append("numero")
+    if not client.province:
+        missing.append("bairro")
+    if missing:
+        labels = ", ".join(missing)
+        raise AsaasError(
+            f"Preencha os dados de endereco do cliente antes de gerar o checkout: {labels}."
+        )
+
+
 def _asaas_headers():
     if not settings.ASAAS_API_KEY:
         raise AsaasError("Chave ASAAS_API_KEY nao configurada. Defina no .env ou variavel de ambiente.")
@@ -41,12 +78,7 @@ def create_asaas_customer(client: Client):
         raise AsaasError("CPF/CNPJ invalido para criar cliente no Asaas.")
 
     url = f"{settings.ASAAS_API_BASE_URL.rstrip('/')}/customers"
-    payload = {
-        "name": client.name,
-        "cpfCnpj": cpf_cnpj,
-        "mobilePhone": _digits_only(client.phone) or None,
-        "email": client.email or None,
-    }
+    payload = _customer_payload(client)
     response = requests.post(url, json=payload, headers=_asaas_headers(), timeout=30)
     if not response.ok:
         try:
@@ -68,9 +100,34 @@ def create_asaas_customer(client: Client):
     return customer_id
 
 
+def update_asaas_customer(client: Client):
+    if not client.asaas_customer_id:
+        return create_asaas_customer(client)
+
+    url = f"{settings.ASAAS_API_BASE_URL.rstrip('/')}/customers/{client.asaas_customer_id}"
+    payload = _customer_payload(client)
+    response = requests.put(url, json=payload, headers=_asaas_headers(), timeout=30)
+    if response.status_code == 404:
+        client.asaas_customer_id = ""
+        client.save(update_fields=["asaas_customer_id"])
+        return create_asaas_customer(client)
+    if not response.ok:
+        try:
+            detail = response.json()
+        except Exception:
+            detail = response.text
+        snippet = str(detail)
+        if len(snippet) > 400:
+            snippet = snippet[:400] + "..."
+        raise AsaasError(
+            f"Erro ao atualizar cliente no Asaas (HTTP {response.status_code}) detalhe={snippet}"
+        )
+    return client.asaas_customer_id
+
+
 def ensure_asaas_customer(client: Client):
     if client.asaas_customer_id:
-        return client.asaas_customer_id
+        return update_asaas_customer(client)
     return create_asaas_customer(client)
 
 
@@ -136,13 +193,14 @@ def create_asaas_billing(client, amount, due_date, recurring_months=1):
     if amount_value < 5:
         raise AsaasError("O valor minimo para checkout recorrente no Asaas e R$ 5,00.")
 
-    customer_id = ensure_asaas_customer(client)
+    _validate_checkout_customer_data(client)
+    ensure_asaas_customer(client)
     subscription_end_date = _add_months(due_date, recurring_months - 1)
     item_name = f"Mensalidade {client.name}"[:30]
 
     url = f"{settings.ASAAS_API_BASE_URL.rstrip('/')}/checkouts"
     payload = {
-        "customer": customer_id,
+        "customerData": _customer_payload(client),
         "billingTypes": ["CREDIT_CARD"],
         "chargeTypes": ["RECURRENT"],
         "minutesToExpire": getattr(settings, "ASAAS_CHECKOUT_EXPIRATION_MINUTES", 100),

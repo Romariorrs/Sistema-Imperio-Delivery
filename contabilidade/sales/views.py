@@ -19,7 +19,7 @@ def _build_seller_message(client, billing):
         f"Ola {client.name}!\n"
         f"Sua cobranca recorrente no cartao foi criada.\n"
         f"Valor mensal: R$ {billing.amount:.2f}\n"
-        f"Primeiro vencimento: {billing.due_date.strftime('%d/%m/%Y')}\n"
+        f"Dia da compra: {billing.due_date.strftime('%d/%m/%Y')}\n"
         f"Duracao: {billing.recurring_months} mes(es)\n"
         f"Link para concluir o cadastro do cartao: {billing.payment_link}"
     )

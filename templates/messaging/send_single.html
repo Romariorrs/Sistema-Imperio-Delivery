@@ -5,7 +5,7 @@
     <div class="page-head">
         <div>
             <h2>Envio Individual</h2>
-            <div class="muted">Geracao de cobranca unica com mensagem imediata.</div>
+            <div class="muted">Gere um checkout recorrente e deixe a mensagem pronta para envio.</div>
         </div>
     </div>
 
@@ -20,8 +20,10 @@
             {{ form.amount }}
             <label>Vencimento</label>
             {{ form.due_date }}
+            <label>Meses de recorrencia (opcional)</label>
+            {{ form.recurring_months }}
             <div class="page-actions">
-                <button class="btn" type="submit">Gerar cobranca e enfileirar</button>
+                <button class="btn" type="submit">Gerar checkout e enfileirar</button>
             </div>
         </form>
         {% if payment_link %}

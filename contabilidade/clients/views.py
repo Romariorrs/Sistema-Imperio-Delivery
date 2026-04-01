@@ -1,13 +1,14 @@
 import csv
 
+from django import forms
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django import forms
 from django.views.decorators.http import require_POST
 
-from contabilidade.integrations.asaas import ensure_asaas_customer
+from contabilidade.billing.services import AsaasError, ensure_asaas_customer
+
 from .models import Client
 
 
@@ -20,6 +21,7 @@ class ClientForm(forms.ModelForm):
             "phone",
             "email",
             "default_amount",
+            "recurring_months",
             "active",
             "asaas_customer_id",
         ]
@@ -39,8 +41,8 @@ def client_create(request):
             client = form.save()
             try:
                 ensure_asaas_customer(client)
-            except Exception:
-                pass
+            except AsaasError as exc:
+                messages.warning(request, f"Cliente salvo, mas o Asaas retornou: {exc}")
             return redirect("client_list")
     else:
         form = ClientForm()
@@ -56,8 +58,8 @@ def client_update(request, pk):
             client = form.save()
             try:
                 ensure_asaas_customer(client)
-            except Exception:
-                pass
+            except AsaasError as exc:
+                messages.warning(request, f"Cliente atualizado, mas o Asaas retornou: {exc}")
             return redirect("client_list")
     else:
         form = ClientForm(instance=client)
@@ -84,7 +86,17 @@ def client_export(request):
     response["Content-Disposition"] = 'attachment; filename="clientes.csv"'
     writer = csv.writer(response)
     writer.writerow(
-        ["Nome", "CPF/CNPJ", "Telefone", "Email", "Valor Padrão", "Ativo", "Asaas ID", "Criado em"]
+        [
+            "Nome",
+            "CPF/CNPJ",
+            "Telefone",
+            "Email",
+            "Valor Padrao",
+            "Meses Recorrencia",
+            "Ativo",
+            "Asaas ID",
+            "Criado em",
+        ]
     )
     for client in Client.objects.all():
         writer.writerow(
@@ -94,7 +106,8 @@ def client_export(request):
                 client.phone,
                 client.email,
                 client.default_amount,
-                "Sim" if client.active else "Não",
+                client.recurring_months,
+                "Sim" if client.active else "Nao",
                 client.asaas_customer_id,
                 client.created_at.strftime("%Y-%m-%d"),
             ]

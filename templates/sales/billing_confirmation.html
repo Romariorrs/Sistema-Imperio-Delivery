@@ -1,11 +1,11 @@
 {% extends "base.html" %}
-{% block title %}Boleto gerado{% endblock %}
+{% block title %}Checkout recorrente gerado{% endblock %}
 {% block content %}
 <div class="page-shell">
     <div class="page-head">
         <div>
-            <h2>Boleto gerado</h2>
-            <div class="muted">Cobranca criada com sucesso. Compartilhe o link com o cliente.</div>
+            <h2>Checkout recorrente gerado</h2>
+            <div class="muted">Cobranca recorrente criada com sucesso. Compartilhe o link com o cliente.</div>
         </div>
         <a class="btn secondary" href="{% url 'seller_dashboard' %}">Voltar ao painel</a>
     </div>
@@ -16,20 +16,21 @@
             <div class="chips">
                 <span class="chip">Cliente: {{ client.name }}</span>
                 <span class="chip">Valor: R$ {{ billing.amount|floatformat:2 }}</span>
-                <span class="chip">Vencimento: {{ billing.due_date }}</span>
+                <span class="chip">Primeiro vencimento: {{ billing.due_date }}</span>
+                <span class="chip">Meses: {{ billing.recurring_months }}</span>
                 <span class="chip">Status: {{ billing.get_status_display }}</span>
             </div>
         </div>
 
         <div class="card">
-            <h3 style="margin-bottom:8px;">Link de pagamento</h3>
-            <p class="muted" style="margin-top:0;">Abra para conferir ou copie para enviar ao cliente.</p>
+            <h3 style="margin-bottom:8px;">Link do checkout</h3>
+            <p class="muted" style="margin-top:0;">Abra para conferir ou copie para enviar ao cliente concluir o cadastro do cartao.</p>
             <p style="word-break:break-all; margin:0 0 12px;">
                 <a href="{{ payment_link }}" target="_blank" rel="noopener">{{ payment_link }}</a>
             </p>
             <div class="page-actions">
                 <a class="btn" href="{{ payment_link }}" target="_blank" rel="noopener">Abrir link</a>
-                <a class="btn secondary" href="{% url 'seller_billing_create' %}">Gerar outro boleto</a>
+                <a class="btn secondary" href="{% url 'seller_billing_create' %}">Gerar outra cobranca</a>
             </div>
         </div>
     </div>

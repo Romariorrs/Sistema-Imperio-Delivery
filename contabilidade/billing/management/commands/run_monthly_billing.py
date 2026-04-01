@@ -1,4 +1,3 @@
-import calendar
 import time
 from datetime import date, timedelta
 
@@ -12,37 +11,30 @@ from contabilidade.messaging.models import MessageQueue, MessageTemplate
 from contabilidade.whatsapp.services import WhatsAppClient, WhatsAppError
 
 
-def _add_one_month(value: date) -> date:
-    year = value.year + (value.month // 12)
-    month = 1 if value.month == 12 else value.month + 1
-    last_day = calendar.monthrange(year, month)[1]
-    day = min(value.day, last_day)
-    return date(year, month, day)
-
-
 def _template_by_name(name: str):
     return MessageTemplate.objects.filter(name__iexact=name).first()
 
 
-def _build_default_message(client, amount, due_date, payment_link, is_reminder: bool = False):
+def _build_default_message(client, amount, due_date, payment_link, recurring_months, is_reminder=False):
     if is_reminder:
-        header = f"Lembrete de pagamento - vencimento {due_date.strftime('%d/%m/%Y')}"
+        header = f"Lembrete da assinatura - primeiro vencimento {due_date.strftime('%d/%m/%Y')}"
     else:
-        header = f"Mensalidade do mes {due_date.strftime('%m/%Y')}"
+        header = f"Assinatura recorrente no cartao por {recurring_months} mes(es)"
     return (
         f"Ola {client.name}!\n"
         f"{header}.\n"
-        f"Valor: R$ {amount:.2f}\n"
+        f"Valor mensal: R$ {amount:.2f}\n"
         f"Link para pagamento: {payment_link}"
     )
 
 
-def _build_message(template, client, amount, due_date, payment_link):
+def _build_message(template, client, amount, due_date, payment_link, recurring_months):
     text = template.body
     text = text.replace("{nome}", client.name)
     text = text.replace("{valor}", f"{amount:.2f}")
     text = text.replace("{vencimento}", due_date.strftime("%d/%m/%Y"))
     text = text.replace("{link}", payment_link or "")
+    text = text.replace("{meses}", str(recurring_months))
     if payment_link and "{link}" not in template.body:
         text = f"{text}\nLink de pagamento: {payment_link}"
     return text
@@ -67,7 +59,7 @@ def _send_queue(delay: float):
 
 
 class Command(BaseCommand):
-    help = "Gera cobrancas mensais e enfileira mensagens com opcao de envio imediato."
+    help = "Gera checkouts recorrentes quando nao existe assinatura ativa e enfileira mensagens."
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -80,7 +72,7 @@ class Command(BaseCommand):
             "--remind-days",
             type=int,
             default=2,
-            help="Janela (dias) para enviar lembretes (use 0 para apenas atrasados).",
+            help="Janela (dias) para enviar lembretes.",
         )
         parser.add_argument(
             "--cooldown-days",
@@ -91,12 +83,12 @@ class Command(BaseCommand):
         parser.add_argument(
             "--no-create",
             action="store_true",
-            help="Nao gera novas cobrancas, apenas lembretes.",
+            help="Nao gera novas assinaturas, apenas lembretes.",
         )
         parser.add_argument(
             "--no-remind",
             action="store_true",
-            help="Nao gera lembretes, apenas cobrancas novas.",
+            help="Nao gera lembretes, apenas novas assinaturas.",
         )
         parser.add_argument(
             "--send-now",
@@ -113,7 +105,6 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         today = date.today()
         days_ahead = options["days_ahead"]
-        remind_days = options["remind_days"]
         cooldown_days = options["cooldown_days"]
         create_new = not options["no_create"]
         remind = not options["no_remind"]
@@ -127,7 +118,6 @@ class Command(BaseCommand):
         tpl_new = _template_by_name("Mensalidade")
         tpl_reminder = _template_by_name("Lembrete")
 
-        queued_clients = set()
         if create_new:
             clients = Client.objects.filter(active=True)
             for client in clients:
@@ -137,34 +127,45 @@ class Command(BaseCommand):
                 if not client.phone:
                     skipped += 1
                     continue
+                active_plan = (
+                    Billing.objects.filter(
+                        client=client,
+                        charge_type="RECURRENT",
+                        status__in=["pending", "paid", "overdue"],
+                        subscription_end_date__gte=today,
+                    )
+                    .exclude(status="canceled")
+                    .exists()
+                )
+                if active_plan:
+                    skipped += 1
+                    continue
 
-                last_billing = Billing.objects.filter(client=client).order_by("-due_date").first()
-                if last_billing:
-                    due_date = _add_one_month(last_billing.due_date)
-                else:
+                due_date = today
+                last_billing = Billing.objects.filter(client=client).order_by("-subscription_end_date", "-due_date").first()
+                if not last_billing:
                     due_date = client.created_at.date() + timedelta(days=days_ahead)
-
-                if due_date > today:
-                    skipped += 1
-                    continue
-                if due_date < today:
-                    due_date = today
-
-                if Billing.objects.filter(client=client, due_date=due_date).exclude(status="canceled").exists():
-                    skipped += 1
-                    continue
+                    if due_date < today:
+                        due_date = today
 
                 try:
-                    billing_id, payment_link = create_asaas_billing(
-                        client, client.default_amount, due_date
+                    checkout = create_asaas_billing(
+                        client,
+                        client.default_amount,
+                        due_date,
+                        recurring_months=client.recurring_months,
                     )
                     billing = Billing.objects.create(
                         client=client,
                         amount=client.default_amount,
                         due_date=due_date,
+                        subscription_end_date=checkout["subscription_end_date"],
+                        recurring_months=checkout["recurring_months"],
                         status="pending",
-                        asaas_billing_id=billing_id,
-                        payment_link=payment_link or "",
+                        billing_type=checkout["billing_type"],
+                        charge_type=checkout["charge_type"],
+                        asaas_checkout_id=checkout["checkout_id"],
+                        payment_link=checkout["payment_link"] or "",
                     )
                 except AsaasError as exc:
                     errors += 1
@@ -173,11 +174,20 @@ class Command(BaseCommand):
 
                 if tpl_new:
                     final_text = _build_message(
-                        tpl_new, client, billing.amount, billing.due_date, billing.payment_link
+                        tpl_new,
+                        client,
+                        billing.amount,
+                        billing.due_date,
+                        billing.payment_link,
+                        billing.recurring_months,
                     )
                 else:
                     final_text = _build_default_message(
-                        client, billing.amount, billing.due_date, billing.payment_link
+                        client,
+                        billing.amount,
+                        billing.due_date,
+                        billing.payment_link,
+                        billing.recurring_months,
                     )
                 MessageQueue.objects.create(
                     client=client,
@@ -185,29 +195,16 @@ class Command(BaseCommand):
                     template=tpl_new,
                     final_text=final_text,
                 )
-                queued_clients.add(client.id)
                 created += 1
                 queued += 1
 
         if remind:
-            remind_until = today + timedelta(days=remind_days)
             recent_cutoff = timezone.now() - timedelta(days=cooldown_days)
-            pendings = Billing.objects.filter(status__in=["pending", "overdue"])
+            pendings = Billing.objects.filter(status__in=["pending", "overdue"], charge_type="RECURRENT")
             for billing in pendings:
-                if billing.status == "pending" and billing.due_date < today:
-                    billing.status = "overdue"
-                    billing.save(update_fields=["status"])
-                if billing.due_date > remind_until:
-                    continue
-                if billing.due_date >= today:
-                    continue
                 if not billing.client.phone:
                     continue
-                if billing.client_id in queued_clients:
-                    continue
-                if MessageQueue.objects.filter(
-                    billing=billing, created_at__gte=recent_cutoff
-                ).exists():
+                if MessageQueue.objects.filter(billing=billing, created_at__gte=recent_cutoff).exists():
                     continue
 
                 if tpl_reminder:
@@ -217,6 +214,7 @@ class Command(BaseCommand):
                         billing.amount,
                         billing.due_date,
                         billing.payment_link,
+                        billing.recurring_months,
                     )
                 else:
                     final_text = _build_default_message(
@@ -224,6 +222,7 @@ class Command(BaseCommand):
                         billing.amount,
                         billing.due_date,
                         billing.payment_link,
+                        billing.recurring_months,
                         is_reminder=True,
                     )
                 MessageQueue.objects.create(

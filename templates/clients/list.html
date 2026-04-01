@@ -5,7 +5,7 @@
     <div class="page-head">
         <div>
             <h2>Clientes</h2>
-            <div class="muted">Cadastro central de clientes para cobranca e mensageria.</div>
+            <div class="muted">Cadastro central de clientes para cobranca recorrente e mensageria.</div>
         </div>
         <div class="page-actions">
             <a class="btn secondary" href="{% url 'client_export' %}">Exportar CSV</a>
@@ -23,6 +23,7 @@
                         <th>Telefone</th>
                         <th>Email</th>
                         <th>Valor padrao</th>
+                        <th>Meses</th>
                         <th>Status</th>
                         <th>Acoes</th>
                     </tr>
@@ -35,6 +36,7 @@
                         <td>{{ client.phone }}</td>
                         <td>{{ client.email }}</td>
                         <td>R$ {{ client.default_amount|floatformat:2 }}</td>
+                        <td>{{ client.recurring_months }}</td>
                         <td>
                             {% if client.active %}
                                 <span class="badge success">Ativo</span>
@@ -45,7 +47,7 @@
                         <td>
                             <div class="inline-actions">
                                 <a class="btn secondary" href="{% url 'client_update' client.id %}">Editar</a>
-                                <a class="btn secondary" href="{% url 'invoice_single_client' client.id %}">Cobrar</a>
+                                <a class="btn secondary" href="{% url 'invoice_single_client' client.id %}">Checkout</a>
                                 <form method="post" action="{% url 'client_delete' client.id %}" style="display:inline;">
                                     {% csrf_token %}
                                     <button class="btn danger" type="submit" onclick="return confirm('Excluir cliente {{ client.name }}?');">Excluir</button>
@@ -54,7 +56,7 @@
                         </td>
                     </tr>
                 {% empty %}
-                    <tr><td colspan="7">Nenhum cliente cadastrado.</td></tr>
+                    <tr><td colspan="8">Nenhum cliente cadastrado.</td></tr>
                 {% endfor %}
                 </tbody>
             </table>

@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date
 
 from django import forms
 from django.contrib import messages
@@ -23,6 +23,11 @@ class MassMessageForm(forms.Form):
     template = forms.ModelChoiceField(queryset=MessageTemplate.objects.all())
     amount = forms.DecimalField(required=False, max_digits=10, decimal_places=2)
     due_date = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}))
+    recurring_months = forms.IntegerField(
+        required=False,
+        min_value=1,
+        widget=forms.NumberInput(attrs={"min": 1, "step": 1}),
+    )
     select_all = forms.BooleanField(required=False, initial=False)
 
 
@@ -31,6 +36,11 @@ class SingleMessageForm(forms.Form):
     template = forms.ModelChoiceField(queryset=MessageTemplate.objects.all())
     amount = forms.DecimalField(required=False, max_digits=10, decimal_places=2)
     due_date = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}))
+    recurring_months = forms.IntegerField(
+        required=False,
+        min_value=1,
+        widget=forms.NumberInput(attrs={"min": 1, "step": 1}),
+    )
 
 
 @login_required
@@ -66,16 +76,32 @@ def template_update(request, pk):
     return render(request, "messaging/template_form.html", {"form": form, "title": "Editar Template"})
 
 
-def _build_message(template, client, amount, due_date, payment_link):
+def _build_message(template, client, amount, due_date, payment_link, recurring_months):
     text = template.body
     text = text.replace("{nome}", client.name)
     text = text.replace("{valor}", f"{amount:.2f}")
     text = text.replace("{vencimento}", due_date.strftime("%d/%m/%Y"))
     text = text.replace("{link}", payment_link or "")
-    # Se o template não tiver placeholder e existir link, acrescenta no final.
+    text = text.replace("{meses}", str(recurring_months))
     if payment_link and "{link}" not in template.body:
         text = f"{text}\nLink de pagamento: {payment_link}"
     return text
+
+
+def _create_local_billing(client, amount, due_date, recurring_months):
+    checkout = create_asaas_billing(client, amount, due_date, recurring_months=recurring_months)
+    return Billing.objects.create(
+        client=client,
+        amount=amount,
+        due_date=due_date,
+        subscription_end_date=checkout["subscription_end_date"],
+        recurring_months=checkout["recurring_months"],
+        status="pending",
+        billing_type=checkout["billing_type"],
+        charge_type=checkout["charge_type"],
+        asaas_checkout_id=checkout["checkout_id"],
+        payment_link=checkout["payment_link"] or "",
+    )
 
 
 @login_required
@@ -86,33 +112,31 @@ def send_mass_messages(request):
             tpl = form.cleaned_data["template"]
             amount = form.cleaned_data.get("amount")
             due_date = form.cleaned_data.get("due_date") or date.today()
+            recurring_months_override = form.cleaned_data.get("recurring_months")
             created = 0
             clients = Client.objects.all() if form.cleaned_data.get("select_all") else form.cleaned_data["clients"]
             for client in clients:
                 if not client.phone:
-                    messages.warning(request, f"Cliente {client.name} sem telefone. Não enfileirado.")
-                    continue
-                if not client.asaas_customer_id:
-                    messages.warning(request, f"Cliente {client.name} sem Asaas ID. Não enfileirado.")
+                    messages.warning(request, f"Cliente {client.name} sem telefone. Nao enfileirado.")
                     continue
                 amt = amount or client.default_amount
                 if not amt:
-                    messages.warning(request, f"Cliente {client.name} sem valor padrão.")
+                    messages.warning(request, f"Cliente {client.name} sem valor padrao.")
                     continue
+                recurring_months = recurring_months_override or client.recurring_months or 1
                 try:
-                    billing_id, link = create_asaas_billing(client, amt, due_date)
-                    billing = Billing.objects.create(
-                        client=client,
-                        amount=amt,
-                        due_date=due_date,
-                        status="pending",
-                        asaas_billing_id=billing_id,
-                        payment_link=link or "",
-                    )
+                    billing = _create_local_billing(client, amt, due_date, recurring_months)
                 except AsaasError as exc:
                     messages.error(request, f"{client.name}: {exc}")
                     continue
-                final_text = _build_message(tpl, client, amt, due_date, billing.payment_link)
+                final_text = _build_message(
+                    tpl,
+                    client,
+                    amt,
+                    due_date,
+                    billing.payment_link,
+                    billing.recurring_months,
+                )
                 MessageQueue.objects.create(
                     client=client,
                     billing=billing,
@@ -140,23 +164,21 @@ def send_single_message(request):
             tpl = form.cleaned_data["template"]
             amount = form.cleaned_data.get("amount") or client.default_amount
             due_date = form.cleaned_data.get("due_date") or date.today()
+            recurring_months = form.cleaned_data.get("recurring_months") or client.recurring_months or 1
             if not client.phone:
-                messages.error(request, f"Cliente {client.name} sem telefone. Não enviado.")
-                return redirect("send_single_message")
-            if not client.asaas_customer_id:
-                messages.error(request, f"Cliente {client.name} sem Asaas ID. Não enviado.")
+                messages.error(request, f"Cliente {client.name} sem telefone. Nao enviado.")
                 return redirect("send_single_message")
             try:
-                billing_id, payment_link = create_asaas_billing(client, amount, due_date)
-                billing = Billing.objects.create(
-                    client=client,
-                    amount=amount,
-                    due_date=due_date,
-                    status="pending",
-                    asaas_billing_id=billing_id,
-                    payment_link=payment_link or "",
+                billing = _create_local_billing(client, amount, due_date, recurring_months)
+                payment_link = billing.payment_link
+                final_text = _build_message(
+                    tpl,
+                    client,
+                    amount,
+                    due_date,
+                    billing.payment_link,
+                    billing.recurring_months,
                 )
-                final_text = _build_message(tpl, client, amount, due_date, billing.payment_link)
                 MessageQueue.objects.create(
                     client=client,
                     billing=billing,

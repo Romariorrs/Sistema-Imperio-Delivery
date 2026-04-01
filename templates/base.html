@@ -397,7 +397,7 @@
         {% elif user.seller_profile %}
             <a class="nav-link" href="{% url 'seller_dashboard' %}">Vendedor</a>
             <a class="nav-link" href="{% url 'seller_client_create' %}">Novo Cliente</a>
-            <a class="nav-link" href="{% url 'seller_billing_create' %}">Gerar Boleto</a>
+            <a class="nav-link" href="{% url 'seller_billing_create' %}">Cobranca recorrente</a>
         {% endif %}
         <div class="nav-spacer"></div>
         {% if user.seller_profile and not user.is_staff and not user.is_superuser %}

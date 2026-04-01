@@ -6,7 +6,7 @@ from contabilidade.clients.models import Client
 
 class MessageTemplate(models.Model):
     name = models.CharField(max_length=100)
-    body = models.TextField(help_text="Use placeholders como {nome}, {valor}, {vencimento}")
+    body = models.TextField(help_text="Use placeholders como {nome}, {valor}, {vencimento}, {meses}, {link}")
 
     def __str__(self):
         return self.name

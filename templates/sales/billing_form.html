@@ -1,11 +1,11 @@
 {% extends "base.html" %}
-{% block title %}Gerar boleto{% endblock %}
+{% block title %}Cobranca recorrente{% endblock %}
 {% block content %}
 <div class="page-shell">
     <div class="page-head">
         <div>
-            <h2>Gerar boleto</h2>
-            <div class="muted">Crie uma cobranca para um cliente e envie pelo fluxo WhatsApp.</div>
+            <h2>Cobranca recorrente</h2>
+            <div class="muted">Crie um checkout de cartao recorrente no Asaas e envie pelo WhatsApp.</div>
         </div>
         <a class="btn secondary" href="{% url 'seller_dashboard' %}">Voltar</a>
     </div>
@@ -24,7 +24,7 @@
                 </div>
             {% endfor %}
             <div class="page-actions">
-                <button class="btn" type="submit">Gerar boleto</button>
+                <button class="btn" type="submit">Gerar checkout recorrente</button>
                 <a class="btn secondary" href="{% url 'seller_dashboard' %}">Cancelar</a>
             </div>
         </form>

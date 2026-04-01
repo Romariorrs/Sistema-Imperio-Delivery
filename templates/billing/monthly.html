@@ -67,10 +67,10 @@
     <div class="card">
         <div class="page-head">
             <h3>Gerenciar envios</h3>
-            <div class="muted">Boletos enviados no dia do vencimento.</div>
+            <div class="muted">Checkouts recorrentes criados no dia do vencimento.</div>
         </div>
         <div class="inline-actions" style="margin-bottom:8px;">
-            <span class="badge success">Boleto do dia</span>
+            <span class="badge success">Checkout do dia</span>
             <span class="badge danger">Atrasado</span>
         </div>
         <form method="post" action="{% url 'run_monthly_billing' %}">
@@ -84,7 +84,7 @@
             <div class="inline-actions" style="margin-top:10px;">
                 <label style="display:inline-flex; align-items:center; gap:8px; margin:0;">
                     <input type="checkbox" name="create_new" checked>
-                    Gerar boletos do dia
+                    Gerar cobrancas do dia
                 </label>
                 <label style="display:inline-flex; align-items:center; gap:8px; margin:0;">
                     <input type="checkbox" name="send_reminders">
@@ -92,8 +92,8 @@
                 </label>
             </div>
             <div class="page-actions" style="margin-top:12px;">
-                <button class="btn secondary" type="submit" name="action" value="generate">Gerar boletos</button>
-                <button class="btn" type="submit" name="action" value="generate_send" onclick="return confirm('Gerar boletos de hoje e enviar WhatsApp agora?');">Gerar e enviar WhatsApp</button>
+                <button class="btn secondary" type="submit" name="action" value="generate">Gerar cobrancas</button>
+                <button class="btn" type="submit" name="action" value="generate_send" onclick="return confirm('Gerar cobrancas de hoje e enviar WhatsApp agora?');">Gerar e enviar WhatsApp</button>
                 <button class="btn secondary" type="submit" name="action" value="send_queue" onclick="return confirm('Enviar fila WhatsApp agora?');">Enviar fila WhatsApp</button>
             </div>
         </form>

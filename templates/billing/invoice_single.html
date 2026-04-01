@@ -1,11 +1,11 @@
 {% extends "base.html" %}
-{% block title %}Gerar cobranca{% endblock %}
+{% block title %}Gerar cobranca recorrente{% endblock %}
 {% block content %}
 <div class="page-shell">
     <div class="page-head">
         <div>
-            <h2>Gerar cobranca</h2>
-            <div class="muted">Crie uma cobranca individual para este cliente.</div>
+            <h2>Gerar cobranca recorrente</h2>
+            <div class="muted">Crie um checkout recorrente no cartao para este cliente.</div>
         </div>
         <a class="btn secondary" href="{% url 'client_list' %}">Voltar para clientes</a>
     </div>
@@ -24,11 +24,15 @@
                     <input type="number" step="0.01" min="0" name="amount" value="{{ client.default_amount }}" required>
                 </div>
                 <div>
-                    <label>Vencimento</label>
+                    <label>Primeiro vencimento</label>
                     <input type="date" name="due_date" value="{{ billing.due_date|default:None|date:'Y-m-d' }}" required>
                 </div>
+                <div>
+                    <label>Meses de recorrencia</label>
+                    <input type="number" name="recurring_months" min="1" step="1" value="{{ client.recurring_months|default:1 }}" required>
+                </div>
                 <div class="page-actions">
-                    <button class="btn" type="submit">Gerar cobranca</button>
+                    <button class="btn" type="submit">Gerar checkout recorrente</button>
                 </div>
             </form>
         </div>
@@ -44,11 +48,12 @@
                 {% if billing %}
                     <div class="chips">
                         <span class="chip">Valor: R$ {{ billing.amount|floatformat:2 }}</span>
-                        <span class="chip">Vencimento: {{ billing.due_date }}</span>
+                        <span class="chip">Primeiro vencimento: {{ billing.due_date }}</span>
+                        <span class="chip">Meses: {{ billing.recurring_months }}</span>
                     </div>
                 {% endif %}
             {% else %}
-                <p class="muted">Aguardando geracao. Preencha os campos e clique em "Gerar cobranca".</p>
+                <p class="muted">Aguardando geracao. Preencha os campos e clique em "Gerar checkout recorrente".</p>
             {% endif %}
         </div>
     </div>

@@ -5,7 +5,7 @@
     <div class="page-head">
         <div>
             <h2>Envio em Massa</h2>
-            <div class="muted">Gere cobrancas em lote e acompanhe fila de envio.</div>
+            <div class="muted">Gere checkouts recorrentes em lote e acompanhe a fila de envio.</div>
         </div>
     </div>
 
@@ -27,8 +27,10 @@
             {{ form.amount }}
             <label>Vencimento (opcional)</label>
             {{ form.due_date }}
+            <label>Meses de recorrencia (opcional)</label>
+            {{ form.recurring_months }}
             <div class="page-actions">
-                <button class="btn" type="submit">Gerar cobrancas e enfileirar</button>
+                <button class="btn" type="submit">Gerar checkouts e enfileirar</button>
             </div>
         </form>
     </div>

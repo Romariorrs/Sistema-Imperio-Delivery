@@ -15,14 +15,14 @@
 
     <div class="kpi-grid">
         <div class="kpi-card">
-            <div class="kpi-label">Boletos gerados</div>
+            <div class="kpi-label">Cobrancas geradas</div>
             <div class="kpi-value">{{ total_boletos }}</div>
             <div class="kpi-note">Total de cobrancas cadastradas</div>
         </div>
         <div class="kpi-card">
             <div class="kpi-label">Valor total</div>
             <div class="kpi-value">R$ {{ valor_total|floatformat:2 }}</div>
-            <div class="kpi-note">Somatorio de todos os boletos</div>
+            <div class="kpi-note">Somatorio de todos os contratos gerados</div>
         </div>
         <div class="kpi-card">
             <div class="kpi-label">Valor pago</div>
@@ -32,7 +32,7 @@
         <div class="kpi-card">
             <div class="kpi-label">Comissao estimada</div>
             <div class="kpi-value">R$ {{ comissao_estimada|floatformat:2 }}</div>
-            <div class="kpi-note">Calculada sobre boletos pagos</div>
+            <div class="kpi-note">Calculada sobre cobrancas pagas</div>
         </div>
     </div>
 
@@ -40,7 +40,7 @@
         <h3 style="margin-bottom:10px;">Acoes rapidas</h3>
         <div class="page-actions">
             <a class="btn" href="{% url 'seller_client_create' %}">Cadastrar cliente</a>
-            <a class="btn secondary" href="{% url 'seller_billing_create' %}">Gerar boleto</a>
+            <a class="btn secondary" href="{% url 'seller_billing_create' %}">Gerar cobranca</a>
             <a class="btn secondary" href="{% url 'seller_logout' %}">Sair</a>
         </div>
     </div>

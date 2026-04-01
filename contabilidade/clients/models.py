@@ -1,4 +1,3 @@
-from django.conf import settings
 from django.db import models
 
 
@@ -11,6 +10,7 @@ class Client(models.Model):
         max_digits=10, decimal_places=2, default=0, verbose_name="Valor da mensalidade"
     )
     active = models.BooleanField(default=True)
+    recurring_months = models.PositiveIntegerField(default=1, verbose_name="Meses de recorrencia")
     asaas_customer_id = models.CharField(max_length=50, blank=True)
     created_by = models.ForeignKey(
         "sales.Seller", on_delete=models.SET_NULL, null=True, blank=True, related_name="clients"

@@ -85,26 +85,76 @@ def _build_checkout_link(checkout_id: str) -> str:
     return f"{public_base}{checkout_id}"
 
 
+def _default_callback_base_url() -> str:
+    candidates = [
+        getattr(settings, "ASAAS_CHECKOUT_CALLBACK_BASE_URL", ""),
+        *getattr(settings, "CSRF_TRUSTED_ORIGINS", []),
+    ]
+    for host in getattr(settings, "ALLOWED_HOSTS", []):
+        host = (host or "").strip()
+        if not host or host in {"*", "localhost", "127.0.0.1"}:
+            continue
+        candidates.append(f"https://{host}")
+
+    for candidate in candidates:
+        candidate = (candidate or "").strip().rstrip("/")
+        if candidate.startswith("http://") or candidate.startswith("https://"):
+            return candidate
+    return ""
+
+
+def _build_callback_urls():
+    base_url = _default_callback_base_url()
+    success_url = getattr(settings, "ASAAS_CHECKOUT_SUCCESS_URL", "").strip()
+    cancel_url = getattr(settings, "ASAAS_CHECKOUT_CANCEL_URL", "").strip()
+    expired_url = getattr(settings, "ASAAS_CHECKOUT_EXPIRED_URL", "").strip()
+
+    if not success_url and base_url:
+        success_url = f"{base_url}/billing/mensalidades/"
+    if not cancel_url and base_url:
+        cancel_url = f"{base_url}/billing/mensalidades/"
+    if not expired_url and base_url:
+        expired_url = f"{base_url}/billing/mensalidades/"
+
+    if not (success_url and cancel_url and expired_url):
+        raise AsaasError(
+            "Configure um callback do checkout no Asaas. Defina ASAAS_CHECKOUT_CALLBACK_BASE_URL "
+            "ou as URLs ASAAS_CHECKOUT_SUCCESS_URL, ASAAS_CHECKOUT_CANCEL_URL e "
+            "ASAAS_CHECKOUT_EXPIRED_URL."
+        )
+
+    return {
+        "successUrl": success_url,
+        "cancelUrl": cancel_url,
+        "expiredUrl": expired_url,
+    }
+
+
 def create_asaas_billing(client, amount, due_date, recurring_months=1):
     recurring_months = max(int(recurring_months or 1), 1)
+    amount_value = float(amount)
+    if amount_value < 5:
+        raise AsaasError("O valor minimo para checkout recorrente no Asaas e R$ 5,00.")
+
     customer_id = ensure_asaas_customer(client)
     subscription_end_date = _add_months(due_date, recurring_months - 1)
+    item_name = f"Mensalidade {client.name}"[:30]
 
     url = f"{settings.ASAAS_API_BASE_URL.rstrip('/')}/checkouts"
     payload = {
         "customer": customer_id,
         "billingTypes": ["CREDIT_CARD"],
         "chargeTypes": ["RECURRENT"],
-        "minutesToExpire": getattr(settings, "ASAAS_CHECKOUT_EXPIRATION_MINUTES", 10080),
+        "minutesToExpire": getattr(settings, "ASAAS_CHECKOUT_EXPIRATION_MINUTES", 100),
         "items": [
             {
-                "name": f"Mensalidade {client.name}",
+                "name": item_name,
                 "description": (
                     f"Cobranca recorrente por {recurring_months} mes(es), "
                     f"com inicio em {due_date.strftime('%d/%m/%Y')}"
                 ),
                 "quantity": 1,
-                "value": float(amount),
+                "value": amount_value,
             }
         ],
         "subscription": {
@@ -112,17 +162,8 @@ def create_asaas_billing(client, amount, due_date, recurring_months=1):
             "nextDueDate": f"{due_date.strftime('%Y-%m-%d')} 00:00:00",
             "endDate": f"{subscription_end_date.strftime('%Y-%m-%d')} 23:59:59",
         },
+        "callback": _build_callback_urls(),
     }
-
-    success_url = getattr(settings, "ASAAS_CHECKOUT_SUCCESS_URL", "")
-    cancel_url = getattr(settings, "ASAAS_CHECKOUT_CANCEL_URL", "")
-    expired_url = getattr(settings, "ASAAS_CHECKOUT_EXPIRED_URL", "")
-    if success_url or cancel_url or expired_url:
-        payload["callback"] = {
-            "successUrl": success_url or cancel_url or expired_url,
-            "cancelUrl": cancel_url or success_url or expired_url,
-            "expiredUrl": expired_url or cancel_url or success_url,
-        }
 
     response = requests.post(url, json=payload, headers=_asaas_headers(), timeout=30)
     if not response.ok:
@@ -145,7 +186,7 @@ def create_asaas_billing(client, amount, due_date, recurring_months=1):
 
     return {
         "checkout_id": checkout_id,
-        "payment_link": _build_checkout_link(checkout_id),
+        "payment_link": data.get("link") or _build_checkout_link(checkout_id),
         "billing_type": "CREDIT_CARD",
         "charge_type": "RECURRENT",
         "subscription_end_date": subscription_end_date,

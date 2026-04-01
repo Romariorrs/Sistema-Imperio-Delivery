@@ -14,8 +14,9 @@
             {% csrf_token %}
             <label>Cliente</label>
             {{ form.client }}
-            <label>Template</label>
+            <label>Template (opcional)</label>
             {{ form.template }}
+            <small class="muted">Se nao selecionar, o sistema envia a mensagem padrao com o link do checkout.</small>
             <label>Valor (opcional)</label>
             {{ form.amount }}
             <label>Vencimento</label>

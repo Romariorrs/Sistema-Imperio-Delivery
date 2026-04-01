@@ -20,7 +20,11 @@ class TemplateForm(forms.ModelForm):
 
 class MassMessageForm(forms.Form):
     clients = forms.ModelMultipleChoiceField(queryset=Client.objects.all(), required=False)
-    template = forms.ModelChoiceField(queryset=MessageTemplate.objects.all())
+    template = forms.ModelChoiceField(
+        queryset=MessageTemplate.objects.all(),
+        required=False,
+        empty_label="Usar mensagem padrao",
+    )
     amount = forms.DecimalField(required=False, max_digits=10, decimal_places=2)
     due_date = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}))
     recurring_months = forms.IntegerField(
@@ -33,7 +37,11 @@ class MassMessageForm(forms.Form):
 
 class SingleMessageForm(forms.Form):
     client = forms.ModelChoiceField(queryset=Client.objects.all())
-    template = forms.ModelChoiceField(queryset=MessageTemplate.objects.all())
+    template = forms.ModelChoiceField(
+        queryset=MessageTemplate.objects.all(),
+        required=False,
+        empty_label="Usar mensagem padrao",
+    )
     amount = forms.DecimalField(required=False, max_digits=10, decimal_places=2)
     due_date = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}))
     recurring_months = forms.IntegerField(
@@ -88,6 +96,17 @@ def _build_message(template, client, amount, due_date, payment_link, recurring_m
     return text
 
 
+def _build_default_checkout_message(client, amount, due_date, payment_link, recurring_months):
+    return (
+        f"Ola {client.name}!\n"
+        f"Sua cobranca recorrente no cartao foi criada.\n"
+        f"Valor mensal: R$ {amount:.2f}\n"
+        f"Dia da compra: {due_date.strftime('%d/%m/%Y')}\n"
+        f"Duracao: {recurring_months} mes(es)\n"
+        f"Link para concluir o cadastro do cartao: {payment_link}"
+    )
+
+
 def _create_local_billing(client, amount, due_date, recurring_months):
     checkout = create_asaas_billing(client, amount, due_date, recurring_months=recurring_months)
     return Billing.objects.create(
@@ -129,14 +148,23 @@ def send_mass_messages(request):
                 except AsaasError as exc:
                     messages.error(request, f"{client.name}: {exc}")
                     continue
-                final_text = _build_message(
-                    tpl,
-                    client,
-                    amt,
-                    due_date,
-                    billing.payment_link,
-                    billing.recurring_months,
-                )
+                if tpl:
+                    final_text = _build_message(
+                        tpl,
+                        client,
+                        amt,
+                        due_date,
+                        billing.payment_link,
+                        billing.recurring_months,
+                    )
+                else:
+                    final_text = _build_default_checkout_message(
+                        client,
+                        amt,
+                        due_date,
+                        billing.payment_link,
+                        billing.recurring_months,
+                    )
                 MessageQueue.objects.create(
                     client=client,
                     billing=billing,
@@ -171,14 +199,23 @@ def send_single_message(request):
             try:
                 billing = _create_local_billing(client, amount, due_date, recurring_months)
                 payment_link = billing.payment_link
-                final_text = _build_message(
-                    tpl,
-                    client,
-                    amount,
-                    due_date,
-                    billing.payment_link,
-                    billing.recurring_months,
-                )
+                if tpl:
+                    final_text = _build_message(
+                        tpl,
+                        client,
+                        amount,
+                        due_date,
+                        billing.payment_link,
+                        billing.recurring_months,
+                    )
+                else:
+                    final_text = _build_default_checkout_message(
+                        client,
+                        amount,
+                        due_date,
+                        billing.payment_link,
+                        billing.recurring_months,
+                    )
                 MessageQueue.objects.create(
                     client=client,
                     billing=billing,

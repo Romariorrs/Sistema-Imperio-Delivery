@@ -2,6 +2,7 @@ import json
 from io import BytesIO
 from unittest.mock import patch
 import csv as csv_reader
+from datetime import datetime
 
 from django.contrib.auth.models import User
 from django.core.cache import cache
@@ -845,6 +846,65 @@ class MacroScreenTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         names = {item.establishment_name for item in resp.context["page_obj"].object_list}
         self.assertEqual(names, {"Loja GO", "Loja DF"})
+
+    def test_filter_by_ddd_uses_raw_phone_when_norm_is_empty(self):
+        MacroLead.objects.create(
+            source="api",
+            city="Goiania",
+            target_region="R1",
+            establishment_name="Loja GO Raw",
+            representative_name="Ana",
+            contract_status="Ativo",
+            representative_phone="(62) 99999-0000",
+            representative_phone_norm="",
+            company_category="Brasileira",
+            address="Rua 1",
+            unique_key="ddd-raw-1",
+        )
+        MacroLead.objects.create(
+            source="api",
+            city="Sao Paulo",
+            target_region="R2",
+            establishment_name="Loja SP Raw",
+            representative_name="Bia",
+            contract_status="Ativo",
+            representative_phone="(11) 99999-0000",
+            representative_phone_norm="",
+            company_category="Pizza",
+            address="Rua 2",
+            unique_key="ddd-raw-2",
+        )
+
+        resp = self.client.get(reverse("macro_list"), data={"ddd_filter": "62"})
+        self.assertEqual(resp.status_code, 200)
+        names = {item.establishment_name for item in resp.context["page_obj"].object_list}
+        self.assertEqual(names, {"Loja GO Raw"})
+
+    def test_filter_swaps_inverted_lead_date_range(self):
+        MacroLead.objects.create(
+            source="api",
+            city="Goiania",
+            target_region="R1",
+            establishment_name="Loja Data",
+            representative_name="Ana",
+            contract_status="Ativo",
+            representative_phone="62999990000",
+            representative_phone_norm="5562999990000",
+            lead_created_at=timezone.make_aware(datetime(2026, 4, 10, 12, 0, 0)),
+            company_category="Brasileira",
+            address="Rua 1",
+            unique_key="ddd-date-1",
+        )
+
+        resp = self.client.get(
+            reverse("macro_list"),
+            data={"lead_date_from": "2026-04-20", "lead_date_to": "2026-04-04"},
+        )
+        self.assertEqual(resp.status_code, 200)
+        names = {item.establishment_name for item in resp.context["page_obj"].object_list}
+        self.assertEqual(names, {"Loja Data"})
+        self.assertEqual(resp.context["selected_lead_date_from"], "2026-04-04")
+        self.assertEqual(resp.context["selected_lead_date_to"], "2026-04-20")
 
     def test_export_csv_respects_representative_presence_filter(self):
         MacroLead.objects.create(

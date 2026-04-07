@@ -167,6 +167,16 @@ def _parse_ddd_filter(raw_value: str) -> list[str]:
     return ddds
 
 
+def _coerce_date_range(date_from: str, date_to: str) -> tuple[str, str]:
+    start = (date_from or "").strip()
+    end = (date_to or "").strip()
+    if not start or not end:
+        return start, end
+    if start > end:
+        return end, start
+    return start, end
+
+
 def _apply_filters(request=None, queryset=None, params=None):
     queryset = queryset if queryset is not None else _base_macrolead_queryset()
     params = params or (request.GET if request is not None else {})
@@ -183,6 +193,7 @@ def _apply_filters(request=None, queryset=None, params=None):
     export_status = (params.get("export_status") or "").strip().lower()
     lead_date_from = (params.get("lead_date_from") or "").strip()
     lead_date_to = (params.get("lead_date_to") or "").strip()
+    lead_date_from, lead_date_to = _coerce_date_range(lead_date_from, lead_date_to)
     phone_norm_enabled = _macrolead_has_columns("representative_phone_norm")
     blocked_enabled = _macrolead_has_columns("is_blocked_number")
     business_99_enabled = _macrolead_has_columns("business_99_status")
@@ -228,16 +239,17 @@ def _apply_filters(request=None, queryset=None, params=None):
         queryset = queryset.filter(city=city)
     if selected_ddds:
         ddd_query = Q()
-        if phone_norm_enabled:
-            for ddd in selected_ddds:
+        for ddd in selected_ddds:
+            if phone_norm_enabled:
                 ddd_query |= Q(representative_phone_norm__startswith=f"55{ddd}")
-        else:
-            for ddd in selected_ddds:
-                ddd_query |= (
-                    Q(representative_phone__icontains=f"({ddd})")
-                    | Q(representative_phone__startswith=ddd)
-                    | Q(representative_phone__icontains=f" {ddd} ")
-                )
+                ddd_query |= Q(representative_phone_norm__startswith=ddd)
+            ddd_query |= (
+                Q(representative_phone__icontains=f"({ddd})")
+                | Q(representative_phone__startswith=ddd)
+                | Q(representative_phone__icontains=f" {ddd} ")
+                | Q(representative_phone__icontains=f"+55{ddd}")
+                | Q(representative_phone__icontains=f"55{ddd}")
+            )
         queryset = queryset.filter(ddd_query)
     if contract_status:
         queryset = queryset.filter(contract_status=contract_status)
@@ -657,6 +669,10 @@ def macro_list(request):
     else:
         recent_runs = []
         last_success_run = None
+    selected_lead_date_from, selected_lead_date_to = _coerce_date_range(
+        (request.GET.get("lead_date_from") or "").strip(),
+        (request.GET.get("lead_date_to") or "").strip(),
+    )
 
     context = {
         "active_tab": "database",
@@ -692,6 +708,8 @@ def macro_list(request):
         "selected_export_limit": request.GET.get("export_limit", "").strip(),
         "selected_export_status": (request.GET.get("export_status") or "").strip().lower(),
         "selected_mark_exported": (_parse_mark_exported(request.GET) if "mark_exported" in request.GET else True) and export_tracking_enabled,
+        "selected_lead_date_from": selected_lead_date_from,
+        "selected_lead_date_to": selected_lead_date_to,
         "export_tracking_enabled": export_tracking_enabled,
         "lead_table_ready": lead_table_ready,
         "run_table_ready": run_table_ready,

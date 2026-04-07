@@ -676,11 +676,11 @@
             {% if lead_created_at_enabled %}
                 <div>
                     <label>Lead de (data)</label>
-                    <input type="date" name="lead_date_from" value="{{ request.GET.lead_date_from }}">
+                    <input type="date" name="lead_date_from" value="{{ selected_lead_date_from }}">
                 </div>
                 <div>
                     <label>Lead ate (data)</label>
-                    <input type="date" name="lead_date_to" value="{{ request.GET.lead_date_to }}">
+                    <input type="date" name="lead_date_to" value="{{ selected_lead_date_to }}">
                 </div>
             {% endif %}
             <div class="macro-filter-actions">

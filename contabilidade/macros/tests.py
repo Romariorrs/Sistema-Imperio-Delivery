@@ -800,6 +800,52 @@ class MacroScreenTests(TestCase):
         self.assertIn("Loja Sem Rep", names)
         self.assertIn("Loja Sem Rep Traco", names)
 
+    def test_filter_by_ddd_accepts_multiple_values(self):
+        MacroLead.objects.create(
+            source="api",
+            city="Goiania",
+            target_region="R1",
+            establishment_name="Loja GO",
+            representative_name="Ana",
+            contract_status="Ativo",
+            representative_phone="62999990000",
+            representative_phone_norm="5562999990000",
+            company_category="Brasileira",
+            address="Rua 1",
+            unique_key="ddd-filter-1",
+        )
+        MacroLead.objects.create(
+            source="api",
+            city="Brasilia",
+            target_region="R2",
+            establishment_name="Loja DF",
+            representative_name="Bia",
+            contract_status="Ativo",
+            representative_phone="61999990000",
+            representative_phone_norm="5561999990000",
+            company_category="Pizza",
+            address="Rua 2",
+            unique_key="ddd-filter-2",
+        )
+        MacroLead.objects.create(
+            source="api",
+            city="Sao Paulo",
+            target_region="R3",
+            establishment_name="Loja SP",
+            representative_name="Joao",
+            contract_status="Ativo",
+            representative_phone="11999998888",
+            representative_phone_norm="5511999998888",
+            company_category="Lanches",
+            address="Rua 3",
+            unique_key="ddd-filter-3",
+        )
+
+        resp = self.client.get(reverse("macro_list"), data={"ddd_filter": "62, 61"})
+        self.assertEqual(resp.status_code, 200)
+        names = {item.establishment_name for item in resp.context["page_obj"].object_list}
+        self.assertEqual(names, {"Loja GO", "Loja DF"})
+
     def test_export_csv_respects_representative_presence_filter(self):
         MacroLead.objects.create(
             source="api",
@@ -839,6 +885,46 @@ class MacroScreenTests(TestCase):
         body = resp.content.decode("utf-8")
         self.assertIn("Loja Sem Rep Export", body)
         self.assertNotIn("Loja Com Rep Export", body)
+
+    def test_export_csv_respects_ddd_filter(self):
+        MacroLead.objects.create(
+            source="api",
+            city="Goiania",
+            target_region="R1",
+            establishment_name="Loja GO Export",
+            representative_name="Ana",
+            contract_status="Ativo",
+            representative_phone="62999990000",
+            representative_phone_norm="5562999990000",
+            company_category="Brasileira",
+            address="Rua 1",
+            unique_key="ddd-export-1",
+        )
+        MacroLead.objects.create(
+            source="api",
+            city="Sao Paulo",
+            target_region="R2",
+            establishment_name="Loja SP Export",
+            representative_name="Bia",
+            contract_status="Ativo",
+            representative_phone="11999998888",
+            representative_phone_norm="5511999998888",
+            company_category="Pizza",
+            address="Rua 2",
+            unique_key="ddd-export-2",
+        )
+
+        resp = self.client.get(
+            reverse("macro_export_csv"),
+            data={
+                "ddd_filter": "62",
+                "export_fields": ["establishment_name", "representative_phone"],
+            },
+        )
+        self.assertEqual(resp.status_code, 200)
+        body = resp.content.decode("utf-8")
+        self.assertIn("Loja GO Export", body)
+        self.assertNotIn("Loja SP Export", body)
 
     @override_settings(MACRO_RUN_STALE_MINUTES=1)
     def test_collect_page_closes_stale_running_runs(self):

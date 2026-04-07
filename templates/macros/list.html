@@ -335,6 +335,7 @@
                 <form method="post" action="{% url 'macro_delete_filtered' %}" class="macro-inline-form">
                     {% csrf_token %}
                     <input type="hidden" name="q" value="{{ request.GET.q }}">
+                    <input type="hidden" name="ddd_filter" value="{{ request.GET.ddd_filter }}">
                     <input type="hidden" name="city" value="{{ request.GET.city }}">
                     <input type="hidden" name="contract_status" value="{{ request.GET.contract_status }}">
                     <input type="hidden" name="business_99_status" value="{{ request.GET.business_99_status }}">
@@ -355,6 +356,7 @@
                 <form method="post" action="{% url 'macro_delete_blocked' %}" class="macro-inline-form">
                     {% csrf_token %}
                     <input type="hidden" name="q" value="{{ request.GET.q }}">
+                    <input type="hidden" name="ddd_filter" value="{{ request.GET.ddd_filter }}">
                     <input type="hidden" name="city" value="{{ request.GET.city }}">
                     <input type="hidden" name="contract_status" value="{{ request.GET.contract_status }}">
                     <input type="hidden" name="business_99_status" value="{{ request.GET.business_99_status }}">
@@ -591,6 +593,10 @@
                 <input type="text" name="q" value="{{ request.GET.q }}" placeholder="{% if store_id_enabled or signatory_id_enabled %}ID, nome, telefone, endereco...{% else %}Nome, telefone, endereco...{% endif %}">
             </div>
             <div>
+                <label>DDD</label>
+                <input type="text" name="ddd_filter" value="{{ selected_ddd_filter }}" placeholder="62,61,11">
+            </div>
+            <div>
                 <label>Cidade</label>
                 <select name="city">
                     <option value="">Todas</option>
@@ -810,6 +816,7 @@
                                         <form method="post" action="{% url 'macro_unblock_phone' item.id %}">
                                             {% csrf_token %}
                                             <input type="hidden" name="q" value="{{ request.GET.q }}">
+                                            <input type="hidden" name="ddd_filter" value="{{ request.GET.ddd_filter }}">
                                             <input type="hidden" name="city" value="{{ request.GET.city }}">
                                             <input type="hidden" name="contract_status" value="{{ request.GET.contract_status }}">
                                             <input type="hidden" name="business_99_status" value="{{ request.GET.business_99_status }}">
@@ -826,6 +833,7 @@
                                         <form method="post" action="{% url 'macro_block_phone' item.id %}">
                                             {% csrf_token %}
                                             <input type="hidden" name="q" value="{{ request.GET.q }}">
+                                            <input type="hidden" name="ddd_filter" value="{{ request.GET.ddd_filter }}">
                                             <input type="hidden" name="city" value="{{ request.GET.city }}">
                                             <input type="hidden" name="contract_status" value="{{ request.GET.contract_status }}">
                                             <input type="hidden" name="business_99_status" value="{{ request.GET.business_99_status }}">

@@ -2,6 +2,7 @@ import csv
 import io
 import json
 import logging
+import re
 import secrets
 import uuid
 from datetime import datetime, timedelta
@@ -150,11 +151,28 @@ def _missing_representative_q() -> Q:
     )
 
 
+def _parse_ddd_filter(raw_value: str) -> list[str]:
+    ddds = []
+    for token in re.split(r"[,\s;]+", str(raw_value or "").strip()):
+        digits = "".join(char for char in token if char.isdigit())
+        if not digits:
+            continue
+        if digits.startswith("55") and len(digits) >= 4:
+            digits = digits[2:4]
+        elif len(digits) > 2:
+            digits = digits[:2]
+        if len(digits) != 2 or digits in ddds:
+            continue
+        ddds.append(digits)
+    return ddds
+
+
 def _apply_filters(request=None, queryset=None, params=None):
     queryset = queryset if queryset is not None else _base_macrolead_queryset()
     params = params or (request.GET if request is not None else {})
     q = (params.get("q") or "").strip()
     q_digits = "".join(char for char in q if char.isdigit())
+    ddd_filter = (params.get("ddd_filter") or "").strip()
     city = (params.get("city") or "").strip()
     contract_status = (params.get("contract_status") or "").strip()
     business_99_status = (params.get("business_99_status") or "").strip()
@@ -171,6 +189,7 @@ def _apply_filters(request=None, queryset=None, params=None):
     lead_created_at_enabled = _macrolead_has_columns("lead_created_at")
     store_id_enabled = _macrolead_has_columns("store_id")
     signatory_id_enabled = _macrolead_has_columns("signatory_id")
+    selected_ddds = _parse_ddd_filter(ddd_filter)
     duplicate_store_ids = []
     if store_id_enabled:
         duplicate_store_ids = (
@@ -207,6 +226,19 @@ def _apply_filters(request=None, queryset=None, params=None):
         queryset = queryset.filter(text_filter)
     if city:
         queryset = queryset.filter(city=city)
+    if selected_ddds:
+        ddd_query = Q()
+        if phone_norm_enabled:
+            for ddd in selected_ddds:
+                ddd_query |= Q(representative_phone_norm__startswith=f"55{ddd}")
+        else:
+            for ddd in selected_ddds:
+                ddd_query |= (
+                    Q(representative_phone__icontains=f"({ddd})")
+                    | Q(representative_phone__startswith=ddd)
+                    | Q(representative_phone__icontains=f" {ddd} ")
+                )
+        queryset = queryset.filter(ddd_query)
     if contract_status:
         queryset = queryset.filter(contract_status=contract_status)
     if business_99_enabled and business_99_status:
@@ -256,6 +288,7 @@ def _filtered_delete_redirect(params):
         k: (params.get(k) or "").strip()
         for k in (
             "q",
+            "ddd_filter",
             "city",
             "contract_status",
             "business_99_status",
@@ -633,6 +666,7 @@ def macro_list(request):
         "contract_statuses": contract_statuses,
         "business_99_statuses": business_99_statuses,
         "categories": categories,
+        "selected_ddd_filter": (request.GET.get("ddd_filter") or "").strip(),
         "api_import_url": request.build_absolute_uri(reverse("macro_api_import")),
         "macro_target_url": settings.MACRO_TARGET_URL,
         "token_configured": bool(settings.MACRO_API_TOKEN),

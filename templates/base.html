@@ -393,9 +393,11 @@
             <a class="nav-link" href="{% url 'whatsapp_status' %}">WhatsApp</a>
             <a class="nav-link" href="{% url 'macro_collect' %}">Coleta Macro</a>
             <a class="nav-link" href="{% url 'macro_list' %}">Banco Macro</a>
+            <a class="nav-link" href="{% url 'admin_seller_leads' %}">Leads vendedores</a>
             <a class="nav-link" href="{% url 'admin_users' %}">Admin</a>
         {% elif user.seller_profile %}
             <a class="nav-link" href="{% url 'seller_dashboard' %}">Vendedor</a>
+            <a class="nav-link" href="{% url 'seller_leads' %}">Leads</a>
             <a class="nav-link" href="{% url 'seller_client_create' %}">Novo Cliente</a>
             <a class="nav-link" href="{% url 'seller_billing_create' %}">Cobranca recorrente</a>
         {% endif %}

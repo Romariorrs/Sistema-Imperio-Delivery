@@ -34,11 +34,17 @@
             <div class="kpi-value">R$ {{ comissao_estimada|floatformat:2 }}</div>
             <div class="kpi-note">Calculada sobre cobrancas pagas</div>
         </div>
+        <div class="kpi-card">
+            <div class="kpi-label">Leads na fila</div>
+            <div class="kpi-value">{{ leads_remaining }}</div>
+            <div class="kpi-note">{{ leads_completed }} lead(s) concluidos pelo vendedor</div>
+        </div>
     </div>
 
     <div class="card">
         <h3 style="margin-bottom:10px;">Acoes rapidas</h3>
         <div class="page-actions">
+            <a class="btn secondary" href="{% url 'seller_leads' %}">Abrir leads</a>
             <a class="btn" href="{% url 'seller_client_create' %}">Cadastrar cliente</a>
             <a class="btn secondary" href="{% url 'seller_billing_create' %}">Gerar cobranca</a>
             <a class="btn secondary" href="{% url 'seller_logout' %}">Sair</a>

@@ -3,7 +3,7 @@ from django.urls import include, path
 
 from contabilidade.views import dashboard, monthly_billing_page, run_monthly_billing_view
 from contabilidade.billing.views import asaas_webhook
-from contabilidade.admin_views import admin_users
+from contabilidade.admin_views import admin_seller_leads, admin_users
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -19,4 +19,5 @@ urlpatterns = [
     path("api/asaas/webhook/", asaas_webhook, name="asaas_webhook_api"),
     path("seller/", include("contabilidade.sales.urls")),
     path("admin-users/", admin_users, name="admin_users"),
+    path("admin-seller-leads/", admin_seller_leads, name="admin_seller_leads"),
 ]

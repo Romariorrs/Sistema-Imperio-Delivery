@@ -39,6 +39,7 @@ class SellerRedirectMiddleware:
         if user.is_authenticated and hasattr(user, "seller_profile") and not (user.is_staff or user.is_superuser):
             allowed_prefixes = (
                 reverse("seller_dashboard"),
+                reverse("seller_leads"),
                 reverse("seller_client_create"),
                 reverse("seller_billing_create"),
                 reverse("seller_logout"),

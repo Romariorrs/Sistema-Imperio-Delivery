@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}Leads do vendedor{% endblock %}
+{% block extra_head %}
+<style>
+    .lead-layout { display:grid; gap:14px; }
+    .lead-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:12px; }
+    .lead-info { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:12px; margin-top:14px; }
+    .lead-box {
+        border: 1px solid rgba(255,255,255,0.12);
+        border-radius: 14px;
+        background: rgba(255,255,255,0.03);
+        padding: 14px;
+    }
+    .lead-box .label {
+        color: #a8a8a8;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: .08em;
+        font-weight: 700;
+    }
+    .lead-box .value {
+        margin-top: 8px;
+        color: #fff;
+        font-size: 15px;
+        line-height: 1.45;
+    }
+</style>
+{% endblock %}
+{% block content %}
+<div class="lead-layout">
+    <div class="page-head">
+        <div>
+            <h2>Leads</h2>
+            <div class="muted">Um contato por vez para manter a fila oculta e organizada.</div>
+        </div>
+        <div class="inline-actions">
+            <span class="chip">Vendedor: {{ seller.name }}</span>
+            <span class="chip">Total recebido: {{ total_count }}</span>
+        </div>
+    </div>
+
+    <div class="lead-grid">
+        <div class="kpi-card">
+            <div class="kpi-label">Restantes</div>
+            <div class="kpi-value">{{ remaining_count }}</div>
+            <div class="kpi-note">Inclui o lead atual</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-label">Concluidos</div>
+            <div class="kpi-value">{{ completed_count }}</div>
+            <div class="kpi-note">Leads marcados como concluidos</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-label">Pulados</div>
+            <div class="kpi-value">{{ skipped_count }}</div>
+            <div class="kpi-note">Leads enviados para proximo</div>
+        </div>
+    </div>
+
+    {% if lead %}
+        <div class="card">
+            <div class="page-head">
+                <div>
+                    <h3 style="margin-bottom:4px;">{{ lead.establishment_name|default:"Lead sem nome" }}</h3>
+                    <div class="muted">Atual da fila. Quando avancar, o proximo lead sera liberado.</div>
+                </div>
+                <div class="inline-actions">
+                    {% if lead.contract_status %}
+                        <span class="badge">{{ lead.contract_status }}</span>
+                    {% endif %}
+                    {% if lead.business_99_status %}
+                        <span class="badge">{{ lead.business_99_status }}</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="lead-info">
+                <div class="lead-box">
+                    <div class="label">Representante</div>
+                    <div class="value">{{ lead.representative_name|default:"Nao informado" }}</div>
+                </div>
+                <div class="lead-box">
+                    <div class="label">Telefone</div>
+                    <div class="value">{{ lead.representative_phone|default:"Nao informado" }}</div>
+                </div>
+                <div class="lead-box">
+                    <div class="label">Cidade</div>
+                    <div class="value">{{ lead.city|default:"Nao informada" }}</div>
+                </div>
+                <div class="lead-box">
+                    <div class="label">Categoria</div>
+                    <div class="value">{{ lead.company_category|default:"Nao informada" }}</div>
+                </div>
+                <div class="lead-box" style="grid-column: 1 / -1;">
+                    <div class="label">Endereco</div>
+                    <div class="value">{{ lead.address|default:"Nao informado" }}</div>
+                </div>
+            </div>
+
+            <div class="page-actions" style="margin-top:16px;">
+                {% if whatsapp_url %}
+                    <a class="btn" href="{{ whatsapp_url }}" target="_blank" rel="noopener">Abrir WhatsApp</a>
+                {% endif %}
+                <form method="post" style="display:inline-flex; gap:8px; flex-wrap:wrap;">
+                    {% csrf_token %}
+                    <input type="hidden" name="assignment_id" value="{{ current_assignment.id }}">
+                    <button class="btn secondary" type="submit" name="action" value="next">Proximo</button>
+                    <button class="btn secondary" type="submit" name="action" value="complete">Marcar concluido</button>
+                </form>
+            </div>
+        </div>
+    {% else %}
+        <div class="card">
+            <h3 style="margin-bottom:8px;">Fila vazia</h3>
+            <div class="muted">Nenhum lead disponivel para esse vendedor no momento.</div>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

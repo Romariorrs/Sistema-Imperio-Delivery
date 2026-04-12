@@ -1,6 +1,6 @@
 import json
 from io import BytesIO
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 import csv as csv_reader
 from datetime import datetime
 
@@ -10,7 +10,9 @@ from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 from datetime import timedelta
+from selenium.webdriver import ChromeOptions
 
+from contabilidade.macros import collector
 from contabilidade.macros.models import MacroLead, MacroRun
 from contabilidade.macros.services import upsert_rows
 
@@ -1000,3 +1002,50 @@ class MacroScreenTests(TestCase):
         run.refresh_from_db()
         self.assertEqual(run.status, "error")
         self.assertIsNotNone(run.finished_at)
+
+
+class MacroDriverBootstrapTests(TestCase):
+    @patch("contabilidade.macros.collector.webdriver.Chrome")
+    @patch("contabilidade.macros.collector.ChromeDriverManager")
+    @patch("contabilidade.macros.collector._existing_chromedriver_candidates")
+    def test_make_chrome_driver_prefers_cached_driver(
+        self,
+        cached_candidates,
+        driver_manager_cls,
+        chrome_cls,
+    ):
+        cached_candidates.return_value = [r"C:\ImperioMacro\wdm\cached\chromedriver.exe"]
+        sentinel_driver = object()
+        chrome_cls.return_value = sentinel_driver
+
+        driver = collector._make_chrome_driver(ChromeOptions())
+
+        self.assertIs(driver, sentinel_driver)
+        self.assertEqual(chrome_cls.call_count, 1)
+        self.assertEqual(chrome_cls.call_args.kwargs["service"].path, r"C:\ImperioMacro\wdm\cached\chromedriver.exe")
+        driver_manager_cls.assert_not_called()
+
+    @patch("contabilidade.macros.collector.webdriver.Chrome")
+    @patch("contabilidade.macros.collector.ChromeDriverManager")
+    @patch("contabilidade.macros.collector._existing_chromedriver_candidates")
+    @patch("contabilidade.macros.collector._env_bool")
+    def test_make_chrome_driver_uses_selenium_manager_fallback(
+        self,
+        env_bool,
+        cached_candidates,
+        driver_manager_cls,
+        chrome_cls,
+    ):
+        cached_candidates.return_value = []
+        env_bool.return_value = True
+        manager_instance = MagicMock()
+        manager_instance.install.side_effect = RuntimeError("offline")
+        driver_manager_cls.return_value = manager_instance
+        sentinel_driver = object()
+        chrome_cls.return_value = sentinel_driver
+
+        driver = collector._make_chrome_driver(ChromeOptions())
+
+        self.assertIs(driver, sentinel_driver)
+        self.assertEqual(chrome_cls.call_count, 1)
+        self.assertNotIn("service", chrome_cls.call_args.kwargs)

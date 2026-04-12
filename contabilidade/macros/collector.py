@@ -4,6 +4,7 @@ import re
 import time
 import unicodedata
 import uuid
+from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
 import requests
@@ -89,6 +90,13 @@ def _make_chrome_driver(opts: ChromeOptions):
     wdm_root = os.getenv("WDM_ROOT", r"C:\ImperioMacro\wdm").strip() or r"C:\ImperioMacro\wdm"
     os.makedirs(wdm_root, exist_ok=True)
 
+    for driver_path in _existing_chromedriver_candidates(wdm_root):
+        try:
+            logger.info("Tentando iniciar Chrome com driver local em cache: %s", driver_path)
+            return webdriver.Chrome(service=Service(driver_path), options=opts)
+        except Exception as exc:
+            logger.warning("Falha ao iniciar Chrome com driver local %s: %s", driver_path, exc)
+
     last_error = None
     try:
         cache_manager = DriverCacheManager(root_dir=wdm_root)
@@ -107,7 +115,7 @@ def _make_chrome_driver(opts: ChromeOptions):
         logger.warning("Falha ao iniciar Chrome com webdriver_manager: %s", exc)
 
     # Fallback opcional para Selenium Manager.
-    if _env_bool("USE_SELENIUM_MANAGER_FALLBACK", False):
+    if _env_bool("USE_SELENIUM_MANAGER_FALLBACK", True):
         try:
             return webdriver.Chrome(options=opts)
         except Exception as exc:
@@ -118,6 +126,30 @@ def _make_chrome_driver(opts: ChromeOptions):
         "Nao foi possivel iniciar o navegador Chrome. "
         "Verifique instalacao do Chrome e permissao para executar o driver."
     ) from last_error
+
+
+def _existing_chromedriver_candidates(wdm_root: str) -> List[str]:
+    candidates: List[Path] = []
+
+    configured_path = (os.getenv("CHROMEDRIVER_PATH") or "").strip()
+    if configured_path:
+        configured = Path(configured_path)
+        if configured.is_file():
+            candidates.append(configured)
+
+    root_path = Path(wdm_root)
+    if root_path.exists():
+        candidates.extend(root_path.rglob("chromedriver.exe"))
+
+    unique_candidates = []
+    seen = set()
+    for candidate in sorted(candidates, key=lambda item: item.stat().st_mtime, reverse=True):
+        resolved = str(candidate)
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        unique_candidates.append(resolved)
+    return unique_candidates
 
 
 def _env_bool(name: str, default: bool = False) -> bool:

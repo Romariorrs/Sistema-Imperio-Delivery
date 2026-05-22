@@ -58,6 +58,21 @@ FIELD_TARGETS = [
     "Endereco",
 ]
 
+FIELD_HEADER_ALIASES = {
+    "ID da loja": {"ID da loja", "ID do loja", "Store ID"},
+    "ID do signatario": {"ID do signatario", "ID do signatário", "Signatory ID"},
+    "Cidade": {"Cidade"},
+    "Regiao-alvo": {"Regiao-alvo", "Regiao alvo"},
+    "Horario de criacao do lead": {"Horario de criacao do lead", "Horario criacao do lead"},
+    "Nome do estabelecimento": {"Nome do estabelecimento"},
+    "Nome do representante 99": {"Nome do representante 99"},
+    "Status do contrato": {"Status do contrato"},
+    "Seu Negocio na 99": {"Seu Negocio na 99"},
+    "Telefone do representante do estabelecimento": {"Telefone do representante do estabelecimento"},
+    "Categoria da empresa": {"Categoria da empresa"},
+    "Endereco": {"Endereco"},
+}
+
 FALLBACK_INDICES = {
     "ID da loja": 1,
     "Cidade": 2,
@@ -164,6 +179,17 @@ def normalize(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip().casefold()
 
 
+NORMALIZED_HEADER_TARGETS = {
+    normalize(alias): target
+    for target, aliases in FIELD_HEADER_ALIASES.items()
+    for alias in aliases
+}
+
+
+def _match_header_target(raw: str) -> Optional[str]:
+    return NORMALIZED_HEADER_TARGETS.get(normalize(raw))
+
+
 def map_header_positions(driver) -> Dict[str, int]:
     try:
         header_texts = driver.execute_script(
@@ -183,10 +209,9 @@ def map_header_positions(driver) -> Dict[str, int]:
 
     pos: Dict[str, int] = {}
     for idx, raw in enumerate(header_texts):
-        norm = normalize(raw)
-        for target in FIELD_TARGETS:
-            if normalize(target) == norm and target not in pos:
-                pos[target] = idx
+        target = _match_header_target(raw)
+        if target and target not in pos:
+            pos[target] = idx
 
     if pos:
         return pos
@@ -198,10 +223,9 @@ def map_header_positions(driver) -> Dict[str, int]:
         " | //table//thead//th | //table//thead//td | //div[@role='columnheader']",
     )
     for idx, header in enumerate(headers):
-        norm = normalize(header.text.strip())
-        for target in FIELD_TARGETS:
-            if normalize(target) == norm and target not in pos:
-                pos[target] = idx
+        target = _match_header_target(header.text.strip())
+        if target and target not in pos:
+            pos[target] = idx
     return pos
 
 
@@ -237,17 +261,47 @@ def _cell_column(cell) -> int:
     return _extract_column_number(_cell_class(cell))
 
 
+def _coerce_id_text(value: str) -> str:
+    digits = re.sub(r"\D", "", value or "")
+    return digits if len(digits) >= 4 else ""
+
+
+def _is_phone_digits(digits: str) -> bool:
+    if digits.startswith("55"):
+        return len(digits[2:]) in (10, 11)
+    return len(digits) in (10, 11)
+
+
+def _coerce_phone_text(value: str) -> str:
+    raw = str(value or "").strip()
+    digits = re.sub(r"\D", "", raw)
+    return raw if _is_phone_digits(digits) else ""
+
+
+def _coerce_field_text(field: str, value: str) -> str:
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    if field in {"ID da loja", "ID do signatario"}:
+        return _coerce_id_text(raw)
+    if field == "Telefone do representante do estabelecimento":
+        return _coerce_phone_text(raw)
+    return raw
+
+
 def _pick_from_cells(cells, field: str, primary: int = -1) -> str:
     field_column_numbers = {
         "ID da loja": [2],
         "ID do signatario": [25],
+        "Seu Negocio na 99": [12],
+        "Telefone do representante do estabelecimento": [13],
     }
 
     if field in field_column_numbers:
         for target_column in field_column_numbers[field]:
             for cell in cells:
                 if _cell_column(cell) == target_column:
-                    txt = _cell_text(cell)
+                    txt = _coerce_field_text(field, _cell_text(cell))
                     if txt:
                         return txt
 
@@ -259,7 +313,7 @@ def _pick_from_cells(cells, field: str, primary: int = -1) -> str:
     elif "ID do signatario" in field:
         candidates.extend([25, 24, 26, 23])
     elif "Telefone do representante" in field:
-        candidates.extend([13, 14, 12, len(cells) - 1])
+        candidates.extend([13, 14])
     elif "Seu Negocio na 99" in field:
         candidates.extend([12, 11, 13])
     elif "Categoria da empresa" in field:
@@ -269,7 +323,13 @@ def _pick_from_cells(cells, field: str, primary: int = -1) -> str:
 
     for idx in candidates:
         if 0 <= idx < len(cells):
-            txt = _cell_text(cells[idx])
+            txt = _coerce_field_text(field, _cell_text(cells[idx]))
+            if txt:
+                return txt
+
+    if field == "Telefone do representante do estabelecimento":
+        for cell in cells:
+            txt = _coerce_phone_text(_cell_text(cell))
             if txt:
                 return txt
     return ""
@@ -304,7 +364,7 @@ def extract_rows(driver, pos: Dict[str, int]) -> List[List[str]]:
             });
             const shouldIgnoreHeaderCell = (cell) => {
               const className = String(cell.className || '');
-              return className.includes('is-hidden') || className.includes('selection');
+              return className.includes('selection');
             };
             const toHeaderColumns = (headerRow) => {
               if (!headerRow) return [];
@@ -414,7 +474,7 @@ def extract_rows(driver, pos: Dict[str, int]) -> List[List[str]]:
             )
             for header_cell in header_cells:
                 header_class = header_cell.get_attribute("class") or ""
-                if "is-hidden" in header_class or "selection" in header_class:
+                if "selection" in header_class:
                     continue
                 column_numbers.append(_extract_column_number(header_cell.get_attribute("class") or ""))
             for cell_index, cell in enumerate(cells):

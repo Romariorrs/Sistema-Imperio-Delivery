@@ -70,7 +70,7 @@ class MacroServicesTests(TestCase):
             "Cidade": "S" * 400,
             "Nome do estabelecimento": "L" * 400,
             "Status do contrato": "A" * 150,
-            "Telefone do representante do estabelecimento": "9" * 80,
+            "Telefone do representante do estabelecimento": "(11) 99999-0000",
             "Categoria da empresa": "C" * 400,
             "Endereco": "Rua X",
         }
@@ -80,8 +80,34 @@ class MacroServicesTests(TestCase):
         self.assertEqual(len(lead.city), 255)
         self.assertEqual(len(lead.establishment_name), 255)
         self.assertEqual(len(lead.contract_status), 100)
-        self.assertEqual(len(lead.representative_phone), 50)
+        self.assertEqual(lead.representative_phone, "(11) 99999-0000")
         self.assertEqual(len(lead.company_category), 255)
+
+    def test_upsert_does_not_save_non_phone_status_as_phone(self):
+        row = {
+            "Cidade": "Sao Paulo",
+            "Nome do estabelecimento": "Loja Sem Telefone",
+            "Seu Negocio na 99": "Self-onboarding",
+            "Telefone do representante do estabelecimento": "Nao ativado",
+        }
+        upsert_rows([row], default_source="api")
+        lead = MacroLead.objects.first()
+        self.assertEqual(lead.business_99_status, "Self-onboarding")
+        self.assertEqual(lead.representative_phone, "")
+        self.assertEqual(lead.representative_phone_norm, "")
+
+    def test_upsert_recovers_phone_from_shifted_payload_field(self):
+        row = {
+            "Cidade": "Sao Paulo",
+            "Nome do estabelecimento": "Loja Telefone Deslocado",
+            "Seu Negocio na 99": "Self-onboarding",
+            "Telefone do representante do estabelecimento": "Nao ativado",
+            "Categoria da empresa": "(11) 99999-0000",
+        }
+        upsert_rows([row], default_source="api")
+        lead = MacroLead.objects.first()
+        self.assertEqual(lead.representative_phone, "(11) 99999-0000")
+        self.assertEqual(lead.representative_phone_norm, "5511999990000")
 
     def test_upsert_always_creates_new_rows(self):
         row = {
@@ -239,6 +265,42 @@ class MacroScreenTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         collect_resp = self.client.get(reverse("macro_collect"))
         self.assertEqual(collect_resp.status_code, 200)
+
+    def test_macro_page_shows_inactive_business_since_date(self):
+        first_date = timezone.make_aware(datetime(2026, 5, 1, 21, 18))
+        second_date = timezone.make_aware(datetime(2026, 5, 3, 10, 0))
+        MacroLead.objects.create(
+            source="api",
+            city="Sao Paulo",
+            establishment_name="Loja Inativa 1",
+            business_99_status="Nao ativado",
+            lead_created_at=second_date,
+            unique_key="inactive-2",
+        )
+        MacroLead.objects.create(
+            source="api",
+            city="Sao Paulo",
+            establishment_name="Loja Inativa 2",
+            business_99_status="Nao ativado",
+            lead_created_at=first_date,
+            unique_key="inactive-1",
+        )
+        MacroLead.objects.create(
+            source="api",
+            city="Sao Paulo",
+            establishment_name="Loja Ativa",
+            business_99_status="Ativo",
+            lead_created_at=timezone.make_aware(datetime(2026, 4, 1, 10, 0)),
+            unique_key="active-1",
+        )
+
+        resp = self.client.get(reverse("macro_list"))
+
+        self.assertEqual(resp.status_code, 200)
+        inactive_stats = resp.context["inactive_business_stats"]
+        self.assertEqual(inactive_stats["total"], 2)
+        self.assertEqual(inactive_stats["since"], first_date)
+        self.assertEqual(inactive_stats["date_source"], "Horario lead")
 
     def test_macro_pages_open_when_optional_columns_are_unavailable(self):
         lead_columns = {
@@ -1049,3 +1111,39 @@ class MacroDriverBootstrapTests(TestCase):
         self.assertIs(driver, sentinel_driver)
         self.assertEqual(chrome_cls.call_count, 1)
         self.assertNotIn("service", chrome_cls.call_args.kwargs)
+
+
+class MacroCollectorMappingTests(TestCase):
+    def test_match_header_target_accepts_id_do_loja_variant(self):
+        self.assertEqual(collector._match_header_target("ID do loja"), "ID da loja")
+        self.assertEqual(collector._match_header_target("ID do signatário"), "ID do signatario")
+
+    def test_pick_from_cells_does_not_shift_business_status_into_phone(self):
+        cells = [
+            {"text": "Self-onboarding", "cls": "pb-table_1_column_13", "column": 12},
+            {"text": "", "cls": "pb-table_1_column_14", "column": 13},
+        ]
+        phone = collector._pick_from_cells(cells, "Telefone do representante do estabelecimento", -1)
+        business = collector._pick_from_cells(cells, "Seu Negocio na 99", -1)
+        self.assertEqual(phone, "")
+        self.assertEqual(business, "Self-onboarding")
+
+    def test_pick_from_cells_finds_phone_when_columns_shift(self):
+        cells = [
+            {"text": "Self-onboarding", "cls": "pb-table_1_column_13", "column": 12},
+            {"text": "Nao ativado", "cls": "pb-table_1_column_14", "column": 13},
+            {"text": "(11) 99999-0000", "cls": "pb-table_1_column_18", "column": 17},
+        ]
+        phone = collector._pick_from_cells(cells, "Telefone do representante do estabelecimento", -1)
+        self.assertEqual(phone, "(11) 99999-0000")
+
+    def test_pick_from_cells_extracts_numeric_ids(self):
+        cells = [
+            {"text": "57646116514213", "cls": "pb-table_1_column_2", "column": 2},
+            {"text": "5764611017053834929", "cls": "pb-table_1_column_25", "column": 25},
+        ]
+        self.assertEqual(collector._pick_from_cells(cells, "ID da loja", -1), "57646116514213")
+        self.assertEqual(
+            collector._pick_from_cells(cells, "ID do signatario", -1),
+            "5764611017053834929",
+        )

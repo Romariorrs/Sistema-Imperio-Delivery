@@ -26,6 +26,7 @@ EXPORT_COLUMNS = (
 
 HEADER_ALIASES = {
     "id da loja": "store_id",
+    "id do loja": "store_id",
     "store id": "store_id",
     "store_id": "store_id",
     "id do signatario": "signatory_id",
@@ -100,11 +101,11 @@ def normalize_header(value: Any) -> str:
 
 def normalize_phone(value: Any) -> str:
     digits = re.sub(r"\D", "", str(value or ""))
-    if digits.startswith("55") and len(digits) > 11:
+    if digits.startswith("55") and len(digits[2:]) in (10, 11):
         return digits
     if len(digits) in (10, 11):
         return "55" + digits
-    return digits
+    return ""
 
 
 def normalize_value(field: str, value: Any) -> str:
@@ -116,7 +117,7 @@ def normalize_value(field: str, value: Any) -> str:
     if field in {"establishment_name", "representative_name", "address"}:
         return re.sub(r"\s+", " ", text).strip()
     if field == "representative_phone":
-        return text
+        return text if normalize_phone(text) else ""
     return text
 
 
@@ -173,6 +174,13 @@ def normalize_row(raw_row: Mapping[str, Any], default_source: str = "gattaran") 
             parsed[mapped] = parse_lead_datetime(value)
         else:
             parsed[mapped] = normalize_value(mapped, value)
+
+    if not normalize_phone(parsed.get("representative_phone", "")):
+        for value in raw_row.values():
+            candidate = normalize_value("representative_phone", value)
+            if candidate:
+                parsed["representative_phone"] = candidate
+                break
 
     parsed["representative_phone_norm"] = normalize_phone(parsed.get("representative_phone", ""))
     for field, max_len in FIELD_MAX_LENGTHS.items():

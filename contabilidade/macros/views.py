@@ -18,7 +18,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.core.paginator import Paginator
 from django.db import connection
-from django.db.models import Count, Q
+from django.db.models import Count, Min, Q
 from django.db.utils import OperationalError, ProgrammingError
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -633,9 +633,37 @@ def macro_list(request):
                 .distinct()
                 .order_by("business_99_status")
             )
+            inactive_business_qs = all_queryset.filter(
+                Q(business_99_status__iexact="Nao ativado")
+                | Q(business_99_status__iexact="N\u00e3o ativado")
+            )
+            inactive_aggregate_kwargs = {
+                "total": Count("id"),
+                "first_capture_at": Min("last_seen_at"),
+            }
+            if lead_created_at_enabled:
+                inactive_aggregate_kwargs["first_lead_created_at"] = Min("lead_created_at")
+            inactive_business_stats = inactive_business_qs.aggregate(**inactive_aggregate_kwargs)
+            inactive_business_stats.setdefault("first_lead_created_at", None)
+            inactive_business_stats["since"] = (
+                inactive_business_stats.get("first_lead_created_at")
+                or inactive_business_stats.get("first_capture_at")
+            )
+            inactive_business_stats["date_source"] = (
+                "Horario lead"
+                if inactive_business_stats.get("first_lead_created_at")
+                else "Ultima captura"
+            )
         else:
             business_99_breakdown = []
             business_99_statuses = []
+            inactive_business_stats = {
+                "total": 0,
+                "first_lead_created_at": None,
+                "first_capture_at": None,
+                "since": None,
+                "date_source": "",
+            }
         last_capture_at = all_queryset.order_by("-last_seen_at").values_list("last_seen_at", flat=True).first()
         filtered_count = filtered_queryset.count()
         cities = _base_macrolead_queryset().exclude(city="").values_list("city", flat=True).distinct().order_by("city")
@@ -657,6 +685,13 @@ def macro_list(request):
         status_breakdown = []
         business_99_breakdown = []
         business_99_statuses = []
+        inactive_business_stats = {
+            "total": 0,
+            "first_lead_created_at": None,
+            "first_capture_at": None,
+            "since": None,
+            "date_source": "",
+        }
         last_capture_at = None
         filtered_count = 0
         cities = []
@@ -700,6 +735,7 @@ def macro_list(request):
         "category_breakdown": category_breakdown,
         "status_breakdown": status_breakdown,
         "business_99_breakdown": business_99_breakdown,
+        "inactive_business_stats": inactive_business_stats,
         "sources": _lead_sources(),
         "export_field_choices": _available_export_field_choices(),
         "default_export_fields": _default_export_fields(),

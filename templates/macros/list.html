@@ -448,6 +448,24 @@
             <div class="macro-kpi-value">{{ stats.total_categories }}</div>
             <div class="macro-kpi-note">Tipos de culinaria/empresa</div>
         </div>
+        {% if business_99_enabled %}
+            <div class="macro-kpi">
+                <div class="macro-kpi-label">Nao ativado desde</div>
+                <div class="macro-kpi-value">
+                    {% if inactive_business_stats.since %}
+                        {{ inactive_business_stats.since|date:"d/m/Y H:i" }}
+                    {% else %}
+                        --
+                    {% endif %}
+                </div>
+                <div class="macro-kpi-note">
+                    {{ inactive_business_stats.total|default:"0" }} leads
+                    {% if inactive_business_stats.since %}
+                        via {{ inactive_business_stats.date_source }}
+                    {% endif %}
+                </div>
+            </div>
+        {% endif %}
         <div class="macro-kpi">
             <div class="macro-kpi-label">Ultimo dia puxado</div>
             <div class="macro-kpi-value">

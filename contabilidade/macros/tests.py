@@ -96,6 +96,19 @@ class MacroServicesTests(TestCase):
         self.assertEqual(lead.representative_phone, "")
         self.assertEqual(lead.representative_phone_norm, "")
 
+    def test_upsert_does_not_save_address_as_phone(self):
+        row = {
+            "Cidade": "Rio de Janeiro",
+            "Nome do estabelecimento": "Loja Endereco",
+            "Telefone do representante do estabelecimento": "Rua Francisca Cardoso da Rosa, 42, Campo Grande, RJ",
+            "Endereco": "Rua Francisca Cardoso da Rosa, 42, Campo Grande, RJ",
+        }
+        upsert_rows([row], default_source="api")
+        lead = MacroLead.objects.first()
+        self.assertEqual(lead.representative_phone, "")
+        self.assertEqual(lead.representative_phone_norm, "")
+        self.assertEqual(lead.address, "Rua Francisca Cardoso da Rosa, 42, Campo Grande, RJ")
+
     def test_upsert_recovers_phone_from_shifted_payload_field(self):
         row = {
             "Cidade": "Sao Paulo",
@@ -1136,6 +1149,14 @@ class MacroCollectorMappingTests(TestCase):
         ]
         phone = collector._pick_from_cells(cells, "Telefone do representante do estabelecimento", -1)
         self.assertEqual(phone, "(11) 99999-0000")
+
+    def test_pick_from_cells_does_not_use_address_as_phone(self):
+        cells = [
+            {"text": "Rua Francisca Cardoso da Rosa, 42, Campo Grande, RJ", "cls": "pb-table_1_column_14", "column": 13},
+            {"text": "Brasileira", "cls": "pb-table_1_column_27", "column": 26},
+        ]
+        phone = collector._pick_from_cells(cells, "Telefone do representante do estabelecimento", -1)
+        self.assertEqual(phone, "")
 
     def test_pick_from_cells_extracts_numeric_ids(self):
         cells = [

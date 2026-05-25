@@ -274,6 +274,8 @@ def _is_phone_digits(digits: str) -> bool:
 
 def _coerce_phone_text(value: str) -> str:
     raw = str(value or "").strip()
+    if re.search(r"[A-Za-zÀ-ÿ]", raw):
+        return ""
     digits = re.sub(r"\D", "", raw)
     return raw if _is_phone_digits(digits) else ""
 

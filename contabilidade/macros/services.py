@@ -100,7 +100,10 @@ def normalize_header(value: Any) -> str:
 
 
 def normalize_phone(value: Any) -> str:
-    digits = re.sub(r"\D", "", str(value or ""))
+    raw = str(value or "").strip()
+    if re.search(r"[A-Za-zÀ-ÿ]", raw):
+        return ""
+    digits = re.sub(r"\D", "", raw)
     if digits.startswith("55") and len(digits[2:]) in (10, 11):
         return digits
     if len(digits) in (10, 11):

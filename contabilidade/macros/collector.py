@@ -191,13 +191,16 @@ def map_header_positions(driver) -> Dict[str, str]:
     try:
         header_nodes = driver.execute_script(
             """
-            const sels = [
-              "div.pb-table_header .pb-table_cell",
-              "table.pb-table thead tr:first-child th",
-              "table.pb-table thead tr:first-child td",
-              "[role='columnheader']"
-            ];
-            const nodes = Array.from(document.querySelectorAll(sels.join(',')));
+            const colRe = /pb-table(?:_[0-9]+)?_column_[0-9]+/;
+            const isHeaderEl = (el) => (
+              el.className.indexOf('header') !== -1
+              || !!el.closest('[class*="header"]')
+              || !!el.closest('thead')
+              || el.getAttribute('role') === 'columnheader'
+            );
+            const nodes = Array.from(document.querySelectorAll('[class*="pb-table"]'))
+              .filter(el => colRe.test(el.className))
+              .filter(isHeaderEl);
             return nodes.map(n => ({
               text: (n.innerText || n.textContent || '').trim(),
               cls: n.className || ''
@@ -224,9 +227,10 @@ def map_header_positions(driver) -> Dict[str, str]:
 
     headers = driver.find_elements(
         By.XPATH,
-        "//div[contains(@class,'pb-table_header')]//div[contains(@class,'pb-table_cell')]"
-        " | //table[contains(@class,'pb-table')]//tr[contains(@class,'pb-table_row')][1]/*"
-        " | //table//thead//th | //table//thead//td | //div[@role='columnheader']",
+        "//*[contains(@class,'pb-table') and contains(@class,'header')]"
+        " | //*[@role='columnheader']"
+        " | //table[contains(@class,'pb-table')]//thead//th"
+        " | //table[contains(@class,'pb-table')]//thead//td",
     )
     for header in headers:
         target = _match_header_target(header.text.strip())

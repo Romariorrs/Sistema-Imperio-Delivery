@@ -16,12 +16,13 @@ EXPORT_COLUMNS = (
     ("target_region", "Regiao-alvo"),
     ("lead_created_at", "Horario de criacao do lead"),
     ("establishment_name", "Nome do estabelecimento"),
-    ("representative_name", "Nome do representante 99"),
+    ("representative_name", "Nome do representante do estabelecimento"),
     ("contract_status", "Status do contrato"),
     ("business_99_status", "Seu Negocio na 99"),
     ("representative_phone", "Telefone do representante do estabelecimento"),
     ("company_category", "Categoria da empresa"),
     ("address", "Endereco"),
+    ("rtbo_pending_checklist", "Item da lista de verificacao de RTBO nao concluidos"),
 )
 
 HEADER_ALIASES = {
@@ -46,6 +47,7 @@ HEADER_ALIASES = {
     "lead_created_at": "lead_created_at",
     "nome do estabelecimento": "establishment_name",
     "establishment_name": "establishment_name",
+    "nome do representante do estabelecimento": "representative_name",
     "nome do representante 99": "representative_name",
     "representative_name": "representative_name",
     "status do contrato": "contract_status",
@@ -60,6 +62,9 @@ HEADER_ALIASES = {
     "company_category": "company_category",
     "endereco": "address",
     "address": "address",
+    "item da lista de verificacao de rtbo nao concluidos": "rtbo_pending_checklist",
+    "itens da lista de verificacao de rtbo nao concluidos": "rtbo_pending_checklist",
+    "rtbo_pending_checklist": "rtbo_pending_checklist",
     "source": "source",
 }
 
@@ -243,6 +248,7 @@ def upsert_rows(rows: Iterable[Mapping[str, Any]], default_source: str = "gattar
             is_blocked_number=parsed["representative_phone_norm"] in blocked_phone_norms,
             company_category=parsed["company_category"],
             address=parsed["address"],
+            rtbo_pending_checklist=parsed["rtbo_pending_checklist"],
         )
         leads_to_create.append(lead)
 

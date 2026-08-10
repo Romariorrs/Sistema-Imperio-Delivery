@@ -47,6 +47,7 @@ OPTIONAL_DB_FIELDS = {
     "signatory_id",
     "exported_at",
     "export_batch_id",
+    "rtbo_pending_checklist",
 }
 OPTIONAL_RUN_FIELDS = {"pages_processed", "execution_id", "total_deduplicated"}
 EXPORT_TRACKING_FIELDS = {"exported_at", "export_batch_id"}
@@ -520,6 +521,7 @@ def macro_list(request):
     blocked_enabled = _macrolead_has_columns("is_blocked_number")
     lead_created_at_enabled = _macrolead_has_columns("lead_created_at")
     business_99_enabled = _macrolead_has_columns("business_99_status")
+    rtbo_enabled = _macrolead_has_columns("rtbo_pending_checklist")
     export_tracking_enabled = _export_tracking_enabled()
     store_id_enabled = _macrolead_has_columns("store_id")
     signatory_id_enabled = _macrolead_has_columns("signatory_id")
@@ -543,6 +545,11 @@ def macro_list(request):
         messages.warning(
             request,
             "Campos de ID ainda nao existem no banco. Aplique a migration 0009 para ativar ID da loja e ID do signatario.",
+        )
+    if lead_table_ready and not rtbo_enabled:
+        messages.warning(
+            request,
+            "Campo de RTBO ainda nao existe no banco. Aplique a migration 0011 para ativar a coluna de checklist RTBO.",
         )
     if lead_table_ready:
         all_queryset = _base_macrolead_queryset()
@@ -753,10 +760,11 @@ def macro_list(request):
         "blocked_enabled": blocked_enabled,
         "lead_created_at_enabled": lead_created_at_enabled,
         "business_99_enabled": business_99_enabled,
+        "rtbo_enabled": rtbo_enabled,
         "run_pages_enabled": run_pages_enabled,
         "store_id_enabled": store_id_enabled,
         "signatory_id_enabled": signatory_id_enabled,
-        "results_colspan": 10 + (1 if store_id_enabled else 0) + (1 if signatory_id_enabled else 0) + (1 if business_99_enabled else 0) + (1 if lead_created_at_enabled else 0) + (1 if export_tracking_enabled else 0),
+        "results_colspan": 10 + (1 if store_id_enabled else 0) + (1 if signatory_id_enabled else 0) + (1 if business_99_enabled else 0) + (1 if lead_created_at_enabled else 0) + (1 if export_tracking_enabled else 0) + (1 if rtbo_enabled else 0),
     }
     return render(request, "macros/list.html", context)
 

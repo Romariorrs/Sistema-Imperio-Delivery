@@ -41,7 +41,7 @@ API_BATCH_RETRY_SLEEP = float(os.getenv("API_BATCH_RETRY_SLEEP", "1.5"))
 
 logger = logging.getLogger(__name__)
 
-COLUMN_CLASS_PATTERN = re.compile(r"pb-table(?:_[0-9]+)?_column_([0-9]+)")
+COLUMN_CLASS_PATTERN = re.compile(r"pb-table(?:_([0-9]+))?_column_([0-9]+)")
 
 FIELD_TARGETS = [
     "ID da loja",
@@ -50,12 +50,13 @@ FIELD_TARGETS = [
     "Regiao-alvo",
     "Horario de criacao do lead",
     "Nome do estabelecimento",
-    "Nome do representante 99",
+    "Nome do representante do estabelecimento",
     "Status do contrato",
     "Seu Negocio na 99",
     "Telefone do representante do estabelecimento",
     "Categoria da empresa",
     "Endereco",
+    "Item da lista de verificacao de RTBO nao concluidos",
 ]
 
 FIELD_HEADER_ALIASES = {
@@ -65,27 +66,16 @@ FIELD_HEADER_ALIASES = {
     "Regiao-alvo": {"Regiao-alvo", "Regiao alvo"},
     "Horario de criacao do lead": {"Horario de criacao do lead", "Horario criacao do lead"},
     "Nome do estabelecimento": {"Nome do estabelecimento"},
-    "Nome do representante 99": {"Nome do representante 99"},
+    "Nome do representante do estabelecimento": {"Nome do representante do estabelecimento"},
     "Status do contrato": {"Status do contrato"},
     "Seu Negocio na 99": {"Seu Negocio na 99"},
     "Telefone do representante do estabelecimento": {"Telefone do representante do estabelecimento"},
     "Categoria da empresa": {"Categoria da empresa"},
     "Endereco": {"Endereco"},
-}
-
-FALLBACK_INDICES = {
-    "ID da loja": 1,
-    "Cidade": 2,
-    "Regiao-alvo": 3,
-    "Horario de criacao do lead": 4,
-    "Nome do estabelecimento": 5,
-    "Nome do representante 99": 9,
-    "Status do contrato": 10,
-    "Seu Negocio na 99": 12,
-    "Telefone do representante do estabelecimento": 13,
-    "ID do signatario": 25,
-    "Categoria da empresa": 26,
-    "Endereco": 27,
+    "Item da lista de verificacao de RTBO nao concluidos": {
+        "Item da lista de verificacao de RTBO nao concluidos",
+        "Itens da lista de verificacao de RTBO nao concluidos",
+    },
 }
 
 CHROME_ARGS = [
@@ -190,9 +180,16 @@ def _match_header_target(raw: str) -> Optional[str]:
     return NORMALIZED_HEADER_TARGETS.get(normalize(raw))
 
 
-def map_header_positions(driver) -> Dict[str, int]:
+def map_header_positions(driver) -> Dict[str, str]:
+    """Mapeia cada campo para a chave "tabela:coluna" do cabecalho real da pagina.
+
+    Usa a classe CSS (pb-table_<tabela>_column_<numero>) em vez da posicao/indice,
+    porque o site renderiza a grade em varias sub-tabelas (fixa/rolavel) que numeram
+    suas colunas de forma independente - casar por indice misturava campos de
+    sub-tabelas diferentes.
+    """
     try:
-        header_texts = driver.execute_script(
+        header_nodes = driver.execute_script(
             """
             const sels = [
               "div.pb-table_header .pb-table_cell",
@@ -201,17 +198,26 @@ def map_header_positions(driver) -> Dict[str, int]:
               "[role='columnheader']"
             ];
             const nodes = Array.from(document.querySelectorAll(sels.join(',')));
-            return nodes.map(n => (n.innerText || n.textContent || '').trim());
+            return nodes.map(n => ({
+              text: (n.innerText || n.textContent || '').trim(),
+              cls: n.className || ''
+            }));
             """
         )
     except Exception:
-        header_texts = []
+        header_nodes = []
 
-    pos: Dict[str, int] = {}
-    for idx, raw in enumerate(header_texts):
+    pos: Dict[str, str] = {}
+    for node in header_nodes:
+        if isinstance(node, dict):
+            raw = node.get("text", "")
+            cls = node.get("cls", "")
+        else:
+            raw, cls = str(node), ""
         target = _match_header_target(raw)
-        if target and target not in pos:
-            pos[target] = idx
+        key = _extract_column_key(cls)
+        if target and key and target not in pos:
+            pos[target] = key
 
     if pos:
         return pos
@@ -222,21 +228,21 @@ def map_header_positions(driver) -> Dict[str, int]:
         " | //table[contains(@class,'pb-table')]//tr[contains(@class,'pb-table_row')][1]/*"
         " | //table//thead//th | //table//thead//td | //div[@role='columnheader']",
     )
-    for idx, header in enumerate(headers):
+    for header in headers:
         target = _match_header_target(header.text.strip())
-        if target and target not in pos:
-            pos[target] = idx
+        key = _extract_column_key(header.get_attribute("class") or "")
+        if target and key and target not in pos:
+            pos[target] = key
     return pos
 
 
-def _extract_column_number(class_name: str) -> int:
+def _extract_column_key(class_name: str) -> Optional[str]:
     match = COLUMN_CLASS_PATTERN.search(class_name or "")
     if not match:
-        return -1
-    try:
-        return int(match.group(1))
-    except (TypeError, ValueError):
-        return -1
+        return None
+    table_idx = match.group(1) or "0"
+    col_num = match.group(2)
+    return f"{table_idx}:{col_num}"
 
 
 def _cell_text(cell) -> str:
@@ -251,14 +257,12 @@ def _cell_class(cell) -> str:
     return ""
 
 
-def _cell_column(cell) -> int:
+def _cell_key(cell) -> Optional[str]:
     if isinstance(cell, dict):
         column = cell.get("column")
-        try:
-            return int(column)
-        except (TypeError, ValueError):
-            pass
-    return _extract_column_number(_cell_class(cell))
+        if column:
+            return str(column)
+    return _extract_column_key(_cell_class(cell))
 
 
 def _coerce_id_text(value: str) -> str:
@@ -291,47 +295,18 @@ def _coerce_field_text(field: str, value: str) -> str:
     return raw
 
 
-def _pick_from_cells(cells, field: str, primary: int = -1) -> str:
-    field_column_numbers = {
-        "ID da loja": [2],
-        "ID do signatario": [25],
-        "Seu Negocio na 99": [12],
-        "Telefone do representante do estabelecimento": [13],
-    }
+def _pick_by_key(cells, field: str, key: Optional[str]) -> str:
+    """Retorna o texto da celula cuja chave "tabela:coluna" bate com a do cabecalho.
 
-    if field in field_column_numbers:
-        for target_column in field_column_numbers[field]:
-            for cell in cells:
-                if _cell_column(cell) == target_column:
-                    txt = _coerce_field_text(field, _cell_text(cell))
-                    if txt:
-                        return txt
-
-    candidates = []
-    if primary >= 0:
-        candidates.append(primary)
-    if "ID da loja" in field:
-        candidates.extend([1, 0, 2, 3])
-    elif "ID do signatario" in field:
-        candidates.extend([25, 24, 26, 23])
-    elif "Telefone do representante" in field:
-        candidates.extend([13, 14])
-    elif "Seu Negocio na 99" in field:
-        candidates.extend([12, 11, 13])
-    elif "Categoria da empresa" in field:
-        candidates.extend([26, 25, 27, 28, 24, 29])
-    elif "Endereco" in field:
-        candidates.extend([27, 28, 26, 25, 29, 24])
-
-    for idx in candidates:
-        if 0 <= idx < len(cells):
-            txt = _coerce_field_text(field, _cell_text(cells[idx]))
-            if txt:
-                return txt
-
-    if field == "Telefone do representante do estabelecimento":
-        for cell in cells:
-            txt = _coerce_phone_text(_cell_text(cell))
+    Sem chave (cabecalho nao encontrado na pagina), retorna vazio em vez de
+    arriscar um chute de posicao - um campo vazio e mais seguro que um campo
+    preenchido com o dado de outra coluna.
+    """
+    if not key:
+        return ""
+    for cell in cells:
+        if _cell_key(cell) == key:
+            txt = _coerce_field_text(field, _cell_text(cell))
             if txt:
                 return txt
     return ""
@@ -352,9 +327,10 @@ def extract_rows(driver, pos: Dict[str, int]) -> List[List[str]]:
               ".pb-table_scroll table",
               "table[class*='pb-table']"
             ];
-            const extractColumnNumber = (className) => {
-              const match = String(className || '').match(/pb-table(?:_[0-9]+)?_column_([0-9]+)/);
-              return match ? Number(match[1]) : null;
+            const extractColumnKey = (className) => {
+              const match = String(className || '').match(/pb-table(?:_([0-9]+))?_column_([0-9]+)/);
+              if (!match) return null;
+              return (match[1] || '0') + ':' + match[2];
             };
             const tables = [];
             const seenTables = new Set();
@@ -373,10 +349,10 @@ def extract_rows(driver, pos: Dict[str, int]) -> List[List[str]]:
               return Array.from(headerRow.children)
                 .filter((cell) => !shouldIgnoreHeaderCell(cell))
                 .map((cell) => {
-                const fromClass = extractColumnNumber(cell.className || '');
+                const fromClass = extractColumnKey(cell.className || '');
                 if (fromClass !== null) return fromClass;
                 const child = cell.querySelector('[class*="pb-table"][class*="column_"]');
-                return child ? extractColumnNumber(child.className || '') : null;
+                return child ? extractColumnKey(child.className || '') : null;
               });
             };
             const findHeaderColumns = (row, table) => {
@@ -399,7 +375,7 @@ def extract_rows(driver, pos: Dict[str, int]) -> List[List[str]]:
                 cells = Array.from(row.querySelectorAll('td, th, div.pb-table_cell'));
               }
               return cells.map((cell, index) => {
-                const fromClass = extractColumnNumber(cell.className || '');
+                const fromClass = extractColumnKey(cell.className || '');
                 const column = fromClass !== null ? fromClass : (headerColumns[index] ?? null);
                 return {
                   text: (cell.innerText || cell.textContent || '').trim(),
@@ -441,7 +417,7 @@ def extract_rows(driver, pos: Dict[str, int]) -> List[List[str]]:
         for cells in js_rows:
             picked = []
             for field in FIELD_TARGETS:
-                picked.append(_pick_from_cells(cells, field, pos.get(field, -1)))
+                picked.append(_pick_by_key(cells, field, pos.get(field)))
             if any(picked):
                 rows_out.append(picked)
         return rows_out
@@ -467,7 +443,7 @@ def extract_rows(driver, pos: Dict[str, int]) -> List[List[str]]:
             if not cells:
                 continue
             payload = row_groups.setdefault(row_index, [])
-            column_numbers = []
+            column_keys = []
             header_cells = row.find_elements(
                 By.XPATH,
                 (
@@ -478,13 +454,17 @@ def extract_rows(driver, pos: Dict[str, int]) -> List[List[str]]:
                 header_class = header_cell.get_attribute("class") or ""
                 if "selection" in header_class:
                     continue
-                column_numbers.append(_extract_column_number(header_cell.get_attribute("class") or ""))
+                column_keys.append(_extract_column_key(header_cell.get_attribute("class") or ""))
             for cell_index, cell in enumerate(cells):
+                cell_class = cell.get_attribute("class") or ""
+                cell_key = _extract_column_key(cell_class)
+                if cell_key is None and cell_index < len(column_keys):
+                    cell_key = column_keys[cell_index]
                 payload.append(
                     {
                         "text": cell.text.strip() or (cell.get_attribute("textContent") or "").strip(),
-                        "cls": cell.get_attribute("class") or "",
-                        "column": column_numbers[cell_index] if cell_index < len(column_numbers) else None,
+                        "cls": cell_class,
+                        "column": cell_key,
                     }
                 )
 
@@ -501,7 +481,7 @@ def extract_rows(driver, pos: Dict[str, int]) -> List[List[str]]:
             unique_cells.append(cell)
         picked = []
         for field in FIELD_TARGETS:
-            picked.append(_pick_from_cells(unique_cells, field, pos.get(field, -1)))
+            picked.append(_pick_by_key(unique_cells, field, pos.get(field)))
         if any(picked):
             rows_out.append(picked)
     return rows_out
@@ -756,8 +736,12 @@ def run_with_metrics(
 
         pos = map_header_positions(driver)
         if len(pos) < 2:
-            logger.warning("Cabecalhos nao reconhecidos, usando fallback de indices.")
-            pos = FALLBACK_INDICES
+            logger.warning(
+                "Poucos cabecalhos reconhecidos (%s de %s campos). "
+                "Campos sem cabecalho correspondente virao vazios em vez de arriscar dado errado.",
+                len(pos),
+                len(FIELD_TARGETS),
+            )
 
         page = 0
         while True:

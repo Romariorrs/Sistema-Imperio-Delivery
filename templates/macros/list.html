@@ -780,6 +780,9 @@
                         <th>Telefone</th>
                         <th>Categoria</th>
                         <th>Endereco</th>
+                        {% if rtbo_enabled %}
+                            <th>RTBO pendente</th>
+                        {% endif %}
                         {% if lead_created_at_enabled %}
                             <th>Horario lead</th>
                         {% endif %}
@@ -818,6 +821,9 @@
                         </td>
                         <td>{{ item.company_category }}</td>
                         <td>{{ item.address }}</td>
+                        {% if rtbo_enabled %}
+                            <td>{{ item.rtbo_pending_checklist|default:"--" }}</td>
+                        {% endif %}
                         {% if lead_created_at_enabled %}
                             <td>
                                 {% if item.lead_created_at %}

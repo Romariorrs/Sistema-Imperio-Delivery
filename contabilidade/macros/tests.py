@@ -1131,40 +1131,44 @@ class MacroCollectorMappingTests(TestCase):
         self.assertEqual(collector._match_header_target("ID do loja"), "ID da loja")
         self.assertEqual(collector._match_header_target("ID do signatário"), "ID do signatario")
 
-    def test_pick_from_cells_does_not_shift_business_status_into_phone(self):
+    def test_pick_by_key_matches_only_the_exact_table_and_column(self):
+        # Duas celulas com o mesmo numero de coluna, mas de sub-tabelas (indice)
+        # diferentes: sem o indice da tabela na chave, elas se confundiam - era
+        # a causa raiz dos campos trocados (representante/status/categoria/endereco).
         cells = [
-            {"text": "Self-onboarding", "cls": "pb-table_1_column_13", "column": 12},
-            {"text": "", "cls": "pb-table_1_column_14", "column": 13},
+            {"text": "Self-onboarding", "cls": "pb-table_0_column_13", "column": "0:13"},
+            {"text": "(11) 99999-0000", "cls": "pb-table_1_column_13", "column": "1:13"},
         ]
-        phone = collector._pick_from_cells(cells, "Telefone do representante do estabelecimento", -1)
-        business = collector._pick_from_cells(cells, "Seu Negocio na 99", -1)
-        self.assertEqual(phone, "")
+        business = collector._pick_by_key(cells, "Seu Negocio na 99", "0:13")
+        phone = collector._pick_by_key(cells, "Telefone do representante do estabelecimento", "1:13")
         self.assertEqual(business, "Self-onboarding")
-
-    def test_pick_from_cells_finds_phone_when_columns_shift(self):
-        cells = [
-            {"text": "Self-onboarding", "cls": "pb-table_1_column_13", "column": 12},
-            {"text": "Nao ativado", "cls": "pb-table_1_column_14", "column": 13},
-            {"text": "(11) 99999-0000", "cls": "pb-table_1_column_18", "column": 17},
-        ]
-        phone = collector._pick_from_cells(cells, "Telefone do representante do estabelecimento", -1)
         self.assertEqual(phone, "(11) 99999-0000")
 
-    def test_pick_from_cells_does_not_use_address_as_phone(self):
+    def test_pick_by_key_does_not_use_address_as_phone(self):
         cells = [
-            {"text": "Rua Francisca Cardoso da Rosa, 42, Campo Grande, RJ", "cls": "pb-table_1_column_14", "column": 13},
-            {"text": "Brasileira", "cls": "pb-table_1_column_27", "column": 26},
+            {"text": "Rua Francisca Cardoso da Rosa, 42, Campo Grande, RJ", "cls": "pb-table_1_column_14", "column": "1:14"},
+            {"text": "Brasileira", "cls": "pb-table_1_column_27", "column": "1:27"},
         ]
-        phone = collector._pick_from_cells(cells, "Telefone do representante do estabelecimento", -1)
+        phone = collector._pick_by_key(cells, "Telefone do representante do estabelecimento", "1:14")
         self.assertEqual(phone, "")
 
-    def test_pick_from_cells_extracts_numeric_ids(self):
+    def test_pick_by_key_returns_empty_when_key_is_missing(self):
+        cells = [{"text": "Brasileira", "cls": "pb-table_1_column_27", "column": "1:27"}]
+        self.assertEqual(collector._pick_by_key(cells, "Categoria da empresa", None), "")
+        self.assertEqual(collector._pick_by_key(cells, "Categoria da empresa", "1:99"), "")
+
+    def test_pick_by_key_extracts_numeric_ids(self):
         cells = [
-            {"text": "57646116514213", "cls": "pb-table_1_column_2", "column": 2},
-            {"text": "5764611017053834929", "cls": "pb-table_1_column_25", "column": 25},
+            {"text": "57646116514213", "cls": "pb-table_1_column_2", "column": "1:2"},
+            {"text": "5764611017053834929", "cls": "pb-table_1_column_25", "column": "1:25"},
         ]
-        self.assertEqual(collector._pick_from_cells(cells, "ID da loja", -1), "57646116514213")
+        self.assertEqual(collector._pick_by_key(cells, "ID da loja", "1:2"), "57646116514213")
         self.assertEqual(
-            collector._pick_from_cells(cells, "ID do signatario", -1),
+            collector._pick_by_key(cells, "ID do signatario", "1:25"),
             "5764611017053834929",
         )
+
+    def test_extract_column_key_preserves_table_index(self):
+        self.assertEqual(collector._extract_column_key("pb-table_1_column_16 is-leaf"), "1:16")
+        self.assertEqual(collector._extract_column_key("pb-table_column_5"), "0:5")
+        self.assertIsNone(collector._extract_column_key("no-match-here"))

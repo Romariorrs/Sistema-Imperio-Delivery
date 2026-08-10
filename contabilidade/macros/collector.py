@@ -541,9 +541,19 @@ def wait_for_table(driver, timeout: int = 180) -> bool:
                 (By.XPATH, "//div[contains(@class,'pb-table_body')]//tr | //table[contains(@class,'pb-table')]")
             )
         )
-        return True
     except TimeoutException:
         return False
+
+    # A casca da tabela pode aparecer antes das celulas virtualizadas serem
+    # montadas de verdade (grade renderiza aos poucos). Espera mais um pouco
+    # por celulas com numero de coluna real antes de liberar a extracao.
+    try:
+        WebDriverWait(driver, 15).until(
+            EC.presence_of_element_located((By.XPATH, "//*[contains(@class,'_column_')]"))
+        )
+    except TimeoutException:
+        pass
+    return True
 
 
 def build_driver(headless: bool = HEADLESS_DEFAULT):
@@ -747,6 +757,14 @@ def run_with_metrics(
         while True:
             page += 1
             rows = extract_rows(driver, pos)
+            if not rows and page == 1:
+                # Primeira leitura pode cair antes da grade terminar de montar
+                # as celulas; tenta de novo por alguns segundos antes de desistir.
+                for _ in range(15):
+                    time.sleep(1)
+                    rows = extract_rows(driver, pos)
+                    if rows:
+                        break
             logger.info("Pagina %s: %s linhas", page, len(rows))
             all_rows.extend(rows)
             if page >= max_pages:

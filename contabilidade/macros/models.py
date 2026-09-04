@@ -1,5 +1,32 @@
+import re
+import unicodedata
+
 from django.db import models
 from django.contrib.auth import get_user_model
+
+
+def normalize_city_name(value: str) -> str:
+    text = str(value or "").strip()
+    text = unicodedata.normalize("NFKD", text)
+    text = "".join(char for char in text if not unicodedata.combining(char))
+    text = re.sub(r"[^\w\s-]+", " ", text)
+    return re.sub(r"\s+", " ", text).strip().casefold()
+
+
+class BlockedCity(models.Model):
+    name = models.CharField(max_length=255, unique=True)
+    normalized_name = models.CharField(max_length=255, unique=True, editable=False, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def save(self, *args, **kwargs):
+        self.normalized_name = normalize_city_name(self.name)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.name
 
 
 class MacroLead(models.Model):

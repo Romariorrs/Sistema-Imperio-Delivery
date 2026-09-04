@@ -2,6 +2,8 @@ from django.urls import path
 
 from .views import (
     macro_api_import,
+    macro_blocked_city_add,
+    macro_blocked_city_delete,
     macro_collect,
     macro_delete_all,
     macro_delete_blocked,
@@ -15,6 +17,7 @@ from .views import (
     macro_download_local_agent_mac,
     macro_download_local_agent_py,
     macro_export_csv,
+    macro_export_manychat,
     macro_export_xlsx,
     macro_import_csv,
     macro_city_report,
@@ -40,6 +43,9 @@ urlpatterns = [
     path("lead/<int:lead_id>/unblock/", macro_toggle_phone_block, {"blocked": False}, name="macro_unblock_phone"),
     path("export/", macro_export_csv, name="macro_export_csv"),
     path("export/xlsx/", macro_export_xlsx, name="macro_export_xlsx"),
+    path("export/manychat/", macro_export_manychat, name="macro_export_manychat"),
+    path("cidades-bloqueadas/adicionar/", macro_blocked_city_add, name="macro_blocked_city_add"),
+    path("cidades-bloqueadas/<int:city_id>/remover/", macro_blocked_city_delete, name="macro_blocked_city_delete"),
     path("import/", macro_import_csv, name="macro_import_csv"),
     path("api/import/", macro_api_import, name="macro_api_import"),
     path("relatorios/cidades/", macro_city_report, name="macro_city_report"),

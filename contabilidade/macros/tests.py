@@ -13,7 +13,7 @@ from datetime import timedelta
 from selenium.webdriver import ChromeOptions
 
 from contabilidade.macros import collector
-from contabilidade.macros.models import MacroLead, MacroRun
+from contabilidade.macros.models import BlockedCity, MacroLead, MacroRun
 from contabilidade.macros.services import upsert_rows
 
 
@@ -269,6 +269,10 @@ class MacroApiImportTests(TestCase):
 
 class MacroScreenTests(TestCase):
     def setUp(self):
+        # A lista de bloqueio vem populada por uma data migration com cidades
+        # reais (inclusive "Sao Paulo"/"Goiania", usadas como fixture nestes
+        # testes). Limpa para os testes nao dependerem desses dados de producao.
+        BlockedCity.objects.all().delete()
         self.user = User.objects.create_user(username="staff", password="123456", is_staff=True)
         self.client = Client()
         self.client.login(username="staff", password="123456")
@@ -1077,6 +1081,62 @@ class MacroScreenTests(TestCase):
         run.refresh_from_db()
         self.assertEqual(run.status, "error")
         self.assertIsNotNone(run.finished_at)
+
+    def test_blocked_city_hides_lead_from_list_and_export(self):
+        MacroLead.objects.create(
+            source="api", city="Bloqueada", establishment_name="Loja Bloqueada", unique_key="bc-1"
+        )
+        MacroLead.objects.create(
+            source="api", city="Recife", establishment_name="Loja Liberada", unique_key="bc-2"
+        )
+        BlockedCity.objects.create(name="Bloqueada")
+
+        resp = self.client.get(reverse("macro_list"))
+        body = resp.content.decode("utf-8")
+        self.assertIn("Loja Liberada", body)
+        self.assertNotIn("Loja Bloqueada", body)
+
+        export_resp = self.client.get(reverse("macro_export_csv"))
+        export_body = export_resp.content.decode("utf-8")
+        self.assertIn("Loja Liberada", export_body)
+        self.assertNotIn("Loja Bloqueada", export_body)
+
+    def test_blocked_city_add_normalizes_accents_and_case(self):
+        resp = self.client.post(reverse("macro_blocked_city_add"), data={"city_name": "São Paulo"})
+        self.assertEqual(resp.status_code, 302)
+        city = BlockedCity.objects.get(name="São Paulo")
+        self.assertEqual(city.normalized_name, "sao paulo")
+
+    def test_blocked_city_add_duplicate_is_ignored(self):
+        BlockedCity.objects.create(name="Recife")
+        resp = self.client.post(reverse("macro_blocked_city_add"), data={"city_name": "recife"})
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(BlockedCity.objects.filter(normalized_name="recife").count(), 1)
+
+    def test_blocked_city_delete_removes_entry(self):
+        city = BlockedCity.objects.create(name="Recife")
+        resp = self.client.post(reverse("macro_blocked_city_delete", args=[city.id]))
+        self.assertEqual(resp.status_code, 302)
+        self.assertFalse(BlockedCity.objects.filter(id=city.id).exists())
+
+    def test_export_manychat_has_fixed_columns_in_order(self):
+        MacroLead.objects.create(
+            source="api",
+            store_id="12345",
+            city="Recife",
+            establishment_name="Loja ManyChat",
+            address="Rua Teste, 100",
+            rtbo_pending_checklist="Foto da fachada,Numero de itens",
+        )
+        resp = self.client.get(reverse("macro_export_manychat"))
+        self.assertEqual(resp.status_code, 200)
+        reader = csv_reader.reader(resp.content.decode("utf-8").splitlines())
+        rows = list(reader)
+        self.assertEqual(rows[0], ["ID LOJA", "NOME Restaurante", "Endereco", "RTBO pendente"])
+        self.assertEqual(
+            rows[1],
+            ["12345", "Loja ManyChat", "Rua Teste, 100", "Foto da fachada,Numero de itens"],
+        )
 
 
 class MacroDriverBootstrapTests(TestCase):

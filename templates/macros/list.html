@@ -294,6 +294,34 @@
         color: #ffd894;
         background: rgba(255, 195, 77, 0.16);
     }
+    .macro-blocked-cities {
+        border: 1px dashed rgba(255, 107, 107, 0.35);
+        border-radius: 12px;
+        padding: 10px;
+        margin-bottom: 14px;
+    }
+    .macro-blocked-cities-head { margin-bottom: 8px; }
+    .macro-blocked-cities-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+    .macro-blocked-city-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 3px 6px 3px 10px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 107, 107, 0.4);
+        color: #ffb5b5;
+        font-size: 12px;
+        background: rgba(255, 107, 107, 0.13);
+    }
+    .macro-blocked-city-chip button {
+        border: none;
+        background: transparent;
+        color: inherit;
+        cursor: pointer;
+        font-size: 14px;
+        line-height: 1;
+        padding: 2px 4px;
+    }
     .macro-row-actions { display: flex; gap: 6px; flex-wrap: wrap; }
     .btn.ghost {
         background: rgba(255,255,255,0.04);
@@ -615,6 +643,54 @@
 
     <div class="card">
         <h3 style="margin:0 0 8px;">Consulta detalhada</h3>
+
+        <div class="macro-blocked-cities">
+            <div class="macro-blocked-cities-head">
+                <label style="margin:0;">Cidades bloqueadas</label>
+                <p class="macro-export-note">Leads dessas cidades nao aparecem na lista nem em nenhuma exportacao.</p>
+            </div>
+            <div class="macro-blocked-cities-chips">
+                {% for city in blocked_cities %}
+                    <form method="post" action="{% url 'macro_blocked_city_delete' city.id %}" class="macro-blocked-city-chip">
+                        {% csrf_token %}
+                        <input type="hidden" name="q" value="{{ request.GET.q }}">
+                        <input type="hidden" name="ddd_filter" value="{{ request.GET.ddd_filter }}">
+                        <input type="hidden" name="city" value="{{ request.GET.city }}">
+                        <input type="hidden" name="contract_status" value="{{ request.GET.contract_status }}">
+                        <input type="hidden" name="business_99_status" value="{{ request.GET.business_99_status }}">
+                        <input type="hidden" name="company_category" value="{{ request.GET.company_category }}">
+                        <input type="hidden" name="representative_presence" value="{{ request.GET.representative_presence }}">
+                        <input type="hidden" name="blocked" value="{{ request.GET.blocked }}">
+                        <input type="hidden" name="phone_dup" value="{{ request.GET.phone_dup }}">
+                        <input type="hidden" name="export_status" value="{{ request.GET.export_status }}">
+                        <input type="hidden" name="lead_date_from" value="{{ request.GET.lead_date_from }}">
+                        <input type="hidden" name="lead_date_to" value="{{ request.GET.lead_date_to }}">
+                        <span>{{ city.name }}</span>
+                        <button type="submit" title="Remover" onclick="return confirm('Remover {{ city.name }} da lista de bloqueio?')">&times;</button>
+                    </form>
+                {% empty %}
+                    <span class="macro-export-note">Nenhuma cidade bloqueada.</span>
+                {% endfor %}
+            </div>
+            <form method="post" action="{% url 'macro_blocked_city_add' %}" class="macro-inline-form">
+                {% csrf_token %}
+                <input type="hidden" name="q" value="{{ request.GET.q }}">
+                <input type="hidden" name="ddd_filter" value="{{ request.GET.ddd_filter }}">
+                <input type="hidden" name="city" value="{{ request.GET.city }}">
+                <input type="hidden" name="contract_status" value="{{ request.GET.contract_status }}">
+                <input type="hidden" name="business_99_status" value="{{ request.GET.business_99_status }}">
+                <input type="hidden" name="company_category" value="{{ request.GET.company_category }}">
+                <input type="hidden" name="representative_presence" value="{{ request.GET.representative_presence }}">
+                <input type="hidden" name="blocked" value="{{ request.GET.blocked }}">
+                <input type="hidden" name="phone_dup" value="{{ request.GET.phone_dup }}">
+                <input type="hidden" name="export_status" value="{{ request.GET.export_status }}">
+                <input type="hidden" name="lead_date_from" value="{{ request.GET.lead_date_from }}">
+                <input type="hidden" name="lead_date_to" value="{{ request.GET.lead_date_to }}">
+                <input type="text" name="city_name" placeholder="Nome da cidade" required>
+                <button class="btn secondary macro-orbit" type="submit">Adicionar cidade bloqueada</button>
+            </form>
+        </div>
+
         <form method="get" class="macro-filter-form">
             <div>
                 <label>Busca geral</label>
@@ -749,6 +825,7 @@
                     {% endif %}
                     <button class="btn secondary macro-orbit" type="submit" formaction="{% url 'macro_export_csv' %}">Exportar consulta CSV</button>
                     <button class="btn secondary macro-orbit" type="submit" formaction="{% url 'macro_export_xlsx' %}">Exportar consulta XLSX</button>
+                    <button class="btn secondary macro-orbit" type="submit" formaction="{% url 'macro_export_manychat' %}">Exportar para ManyChat</button>
                 </div>
             </div>
         </form>

@@ -17,17 +17,25 @@ from django.core.cache import cache
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.core.paginator import Paginator
-from django.db import connection
+from django.db import connection, transaction
 from django.db.models import Count, Min, Q
-from django.db.utils import OperationalError, ProgrammingError
+from django.db.models.functions import Lower
+from django.db.utils import IntegrityError, OperationalError, ProgrammingError
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 
-from .models import MacroLead, MacroRun
+from .models import BlockedCity, MacroLead, MacroRun, normalize_city_name
 from .services import EXPORT_COLUMNS, upsert_rows
+
+MANYCHAT_EXPORT_COLUMNS = (
+    ("store_id", "ID LOJA"),
+    ("establishment_name", "NOME Restaurante"),
+    ("address", "Endereco"),
+    ("rtbo_pending_checklist", "RTBO pendente"),
+)
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +92,20 @@ def _export_tracking_enabled() -> bool:
     return _macrolead_has_columns("exported_at", "export_batch_id")
 
 
+def _blocked_city_normalized_names() -> set[str]:
+    try:
+        return set(BlockedCity.objects.values_list("normalized_name", flat=True))
+    except (OperationalError, ProgrammingError):
+        return set()
+
+
+def _blocked_cities_list():
+    try:
+        return list(BlockedCity.objects.all())
+    except (OperationalError, ProgrammingError):
+        return []
+
+
 def _base_macrolead_queryset():
     if not _macrolead_table_ready():
         return MacroLead.objects.none()
@@ -91,6 +113,9 @@ def _base_macrolead_queryset():
     missing_fields = [field for field in OPTIONAL_DB_FIELDS if field not in _macrolead_db_columns()]
     if missing_fields:
         queryset = queryset.defer(*missing_fields)
+    blocked = _blocked_city_normalized_names()
+    if blocked:
+        queryset = queryset.annotate(_city_lower=Lower("city")).exclude(_city_lower__in=blocked)
     return queryset
 
 
@@ -765,6 +790,7 @@ def macro_list(request):
         "store_id_enabled": store_id_enabled,
         "signatory_id_enabled": signatory_id_enabled,
         "results_colspan": 10 + (1 if store_id_enabled else 0) + (1 if signatory_id_enabled else 0) + (1 if business_99_enabled else 0) + (1 if lead_created_at_enabled else 0) + (1 if export_tracking_enabled else 0) + (1 if rtbo_enabled else 0),
+        "blocked_cities": _blocked_cities_list(),
     }
     return render(request, "macros/list.html", context)
 
@@ -886,6 +912,69 @@ def macro_export_xlsx(request):
         ws.append([_export_cell_value(item, field) for field in selected_fields])
     wb.save(response)
     return response
+
+
+@login_required
+@user_passes_test(_staff_access)
+def macro_export_manychat(request):
+    queryset = _apply_filters(request)
+    export_limit = _parse_export_limit(request.GET)
+    if export_limit:
+        queryset = queryset[:export_limit]
+    mark_exported = _parse_mark_exported(request.GET)
+    rows = list(queryset)
+    if mark_exported and rows and _export_tracking_enabled():
+        now = timezone.now()
+        batch_id = str(uuid.uuid4())
+        ids = [item.id for item in rows]
+        MacroLead.objects.filter(id__in=ids).update(exported_at=now, export_batch_id=batch_id)
+        for item in rows:
+            item.exported_at = now
+            item.export_batch_id = batch_id
+
+    response = HttpResponse(content_type="text/csv")
+    response["Content-Disposition"] = 'attachment; filename="macro_leads_manychat.csv"'
+
+    writer = csv.writer(response)
+    writer.writerow([label for _, label in MANYCHAT_EXPORT_COLUMNS])
+    for item in rows:
+        writer.writerow([_export_cell_value(item, field) for field, _ in MANYCHAT_EXPORT_COLUMNS])
+    return response
+
+
+@login_required
+@user_passes_test(_staff_access)
+def macro_blocked_city_add(request):
+    if request.method != "POST":
+        return redirect("macro_list")
+    name = (request.POST.get("city_name") or "").strip()
+    if not name:
+        messages.error(request, "Informe o nome da cidade para bloquear.")
+        return _filtered_delete_redirect(request.POST)
+    normalized = normalize_city_name(name)
+    if not normalized:
+        messages.error(request, "Nome de cidade invalido.")
+        return _filtered_delete_redirect(request.POST)
+    try:
+        with transaction.atomic():
+            BlockedCity.objects.create(name=name, normalized_name=normalized)
+        messages.success(request, f'Cidade "{name}" adicionada a lista de bloqueio.')
+    except IntegrityError:
+        messages.warning(request, f'Cidade "{name}" ja estava na lista de bloqueio.')
+    return _filtered_delete_redirect(request.POST)
+
+
+@login_required
+@user_passes_test(_staff_access)
+def macro_blocked_city_delete(request, city_id: int):
+    if request.method != "POST":
+        return redirect("macro_list")
+    deleted_count, _ = BlockedCity.objects.filter(id=city_id).delete()
+    if deleted_count:
+        messages.success(request, "Cidade removida da lista de bloqueio.")
+    else:
+        messages.error(request, "Cidade nao encontrada.")
+    return _filtered_delete_redirect(request.POST)
 
 
 @login_required

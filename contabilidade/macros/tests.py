@@ -1082,7 +1082,7 @@ class MacroScreenTests(TestCase):
         self.assertEqual(run.status, "error")
         self.assertIsNotNone(run.finished_at)
 
-    def test_blocked_city_hides_lead_from_list_and_export(self):
+    def test_blocked_city_only_affects_manychat_export(self):
         MacroLead.objects.create(
             source="api", city="Bloqueada", establishment_name="Loja Bloqueada", unique_key="bc-1"
         )
@@ -1091,15 +1091,22 @@ class MacroScreenTests(TestCase):
         )
         BlockedCity.objects.create(name="Bloqueada")
 
+        # Lista geral e outras exportacoes NAO sao afetadas pelo bloqueio.
         resp = self.client.get(reverse("macro_list"))
         body = resp.content.decode("utf-8")
         self.assertIn("Loja Liberada", body)
-        self.assertNotIn("Loja Bloqueada", body)
+        self.assertIn("Loja Bloqueada", body)
 
         export_resp = self.client.get(reverse("macro_export_csv"))
         export_body = export_resp.content.decode("utf-8")
         self.assertIn("Loja Liberada", export_body)
-        self.assertNotIn("Loja Bloqueada", export_body)
+        self.assertIn("Loja Bloqueada", export_body)
+
+        # So a exportacao ManyChat exclui a cidade bloqueada.
+        manychat_resp = self.client.get(reverse("macro_export_manychat"))
+        manychat_body = manychat_resp.content.decode("utf-8")
+        self.assertIn("Loja Liberada", manychat_body)
+        self.assertNotIn("Loja Bloqueada", manychat_body)
 
     def test_blocked_city_add_normalizes_accents_and_case(self):
         resp = self.client.post(reverse("macro_blocked_city_add"), data={"city_name": "São Paulo"})

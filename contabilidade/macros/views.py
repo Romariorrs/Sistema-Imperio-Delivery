@@ -113,10 +113,15 @@ def _base_macrolead_queryset():
     missing_fields = [field for field in OPTIONAL_DB_FIELDS if field not in _macrolead_db_columns()]
     if missing_fields:
         queryset = queryset.defer(*missing_fields)
-    blocked = _blocked_city_normalized_names()
-    if blocked:
-        queryset = queryset.annotate(_city_lower=Lower("city")).exclude(_city_lower__in=blocked)
     return queryset
+
+
+def _exclude_blocked_cities(queryset):
+    """Cidades bloqueadas so afetam a exportacao para o ManyChat."""
+    blocked = _blocked_city_normalized_names()
+    if not blocked:
+        return queryset
+    return queryset.annotate(_city_lower=Lower("city")).exclude(_city_lower__in=blocked)
 
 
 @lru_cache(maxsize=1)
@@ -917,7 +922,7 @@ def macro_export_xlsx(request):
 @login_required
 @user_passes_test(_staff_access)
 def macro_export_manychat(request):
-    queryset = _apply_filters(request)
+    queryset = _exclude_blocked_cities(_apply_filters(request))
     export_limit = _parse_export_limit(request.GET)
     if export_limit:
         queryset = queryset[:export_limit]

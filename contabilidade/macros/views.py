@@ -866,10 +866,11 @@ def macro_export_csv(request):
         now = timezone.now()
         batch_id = str(uuid.uuid4())
         ids = [item.id for item in rows]
-        MacroLead.objects.filter(id__in=ids).update(exported_at=now, export_batch_id=batch_id)
+        MacroLead.objects.filter(id__in=ids).update(exported_at=now, export_batch_id=batch_id, export_channel="csv")
         for item in rows:
             item.exported_at = now
             item.export_batch_id = batch_id
+            item.export_channel = "csv"
 
     response = HttpResponse(content_type="text/csv")
     response["Content-Disposition"] = 'attachment; filename="macro_leads.csv"'
@@ -898,10 +899,11 @@ def macro_export_xlsx(request):
         now = timezone.now()
         batch_id = str(uuid.uuid4())
         ids = [item.id for item in rows]
-        MacroLead.objects.filter(id__in=ids).update(exported_at=now, export_batch_id=batch_id)
+        MacroLead.objects.filter(id__in=ids).update(exported_at=now, export_batch_id=batch_id, export_channel="xlsx")
         for item in rows:
             item.exported_at = now
             item.export_batch_id = batch_id
+            item.export_channel = "xlsx"
 
     response = HttpResponse(
         content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -932,10 +934,11 @@ def macro_export_manychat(request):
         now = timezone.now()
         batch_id = str(uuid.uuid4())
         ids = [item.id for item in rows]
-        MacroLead.objects.filter(id__in=ids).update(exported_at=now, export_batch_id=batch_id)
+        MacroLead.objects.filter(id__in=ids).update(exported_at=now, export_batch_id=batch_id, export_channel="manychat")
         for item in rows:
             item.exported_at = now
             item.export_batch_id = batch_id
+            item.export_channel = "manychat"
 
     response = HttpResponse(content_type="text/csv")
     response["Content-Disposition"] = 'attachment; filename="macro_leads_manychat.csv"'

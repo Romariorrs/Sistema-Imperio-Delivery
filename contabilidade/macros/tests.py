@@ -526,8 +526,10 @@ class MacroScreenTests(TestCase):
         lead_pending.refresh_from_db()
         self.assertIsNotNone(lead_exported.exported_at)
         self.assertTrue(lead_exported.export_batch_id)
+        self.assertEqual(lead_exported.export_channel, "csv")
         self.assertIsNone(lead_pending.exported_at)
         self.assertEqual(lead_pending.export_batch_id, "")
+        self.assertEqual(lead_pending.export_channel, "")
 
         exported_resp = self.client.get(reverse("macro_list"), data={"export_status": "exported"})
         exported_names = {
@@ -568,6 +570,50 @@ class MacroScreenTests(TestCase):
         lead.refresh_from_db()
         self.assertIsNone(lead.exported_at)
         self.assertEqual(lead.export_batch_id, "")
+
+    def test_export_xlsx_marca_export_channel_xlsx(self):
+        lead = MacroLead.objects.create(
+            source="api",
+            city="Curitiba",
+            target_region="Leste",
+            establishment_name="Loja Xlsx Canal",
+            representative_name="Debora",
+            contract_status="Ativo",
+            representative_phone="41999998888",
+            representative_phone_norm="5541999998888",
+            company_category="Sorvetes",
+            address="Rua Teste 4",
+            unique_key="exp-canal-xlsx",
+        )
+        resp = self.client.get(
+            reverse("macro_export_xlsx"),
+            data={"q": "Loja Xlsx Canal", "mark_exported": "1", "export_fields": ["establishment_name"]},
+        )
+        self.assertEqual(resp.status_code, 200)
+        lead.refresh_from_db()
+        self.assertEqual(lead.export_channel, "xlsx")
+
+    def test_export_manychat_marca_export_channel_manychat(self):
+        lead = MacroLead.objects.create(
+            source="api",
+            city="Salvador",
+            target_region="Oeste",
+            establishment_name="Loja Manychat Canal",
+            representative_name="Erica",
+            contract_status="Ativo",
+            representative_phone="71999998888",
+            representative_phone_norm="5571999998888",
+            company_category="Acai",
+            address="Rua Teste 5",
+            unique_key="exp-canal-manychat",
+        )
+        resp = self.client.get(
+            reverse("macro_export_manychat"),
+            data={"q": "Loja Manychat Canal", "mark_exported": "1"},
+        )
+        self.assertEqual(resp.status_code, 200)
+        lead.refresh_from_db()
+        self.assertEqual(lead.export_channel, "manychat")
 
     def test_download_local_agent_files(self):
         exe_resp = self.client.get(reverse("macro_download_local_agent_exe"))

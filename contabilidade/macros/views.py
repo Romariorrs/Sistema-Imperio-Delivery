@@ -926,6 +926,10 @@ def macro_export_xlsx(request):
 @user_passes_test(_staff_access)
 def macro_export_manychat(request):
     queryset = _exclude_blocked_cities(_apply_filters(request))
+    if _macrolead_has_columns("representative_phone_norm"):
+        # Sem telefone o ManyChat nao consegue criar/atualizar o contato (ele
+        # so ignora a linha) - nao faz sentido gastar cota de importacao com isso.
+        queryset = queryset.exclude(representative_phone_norm="")
     export_limit = _parse_export_limit(request.GET)
     if export_limit:
         queryset = queryset[:export_limit]

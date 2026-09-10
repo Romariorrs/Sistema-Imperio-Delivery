@@ -1133,7 +1133,11 @@ class MacroScreenTests(TestCase):
             source="api", city="Bloqueada", establishment_name="Loja Bloqueada", unique_key="bc-1"
         )
         MacroLead.objects.create(
-            source="api", city="Recife", establishment_name="Loja Liberada", unique_key="bc-2"
+            source="api",
+            city="Recife",
+            establishment_name="Loja Liberada",
+            representative_phone_norm="5581999998888",
+            unique_key="bc-2",
         )
         BlockedCity.objects.create(name="Bloqueada")
 
@@ -1222,6 +1226,29 @@ class MacroScreenTests(TestCase):
             rows[1],
             ["12345", "5581999998888", "Loja ManyChat", "Rua Teste, 100", "Foto da fachada,Numero de itens"],
         )
+
+    def test_export_manychat_pula_leads_sem_telefone(self):
+        MacroLead.objects.create(
+            source="api",
+            store_id="11111",
+            city="Recife",
+            establishment_name="Loja Com Telefone",
+            representative_phone_norm="5581999998888",
+            unique_key="com-telefone-1",
+        )
+        MacroLead.objects.create(
+            source="api",
+            store_id="22222",
+            city="Recife",
+            establishment_name="Loja Sem Telefone",
+            representative_phone_norm="",
+            unique_key="sem-telefone-1",
+        )
+
+        resp = self.client.get(reverse("macro_export_manychat"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b"Loja Com Telefone", resp.content)
+        self.assertNotIn(b"Loja Sem Telefone", resp.content)
 
 
 class MacroDriverBootstrapTests(TestCase):

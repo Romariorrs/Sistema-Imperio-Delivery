@@ -110,7 +110,7 @@ def _blocked_cities_list():
 def _base_macrolead_queryset():
     if not _macrolead_table_ready():
         return MacroLead.objects.none()
-    queryset = MacroLead.objects.all()
+    queryset = MacroLead.objects.exclude(establishment_name__startswith="Test-")
     missing_fields = [field for field in OPTIONAL_DB_FIELDS if field not in _macrolead_db_columns()]
     if missing_fields:
         queryset = queryset.defer(*missing_fields)

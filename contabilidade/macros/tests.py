@@ -1172,6 +1172,36 @@ class MacroScreenTests(TestCase):
         self.assertEqual(resp.status_code, 302)
         self.assertFalse(BlockedCity.objects.filter(id=city.id).exists())
 
+    def test_leads_de_teste_do_coletor_nao_aparecem_em_nenhuma_tela_ou_exportacao(self):
+        MacroLead.objects.create(
+            source="api",
+            store_id="99999",
+            city="Recife",
+            establishment_name="Test-1788937355 ek hr hm Tl cl",
+            representative_phone="00016717434",
+            representative_phone_norm="5500016717434",
+            unique_key="lead-de-teste-1",
+        )
+        MacroLead.objects.create(
+            source="api",
+            store_id="88888",
+            city="Recife",
+            establishment_name="Loja Real",
+            representative_phone_norm="5581999998888",
+            unique_key="lead-real-1",
+        )
+
+        list_resp = self.client.get(reverse("macro_list"))
+        self.assertNotIn(b"Test-1788937355", list_resp.content)
+        self.assertIn(b"Loja Real", list_resp.content)
+
+        csv_resp = self.client.get(reverse("macro_export_csv"))
+        self.assertNotIn(b"Test-1788937355", csv_resp.content)
+
+        manychat_resp = self.client.get(reverse("macro_export_manychat"))
+        self.assertNotIn(b"Test-1788937355", manychat_resp.content)
+        self.assertIn(b"Loja Real", manychat_resp.content)
+
     def test_export_manychat_has_fixed_columns_in_order(self):
         MacroLead.objects.create(
             source="api",

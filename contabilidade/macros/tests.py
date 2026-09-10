@@ -1179,16 +1179,18 @@ class MacroScreenTests(TestCase):
             city="Recife",
             establishment_name="Loja ManyChat",
             address="Rua Teste, 100",
+            representative_phone="(81) 99999-8888",
+            representative_phone_norm="5581999998888",
             rtbo_pending_checklist="Foto da fachada,Numero de itens",
         )
         resp = self.client.get(reverse("macro_export_manychat"))
         self.assertEqual(resp.status_code, 200)
         reader = csv_reader.reader(resp.content.decode("utf-8").splitlines())
         rows = list(reader)
-        self.assertEqual(rows[0], ["ID LOJA", "NOME Restaurante", "Endereco", "RTBO pendente"])
+        self.assertEqual(rows[0], ["ID LOJA", "Telefone", "NOME Restaurante", "Endereco", "RTBO pendente"])
         self.assertEqual(
             rows[1],
-            ["12345", "Loja ManyChat", "Rua Teste, 100", "Foto da fachada,Numero de itens"],
+            ["12345", "5581999998888", "Loja ManyChat", "Rua Teste, 100", "Foto da fachada,Numero de itens"],
         )
 
 

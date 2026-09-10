@@ -32,6 +32,7 @@ from .services import EXPORT_COLUMNS, upsert_rows
 
 MANYCHAT_EXPORT_COLUMNS = (
     ("store_id", "ID LOJA"),
+    ("representative_phone_norm", "Telefone"),
     ("establishment_name", "NOME Restaurante"),
     ("address", "Endereco"),
     ("rtbo_pending_checklist", "RTBO pendente"),

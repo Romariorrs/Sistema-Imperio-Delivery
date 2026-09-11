@@ -605,6 +605,7 @@ class MacroScreenTests(TestCase):
             representative_phone_norm="5571999998888",
             company_category="Acai",
             address="Rua Teste 5",
+            rtbo_pending_checklist="Foto da fachada",
             unique_key="exp-canal-manychat",
         )
         resp = self.client.get(
@@ -1137,6 +1138,7 @@ class MacroScreenTests(TestCase):
             city="Recife",
             establishment_name="Loja Liberada",
             representative_phone_norm="5581999998888",
+            rtbo_pending_checklist="Foto da fachada",
             unique_key="bc-2",
         )
         BlockedCity.objects.create(name="Bloqueada")
@@ -1192,6 +1194,7 @@ class MacroScreenTests(TestCase):
             city="Recife",
             establishment_name="Loja Real",
             representative_phone_norm="5581999998888",
+            rtbo_pending_checklist="Foto da fachada",
             unique_key="lead-real-1",
         )
 
@@ -1234,6 +1237,7 @@ class MacroScreenTests(TestCase):
             city="Recife",
             establishment_name="Loja Com Telefone",
             representative_phone_norm="5581999998888",
+            rtbo_pending_checklist="Foto da fachada",
             unique_key="com-telefone-1",
         )
         MacroLead.objects.create(
@@ -1249,6 +1253,41 @@ class MacroScreenTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertIn(b"Loja Com Telefone", resp.content)
         self.assertNotIn(b"Loja Sem Telefone", resp.content)
+
+    def test_export_manychat_pula_leads_sem_rtbo_pendente(self):
+        MacroLead.objects.create(
+            source="api",
+            store_id="33333",
+            city="Recife",
+            establishment_name="Loja Com Pendencia",
+            representative_phone_norm="5581999998888",
+            rtbo_pending_checklist="Foto da fachada da loja",
+            unique_key="com-pendencia-1",
+        )
+        MacroLead.objects.create(
+            source="api",
+            store_id="44444",
+            city="Recife",
+            establishment_name="Loja Sem Pendencia Traco",
+            representative_phone_norm="5581999997777",
+            rtbo_pending_checklist="-",
+            unique_key="sem-pendencia-traco-1",
+        )
+        MacroLead.objects.create(
+            source="api",
+            store_id="55555",
+            city="Recife",
+            establishment_name="Loja Sem Pendencia Vazia",
+            representative_phone_norm="5581999996666",
+            rtbo_pending_checklist="",
+            unique_key="sem-pendencia-vazia-1",
+        )
+
+        resp = self.client.get(reverse("macro_export_manychat"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b"Loja Com Pendencia", resp.content)
+        self.assertNotIn(b"Loja Sem Pendencia Traco", resp.content)
+        self.assertNotIn(b"Loja Sem Pendencia Vazia", resp.content)
 
 
 class MacroDriverBootstrapTests(TestCase):

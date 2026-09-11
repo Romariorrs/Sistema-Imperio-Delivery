@@ -930,6 +930,10 @@ def macro_export_manychat(request):
         # Sem telefone o ManyChat nao consegue criar/atualizar o contato (ele
         # so ignora a linha) - nao faz sentido gastar cota de importacao com isso.
         queryset = queryset.exclude(representative_phone_norm="")
+    if _macrolead_has_columns("rtbo_pending_checklist"):
+        # "-" e o vazio real do coletor (sem RTBO pendente registrado) - sem
+        # nenhuma pendencia, nao ha o que cobrar do lead nessa campanha.
+        queryset = queryset.exclude(rtbo_pending_checklist="").exclude(rtbo_pending_checklist="-")
     export_limit = _parse_export_limit(request.GET)
     if export_limit:
         queryset = queryset[:export_limit]

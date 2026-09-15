@@ -385,6 +385,7 @@
                     <input type="hidden" name="lead_date_from" value="{{ request.GET.lead_date_from }}">
                     <input type="hidden" name="lead_date_to" value="{{ request.GET.lead_date_to }}">
                     <input type="hidden" name="rtbo_contains" value="{{ request.GET.rtbo_contains }}">
+                    <input type="hidden" name="rtbo_match" value="{{ request.GET.rtbo_match }}">
                     <input type="text" name="confirm_text" placeholder="EXCLUIR" required>
                     <button class="btn danger" type="submit" onclick="return confirm('Excluir os dados filtrados agora?')">Excluir filtrados</button>
                 </form>
@@ -407,6 +408,7 @@
                     <input type="hidden" name="lead_date_from" value="{{ request.GET.lead_date_from }}">
                     <input type="hidden" name="lead_date_to" value="{{ request.GET.lead_date_to }}">
                     <input type="hidden" name="rtbo_contains" value="{{ request.GET.rtbo_contains }}">
+                    <input type="hidden" name="rtbo_match" value="{{ request.GET.rtbo_match }}">
                     <input type="text" name="confirm_text" placeholder="EXCLUIR BLOQUEADOS" required>
                     <button class="btn danger" type="submit" onclick="return confirm('Excluir apenas os bloqueados deste filtro?')">Excluir bloqueados</button>
                 </form>
@@ -744,8 +746,15 @@
             {% endif %}
             {% if rtbo_enabled %}
                 <div>
-                    <label>RTBO contem</label>
-                    <input type="text" name="rtbo_contains" value="{{ request.GET.rtbo_contains }}" placeholder="liquidação">
+                    <label>RTBO</label>
+                    <select name="rtbo_match">
+                        <option value="contains" {% if request.GET.rtbo_match != "exact" %}selected{% endif %}>Contem</option>
+                        <option value="exact" {% if request.GET.rtbo_match == "exact" %}selected{% endif %}>E exatamente</option>
+                    </select>
+                </div>
+                <div>
+                    <label>&nbsp;</label>
+                    <input type="text" name="rtbo_contains" value="{{ request.GET.rtbo_contains }}" placeholder="Informações da liquidação">
                 </div>
             {% endif %}
             <div class="macro-filter-actions">
@@ -821,6 +830,7 @@
                         <input type="hidden" name="lead_date_from" value="{{ request.GET.lead_date_from }}">
                         <input type="hidden" name="lead_date_to" value="{{ request.GET.lead_date_to }}">
                         <input type="hidden" name="rtbo_contains" value="{{ request.GET.rtbo_contains }}">
+                    <input type="hidden" name="rtbo_match" value="{{ request.GET.rtbo_match }}">
                         <span>{{ city.name }}</span>
                         <button type="submit" title="Remover" onclick="return confirm('Remover {{ city.name }} da lista de bloqueio?')">&times;</button>
                     </form>
@@ -843,6 +853,7 @@
                 <input type="hidden" name="lead_date_from" value="{{ request.GET.lead_date_from }}">
                 <input type="hidden" name="lead_date_to" value="{{ request.GET.lead_date_to }}">
                 <input type="hidden" name="rtbo_contains" value="{{ request.GET.rtbo_contains }}">
+                    <input type="hidden" name="rtbo_match" value="{{ request.GET.rtbo_match }}">
                 <input type="text" name="city_name" placeholder="Nome da cidade" required>
                 <button class="btn secondary macro-orbit" type="submit">Adicionar cidade bloqueada</button>
             </form>
@@ -959,6 +970,7 @@
                                             <input type="hidden" name="lead_date_from" value="{{ request.GET.lead_date_from }}">
                                             <input type="hidden" name="lead_date_to" value="{{ request.GET.lead_date_to }}">
                                             <input type="hidden" name="rtbo_contains" value="{{ request.GET.rtbo_contains }}">
+                    <input type="hidden" name="rtbo_match" value="{{ request.GET.rtbo_match }}">
                                             <button class="btn ghost" type="submit">Desbloquear</button>
                                         </form>
                                     {% else %}
@@ -977,6 +989,7 @@
                                             <input type="hidden" name="lead_date_from" value="{{ request.GET.lead_date_from }}">
                                             <input type="hidden" name="lead_date_to" value="{{ request.GET.lead_date_to }}">
                                             <input type="hidden" name="rtbo_contains" value="{{ request.GET.rtbo_contains }}">
+                    <input type="hidden" name="rtbo_match" value="{{ request.GET.rtbo_match }}">
                                             <button class="btn danger" type="submit">Bloquear</button>
                                         </form>
                                     {% endif %}

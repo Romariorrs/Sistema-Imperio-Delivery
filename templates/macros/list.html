@@ -384,6 +384,7 @@
                     <input type="hidden" name="export_status" value="{{ request.GET.export_status }}">
                     <input type="hidden" name="lead_date_from" value="{{ request.GET.lead_date_from }}">
                     <input type="hidden" name="lead_date_to" value="{{ request.GET.lead_date_to }}">
+                    <input type="hidden" name="rtbo_contains" value="{{ request.GET.rtbo_contains }}">
                     <input type="text" name="confirm_text" placeholder="EXCLUIR" required>
                     <button class="btn danger" type="submit" onclick="return confirm('Excluir os dados filtrados agora?')">Excluir filtrados</button>
                 </form>
@@ -405,6 +406,7 @@
                     <input type="hidden" name="export_status" value="{{ request.GET.export_status }}">
                     <input type="hidden" name="lead_date_from" value="{{ request.GET.lead_date_from }}">
                     <input type="hidden" name="lead_date_to" value="{{ request.GET.lead_date_to }}">
+                    <input type="hidden" name="rtbo_contains" value="{{ request.GET.rtbo_contains }}">
                     <input type="text" name="confirm_text" placeholder="EXCLUIR BLOQUEADOS" required>
                     <button class="btn danger" type="submit" onclick="return confirm('Excluir apenas os bloqueados deste filtro?')">Excluir bloqueados</button>
                 </form>
@@ -740,6 +742,12 @@
                     <input type="date" name="lead_date_to" value="{{ selected_lead_date_to }}">
                 </div>
             {% endif %}
+            {% if rtbo_enabled %}
+                <div>
+                    <label>RTBO contem</label>
+                    <input type="text" name="rtbo_contains" value="{{ request.GET.rtbo_contains }}" placeholder="liquidação">
+                </div>
+            {% endif %}
             <div class="macro-filter-actions">
                 <button class="btn macro-orbit" type="submit">Filtrar</button>
                 <a class="btn secondary macro-orbit" href="{% url 'macro_list' %}">Limpar</a>
@@ -812,6 +820,7 @@
                         <input type="hidden" name="export_status" value="{{ request.GET.export_status }}">
                         <input type="hidden" name="lead_date_from" value="{{ request.GET.lead_date_from }}">
                         <input type="hidden" name="lead_date_to" value="{{ request.GET.lead_date_to }}">
+                        <input type="hidden" name="rtbo_contains" value="{{ request.GET.rtbo_contains }}">
                         <span>{{ city.name }}</span>
                         <button type="submit" title="Remover" onclick="return confirm('Remover {{ city.name }} da lista de bloqueio?')">&times;</button>
                     </form>
@@ -833,6 +842,7 @@
                 <input type="hidden" name="export_status" value="{{ request.GET.export_status }}">
                 <input type="hidden" name="lead_date_from" value="{{ request.GET.lead_date_from }}">
                 <input type="hidden" name="lead_date_to" value="{{ request.GET.lead_date_to }}">
+                <input type="hidden" name="rtbo_contains" value="{{ request.GET.rtbo_contains }}">
                 <input type="text" name="city_name" placeholder="Nome da cidade" required>
                 <button class="btn secondary macro-orbit" type="submit">Adicionar cidade bloqueada</button>
             </form>
@@ -948,6 +958,7 @@
                                             <input type="hidden" name="export_status" value="{{ request.GET.export_status }}">
                                             <input type="hidden" name="lead_date_from" value="{{ request.GET.lead_date_from }}">
                                             <input type="hidden" name="lead_date_to" value="{{ request.GET.lead_date_to }}">
+                                            <input type="hidden" name="rtbo_contains" value="{{ request.GET.rtbo_contains }}">
                                             <button class="btn ghost" type="submit">Desbloquear</button>
                                         </form>
                                     {% else %}
@@ -965,6 +976,7 @@
                                             <input type="hidden" name="export_status" value="{{ request.GET.export_status }}">
                                             <input type="hidden" name="lead_date_from" value="{{ request.GET.lead_date_from }}">
                                             <input type="hidden" name="lead_date_to" value="{{ request.GET.lead_date_to }}">
+                                            <input type="hidden" name="rtbo_contains" value="{{ request.GET.rtbo_contains }}">
                                             <button class="btn danger" type="submit">Bloquear</button>
                                         </form>
                                     {% endif %}

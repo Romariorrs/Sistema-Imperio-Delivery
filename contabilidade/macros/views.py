@@ -226,6 +226,8 @@ def _apply_filters(request=None, queryset=None, params=None):
     lead_date_from = (params.get("lead_date_from") or "").strip()
     lead_date_to = (params.get("lead_date_to") or "").strip()
     lead_date_from, lead_date_to = _coerce_date_range(lead_date_from, lead_date_to)
+    rtbo_contains = (params.get("rtbo_contains") or "").strip()
+    rtbo_enabled = _macrolead_has_columns("rtbo_pending_checklist")
     phone_norm_enabled = _macrolead_has_columns("representative_phone_norm")
     blocked_enabled = _macrolead_has_columns("is_blocked_number")
     business_99_enabled = _macrolead_has_columns("business_99_status")
@@ -316,6 +318,8 @@ def _apply_filters(request=None, queryset=None, params=None):
         queryset = queryset.filter(lead_created_at__date__gte=lead_date_from)
     if lead_created_at_enabled and lead_date_to:
         queryset = queryset.filter(lead_created_at__date__lte=lead_date_to)
+    if rtbo_enabled and rtbo_contains:
+        queryset = queryset.filter(rtbo_pending_checklist__icontains=rtbo_contains)
     return queryset.order_by("-last_seen_at", "-id")
 
 
@@ -343,6 +347,7 @@ def _filtered_delete_redirect(params):
             "export_status",
             "lead_date_from",
             "lead_date_to",
+            "rtbo_contains",
         )
     }
     cleaned = {k: v for k, v in cleaned.items() if v}

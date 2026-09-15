@@ -929,6 +929,28 @@ class MacroScreenTests(TestCase):
         self.assertIn("Loja Sem Rep", names)
         self.assertIn("Loja Sem Rep Traco", names)
 
+    def test_filter_by_rtbo_contains(self):
+        MacroLead.objects.create(
+            source="api",
+            city="Rio",
+            establishment_name="Loja Com Liquidacao",
+            rtbo_pending_checklist="Foto da fachada da loja,Informações da liquidação",
+            unique_key="rtbo-filter-1",
+        )
+        MacroLead.objects.create(
+            source="api",
+            city="Sao Paulo",
+            establishment_name="Loja Sem Liquidacao",
+            rtbo_pending_checklist="Foto da fachada da loja,Numero de itens",
+            unique_key="rtbo-filter-2",
+        )
+
+        resp = self.client.get(reverse("macro_list"), data={"rtbo_contains": "liquidação"})
+        page = list(resp.context["page_obj"].object_list)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(len(page), 1)
+        self.assertEqual(page[0].establishment_name, "Loja Com Liquidacao")
+
     def test_filter_by_ddd_accepts_multiple_values(self):
         MacroLead.objects.create(
             source="api",

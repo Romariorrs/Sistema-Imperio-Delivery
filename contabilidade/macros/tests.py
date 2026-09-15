@@ -1289,6 +1289,33 @@ class MacroScreenTests(TestCase):
         self.assertNotIn(b"Loja Sem Pendencia Traco", resp.content)
         self.assertNotIn(b"Loja Sem Pendencia Vazia", resp.content)
 
+    def test_export_manychat_pula_leads_com_contrato_recusado(self):
+        MacroLead.objects.create(
+            source="api",
+            store_id="66666",
+            city="Recife",
+            establishment_name="Loja Contrato Assinado",
+            representative_phone_norm="5581999995555",
+            rtbo_pending_checklist="Foto da fachada",
+            contract_status="Assinado",
+            unique_key="contrato-assinado-1",
+        )
+        MacroLead.objects.create(
+            source="api",
+            store_id="77777",
+            city="Recife",
+            establishment_name="Loja Contrato Recusado",
+            representative_phone_norm="5581999994444",
+            rtbo_pending_checklist="Foto da fachada",
+            contract_status="Recusada",
+            unique_key="contrato-recusado-1",
+        )
+
+        resp = self.client.get(reverse("macro_export_manychat"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b"Loja Contrato Assinado", resp.content)
+        self.assertNotIn(b"Loja Contrato Recusado", resp.content)
+
 
 class MacroDriverBootstrapTests(TestCase):
     @patch("contabilidade.macros.collector.webdriver.Chrome")

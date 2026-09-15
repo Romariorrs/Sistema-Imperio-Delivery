@@ -934,6 +934,9 @@ def macro_export_manychat(request):
         # "-" e o vazio real do coletor (sem RTBO pendente registrado) - sem
         # nenhuma pendencia, nao ha o que cobrar do lead nessa campanha.
         queryset = queryset.exclude(rtbo_pending_checklist="").exclude(rtbo_pending_checklist="-")
+    if _macrolead_has_columns("contract_status"):
+        # Lead com contrato recusado nao serve pra essa campanha do ManyChat.
+        queryset = queryset.exclude(contract_status="Recusada")
     export_limit = _parse_export_limit(request.GET)
     if export_limit:
         queryset = queryset[:export_limit]

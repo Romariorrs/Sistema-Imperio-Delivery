@@ -714,6 +714,11 @@ def macro_list(request):
             }
         last_capture_at = all_queryset.order_by("-last_seen_at").values_list("last_seen_at", flat=True).first()
         filtered_count = filtered_queryset.count()
+        filtered_manychat_exported_count = (
+            filtered_queryset.filter(export_channel="manychat").count()
+            if _export_tracking_enabled()
+            else 0
+        )
         cities = _base_macrolead_queryset().exclude(city="").values_list("city", flat=True).distinct().order_by("city")
         contract_statuses = (
             _base_macrolead_queryset().exclude(contract_status="")
@@ -742,6 +747,7 @@ def macro_list(request):
         }
         last_capture_at = None
         filtered_count = 0
+        filtered_manychat_exported_count = 0
         cities = []
         contract_statuses = []
         categories = []
@@ -761,6 +767,7 @@ def macro_list(request):
         "active_tab": "database",
         "page_obj": page_obj,
         "filtered_count": filtered_count,
+        "filtered_manychat_exported_count": filtered_manychat_exported_count,
         "cities": cities,
         "contract_statuses": contract_statuses,
         "business_99_statuses": business_99_statuses,

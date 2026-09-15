@@ -976,6 +976,38 @@ class MacroScreenTests(TestCase):
         self.assertEqual(len(page), 1)
         self.assertEqual(page[0].establishment_name, "Loja So Liquidacao")
 
+    def test_filtered_manychat_exported_count(self):
+        MacroLead.objects.create(
+            source="api",
+            city="Recife",
+            establishment_name="Loja Ja No ManyChat",
+            representative_phone_norm="5581999991111",
+            exported_at=timezone.now(),
+            export_channel="manychat",
+            unique_key="manychat-count-1",
+        )
+        MacroLead.objects.create(
+            source="api",
+            city="Recife",
+            establishment_name="Loja Exportada Via CSV",
+            representative_phone_norm="5581999992222",
+            exported_at=timezone.now(),
+            export_channel="csv",
+            unique_key="manychat-count-2",
+        )
+        MacroLead.objects.create(
+            source="api",
+            city="Recife",
+            establishment_name="Loja Nunca Exportada",
+            representative_phone_norm="5581999993333",
+            unique_key="manychat-count-3",
+        )
+
+        resp = self.client.get(reverse("macro_list"), data={"city": "Recife"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.context["filtered_count"], 3)
+        self.assertEqual(resp.context["filtered_manychat_exported_count"], 1)
+
     def test_filter_by_ddd_accepts_multiple_values(self):
         MacroLead.objects.create(
             source="api",

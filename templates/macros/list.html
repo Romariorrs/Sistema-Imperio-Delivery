@@ -864,7 +864,12 @@
 
     <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
-            <h3 style="margin:0;">Resultados filtrados: {{ filtered_count }}</h3>
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                <h3 style="margin:0;">Resultados filtrados: {{ filtered_count }}</h3>
+                {% if export_tracking_enabled %}
+                    <span class="macro-tag" title="Quantos desses resultados ja foram exportados para o ManyChat">Ja no ManyChat: {{ filtered_manychat_exported_count }}</span>
+                {% endif %}
+            </div>
             <div style="color:#9fb2d7;">Pagina {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</div>
         </div>
         <div class="table-wrap">

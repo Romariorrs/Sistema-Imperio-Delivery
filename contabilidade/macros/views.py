@@ -226,6 +226,9 @@ def _apply_filters(request=None, queryset=None, params=None):
     lead_date_from = (params.get("lead_date_from") or "").strip()
     lead_date_to = (params.get("lead_date_to") or "").strip()
     lead_date_from, lead_date_to = _coerce_date_range(lead_date_from, lead_date_to)
+    captured_date_from = (params.get("captured_date_from") or "").strip()
+    captured_date_to = (params.get("captured_date_to") or "").strip()
+    captured_date_from, captured_date_to = _coerce_date_range(captured_date_from, captured_date_to)
     rtbo_contains = (params.get("rtbo_contains") or "").strip()
     rtbo_match = (params.get("rtbo_match") or "").strip().lower()
     rtbo_enabled = _macrolead_has_columns("rtbo_pending_checklist")
@@ -319,6 +322,10 @@ def _apply_filters(request=None, queryset=None, params=None):
         queryset = queryset.filter(lead_created_at__date__gte=lead_date_from)
     if lead_created_at_enabled and lead_date_to:
         queryset = queryset.filter(lead_created_at__date__lte=lead_date_to)
+    if captured_date_from:
+        queryset = queryset.filter(first_seen_at__date__gte=captured_date_from)
+    if captured_date_to:
+        queryset = queryset.filter(first_seen_at__date__lte=captured_date_to)
     if rtbo_enabled and rtbo_contains:
         if rtbo_match == "exact":
             queryset = queryset.filter(rtbo_pending_checklist__iexact=rtbo_contains)
@@ -351,6 +358,8 @@ def _filtered_delete_redirect(params):
             "export_status",
             "lead_date_from",
             "lead_date_to",
+            "captured_date_from",
+            "captured_date_to",
             "rtbo_contains",
             "rtbo_match",
         )
@@ -762,6 +771,10 @@ def macro_list(request):
         (request.GET.get("lead_date_from") or "").strip(),
         (request.GET.get("lead_date_to") or "").strip(),
     )
+    selected_captured_date_from, selected_captured_date_to = _coerce_date_range(
+        (request.GET.get("captured_date_from") or "").strip(),
+        (request.GET.get("captured_date_to") or "").strip(),
+    )
 
     context = {
         "active_tab": "database",
@@ -801,6 +814,8 @@ def macro_list(request):
         "selected_mark_exported": (_parse_mark_exported(request.GET) if "mark_exported" in request.GET else True) and export_tracking_enabled,
         "selected_lead_date_from": selected_lead_date_from,
         "selected_lead_date_to": selected_lead_date_to,
+        "selected_captured_date_from": selected_captured_date_from,
+        "selected_captured_date_to": selected_captured_date_to,
         "export_tracking_enabled": export_tracking_enabled,
         "lead_table_ready": lead_table_ready,
         "run_table_ready": run_table_ready,

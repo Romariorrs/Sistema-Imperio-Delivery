@@ -1113,6 +1113,35 @@ class MacroScreenTests(TestCase):
         self.assertEqual(resp.context["selected_lead_date_from"], "2026-04-04")
         self.assertEqual(resp.context["selected_lead_date_to"], "2026-04-20")
 
+    def test_filter_by_captured_date_usa_first_seen_at(self):
+        lead_capturado_hoje = MacroLead.objects.create(
+            source="api",
+            city="Goiania",
+            establishment_name="Loja Capturada Hoje",
+            lead_created_at=timezone.make_aware(datetime(2026, 8, 5, 12, 0, 0)),
+            unique_key="captured-date-1",
+        )
+        MacroLead.objects.filter(pk=lead_capturado_hoje.pk).update(
+            first_seen_at=timezone.make_aware(datetime(2026, 9, 14, 10, 0, 0))
+        )
+        lead_capturado_antes = MacroLead.objects.create(
+            source="api",
+            city="Goiania",
+            establishment_name="Loja Capturada Antes",
+            unique_key="captured-date-2",
+        )
+        MacroLead.objects.filter(pk=lead_capturado_antes.pk).update(
+            first_seen_at=timezone.make_aware(datetime(2026, 8, 1, 10, 0, 0))
+        )
+
+        resp = self.client.get(
+            reverse("macro_list"),
+            data={"captured_date_from": "2026-09-14", "captured_date_to": "2026-09-14"},
+        )
+        self.assertEqual(resp.status_code, 200)
+        names = {item.establishment_name for item in resp.context["page_obj"].object_list}
+        self.assertEqual(names, {"Loja Capturada Hoje"})
+
     def test_export_csv_respects_representative_presence_filter(self):
         MacroLead.objects.create(
             source="api",

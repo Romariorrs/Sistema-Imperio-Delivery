@@ -384,6 +384,8 @@
                     <input type="hidden" name="export_status" value="{{ request.GET.export_status }}">
                     <input type="hidden" name="lead_date_from" value="{{ request.GET.lead_date_from }}">
                     <input type="hidden" name="lead_date_to" value="{{ request.GET.lead_date_to }}">
+                    <input type="hidden" name="captured_date_from" value="{{ request.GET.captured_date_from }}">
+                    <input type="hidden" name="captured_date_to" value="{{ request.GET.captured_date_to }}">
                     <input type="hidden" name="rtbo_contains" value="{{ request.GET.rtbo_contains }}">
                     <input type="hidden" name="rtbo_match" value="{{ request.GET.rtbo_match }}">
                     <input type="text" name="confirm_text" placeholder="EXCLUIR" required>
@@ -407,6 +409,8 @@
                     <input type="hidden" name="export_status" value="{{ request.GET.export_status }}">
                     <input type="hidden" name="lead_date_from" value="{{ request.GET.lead_date_from }}">
                     <input type="hidden" name="lead_date_to" value="{{ request.GET.lead_date_to }}">
+                    <input type="hidden" name="captured_date_from" value="{{ request.GET.captured_date_from }}">
+                    <input type="hidden" name="captured_date_to" value="{{ request.GET.captured_date_to }}">
                     <input type="hidden" name="rtbo_contains" value="{{ request.GET.rtbo_contains }}">
                     <input type="hidden" name="rtbo_match" value="{{ request.GET.rtbo_match }}">
                     <input type="text" name="confirm_text" placeholder="EXCLUIR BLOQUEADOS" required>
@@ -744,6 +748,14 @@
                     <input type="date" name="lead_date_to" value="{{ selected_lead_date_to }}">
                 </div>
             {% endif %}
+            <div>
+                <label>Capturado de (data)</label>
+                <input type="date" name="captured_date_from" value="{{ selected_captured_date_from }}">
+            </div>
+            <div>
+                <label>Capturado ate (data)</label>
+                <input type="date" name="captured_date_to" value="{{ selected_captured_date_to }}">
+            </div>
             {% if rtbo_enabled %}
                 <div>
                     <label>RTBO</label>
@@ -829,6 +841,8 @@
                         <input type="hidden" name="export_status" value="{{ request.GET.export_status }}">
                         <input type="hidden" name="lead_date_from" value="{{ request.GET.lead_date_from }}">
                         <input type="hidden" name="lead_date_to" value="{{ request.GET.lead_date_to }}">
+                    <input type="hidden" name="captured_date_from" value="{{ request.GET.captured_date_from }}">
+                    <input type="hidden" name="captured_date_to" value="{{ request.GET.captured_date_to }}">
                         <input type="hidden" name="rtbo_contains" value="{{ request.GET.rtbo_contains }}">
                     <input type="hidden" name="rtbo_match" value="{{ request.GET.rtbo_match }}">
                         <span>{{ city.name }}</span>
@@ -852,6 +866,8 @@
                 <input type="hidden" name="export_status" value="{{ request.GET.export_status }}">
                 <input type="hidden" name="lead_date_from" value="{{ request.GET.lead_date_from }}">
                 <input type="hidden" name="lead_date_to" value="{{ request.GET.lead_date_to }}">
+                    <input type="hidden" name="captured_date_from" value="{{ request.GET.captured_date_from }}">
+                    <input type="hidden" name="captured_date_to" value="{{ request.GET.captured_date_to }}">
                 <input type="hidden" name="rtbo_contains" value="{{ request.GET.rtbo_contains }}">
                     <input type="hidden" name="rtbo_match" value="{{ request.GET.rtbo_match }}">
                 <input type="text" name="city_name" placeholder="Nome da cidade" required>
@@ -974,6 +990,8 @@
                                             <input type="hidden" name="export_status" value="{{ request.GET.export_status }}">
                                             <input type="hidden" name="lead_date_from" value="{{ request.GET.lead_date_from }}">
                                             <input type="hidden" name="lead_date_to" value="{{ request.GET.lead_date_to }}">
+                    <input type="hidden" name="captured_date_from" value="{{ request.GET.captured_date_from }}">
+                    <input type="hidden" name="captured_date_to" value="{{ request.GET.captured_date_to }}">
                                             <input type="hidden" name="rtbo_contains" value="{{ request.GET.rtbo_contains }}">
                     <input type="hidden" name="rtbo_match" value="{{ request.GET.rtbo_match }}">
                                             <button class="btn ghost" type="submit">Desbloquear</button>
@@ -993,6 +1011,8 @@
                                             <input type="hidden" name="export_status" value="{{ request.GET.export_status }}">
                                             <input type="hidden" name="lead_date_from" value="{{ request.GET.lead_date_from }}">
                                             <input type="hidden" name="lead_date_to" value="{{ request.GET.lead_date_to }}">
+                    <input type="hidden" name="captured_date_from" value="{{ request.GET.captured_date_from }}">
+                    <input type="hidden" name="captured_date_to" value="{{ request.GET.captured_date_to }}">
                                             <input type="hidden" name="rtbo_contains" value="{{ request.GET.rtbo_contains }}">
                     <input type="hidden" name="rtbo_match" value="{{ request.GET.rtbo_match }}">
                                             <button class="btn danger" type="submit">Bloquear</button>

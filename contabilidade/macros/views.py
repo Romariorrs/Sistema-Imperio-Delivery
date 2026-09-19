@@ -1506,8 +1506,8 @@ def orders_growth_api_import(request):
         return JsonResponse({"ok": False, "detail": "Invalid JSON"}, status=400)
 
     period = str(payload.get("period") or "").strip() if isinstance(payload, dict) else ""
-    if not re.fullmatch(r"\d{4}-\d{2}", period or ""):
-        return JsonResponse({"ok": False, "detail": "Campo 'period' invalido (esperado AAAA-MM)"}, status=400)
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", period or ""):
+        return JsonResponse({"ok": False, "detail": "Campo 'period' invalido (esperado AAAA-MM-DD)"}, status=400)
 
     meta = payload.get("meta") if isinstance(payload, dict) and isinstance(payload.get("meta"), dict) else {}
     execution_id = str(meta.get("execution_id") or "").strip()

@@ -11,7 +11,7 @@ from urllib.parse import parse_qs, urlparse
 
 from contabilidade.macros.orders_growth_collector import build_driver, run_orders_growth
 
-VERSION = os.getenv("ORDERS_GROWTH_AGENT_VERSION", "2026.09.19-inicial").strip()
+VERSION = os.getenv("ORDERS_GROWTH_AGENT_VERSION", "2026.09.19-periodo-dia").strip()
 
 
 STATE_LOCK = threading.Lock()
@@ -125,7 +125,7 @@ def _run_collection_job(config):
 
         period = (config.get("period") or "").strip()
         if not period:
-            raise RuntimeError("Informe o periodo (formato AAAA-MM), igual esta selecionado na pagina do BI.")
+            raise RuntimeError("Informe o periodo (formato AAAA-MM-DD), igual esta selecionado na pagina do BI.")
 
         result = run_orders_growth(
             headless=_parse_bool(config.get("headless"), False),
@@ -180,7 +180,7 @@ def _start_job(config):
     if not (config.get("api_token") or "").strip():
         return False, "Informe API Token."
     if not (config.get("period") or "").strip():
-        return False, "Informe o periodo (AAAA-MM)."
+        return False, "Informe o periodo (AAAA-MM-DD)."
     existing = _get_browser_driver()
     if existing is None:
         return False, "Clique em 'Abrir pagina alvo' primeiro."
@@ -413,7 +413,7 @@ def _html_page(params):
     <div class="card steps">
       <p>1) Clique em "Abrir pagina alvo".</p>
       <p>2) Faca login e escolha o periodo desejado na tela do BI.</p>
-      <p>3) Volte aqui, informe o mesmo periodo abaixo (formato AAAA-MM) e clique em "Comecar coleta".</p>
+      <p>3) Volte aqui, informe o mesmo periodo abaixo (formato AAAA-MM-DD, um dia especifico) e clique em "Comecar coleta".</p>
       <p class="muted">Depois do primeiro login, a sessao fica salva neste computador. Esse coletor grava numa tabela separada, nao mistura com a Macro do 99Food.</p>
     </div>
     <div class="card">
@@ -428,8 +428,8 @@ def _html_page(params):
         <input name="profile_dir" value="{profile_dir}" required>
         <div class="row">
           <div>
-            <label>Periodo (AAAA-MM, igual selecionado na tela)</label>
-            <input name="period" value="{period}" placeholder="2026-08" required>
+            <label>Periodo (AAAA-MM-DD, igual selecionado na tela)</label>
+            <input name="period" value="{period}" placeholder="2026-08-15" required>
           </div>
           <div>
             <label>Login timeout (segundos)</label>

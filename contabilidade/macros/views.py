@@ -1449,6 +1449,31 @@ def orders_growth_download_local_agent_exe(request):
     return response
 
 
+ORDERS_GROWTH_EXPORT_COLUMNS = (
+    ("shop_id", "Shop ID"),
+    ("shop_name", "Loja"),
+    ("brand_id", "Brand ID"),
+    ("brand_name", "Marca"),
+    ("grupo_offline", "Grupo offline"),
+    ("bdm_online", "BDM online"),
+    ("bd_username_offline", "BD offline"),
+    ("period", "Periodo"),
+    ("complete_orders", "Pedidos concluidos"),
+    ("gmv", "GMV"),
+)
+
+
+def _orders_growth_filtered_queryset(request):
+    query = (request.GET.get("q") or "").strip()
+    period = (request.GET.get("period") or "").strip()
+    queryset = OrdersGrowthRecord.objects.all()
+    if query:
+        queryset = queryset.filter(Q(shop_id__icontains=query) | Q(shop_name__icontains=query))
+    if period:
+        queryset = queryset.filter(period=period)
+    return queryset.order_by("shop_name")
+
+
 @login_required
 @user_passes_test(_staff_access)
 def orders_growth_search(request):
@@ -1487,6 +1512,43 @@ def orders_growth_search(request):
         "token_configured": bool(settings.MACRO_API_TOKEN),
     }
     return render(request, "macros/orders_growth_search.html", context)
+
+
+@login_required
+@user_passes_test(_staff_access)
+def orders_growth_export_csv(request):
+    rows = _orders_growth_filtered_queryset(request)
+
+    response = HttpResponse(content_type="text/csv")
+    response["Content-Disposition"] = 'attachment; filename="orders_growth.csv"'
+
+    writer = csv.writer(response)
+    writer.writerow([label for _, label in ORDERS_GROWTH_EXPORT_COLUMNS])
+    for item in rows.iterator():
+        writer.writerow([getattr(item, field) for field, _ in ORDERS_GROWTH_EXPORT_COLUMNS])
+    return response
+
+
+@login_required
+@user_passes_test(_staff_access)
+def orders_growth_export_xlsx(request):
+    from openpyxl import Workbook
+
+    rows = _orders_growth_filtered_queryset(request)
+
+    response = HttpResponse(
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    response["Content-Disposition"] = 'attachment; filename="orders_growth.xlsx"'
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Orders Growth"
+    ws.append([label for _, label in ORDERS_GROWTH_EXPORT_COLUMNS])
+    for item in rows.iterator():
+        ws.append([getattr(item, field) for field, _ in ORDERS_GROWTH_EXPORT_COLUMNS])
+    wb.save(response)
+    return response
 
 
 @csrf_exempt

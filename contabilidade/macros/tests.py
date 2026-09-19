@@ -411,6 +411,44 @@ class OrdersGrowthSearchViewTests(TestCase):
         self.assertNotEqual(resp.status_code, 200)
 
 
+class OrdersGrowthExportTests(TestCase):
+    def setUp(self):
+        self.client = Client()
+        self.staff = User.objects.create_user(username="staff", password="pass123", is_staff=True)
+        self.client.force_login(self.staff)
+        OrdersGrowthRecord.objects.create(shop_id="555", shop_name="Loja A", period="2026-08-15")
+        OrdersGrowthRecord.objects.create(shop_id="556", shop_name="Loja B", period="2026-08-15")
+        OrdersGrowthRecord.objects.create(shop_id="557", shop_name="Loja C", period="2026-07-20")
+
+    def test_export_csv_filters_by_period(self):
+        resp = self.client.get(reverse("orders_growth_export_csv"), {"period": "2026-08-15"})
+        self.assertEqual(resp.status_code, 200)
+        content = resp.content.decode("utf-8")
+        self.assertIn("Loja A", content)
+        self.assertIn("Loja B", content)
+        self.assertNotIn("Loja C", content)
+
+    def test_export_csv_filters_by_query(self):
+        resp = self.client.get(reverse("orders_growth_export_csv"), {"q": "556"})
+        self.assertEqual(resp.status_code, 200)
+        content = resp.content.decode("utf-8")
+        self.assertIn("Loja B", content)
+        self.assertNotIn("Loja A", content)
+
+    def test_export_xlsx_returns_ok(self):
+        resp = self.client.get(reverse("orders_growth_export_xlsx"), {"period": "2026-08-15"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(
+            resp["Content-Type"],
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+
+    def test_export_requires_staff_login(self):
+        self.client.logout()
+        resp = self.client.get(reverse("orders_growth_export_csv"))
+        self.assertNotEqual(resp.status_code, 200)
+
+
 class MacroScreenTests(TestCase):
     def setUp(self):
         # A lista de bloqueio vem populada por uma data migration com cidades

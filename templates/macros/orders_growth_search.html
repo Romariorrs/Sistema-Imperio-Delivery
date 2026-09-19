@@ -139,6 +139,11 @@
                 <a class="btn secondary macro-orbit" href="{% url 'orders_growth_search' %}">Limpar</a>
             </div>
         </form>
+        <div class="og-main-actions">
+            <a class="btn secondary macro-orbit" href="{% url 'orders_growth_export_csv' %}?q={{ query|urlencode }}&period={{ selected_period|urlencode }}">Exportar CSV</a>
+            <a class="btn secondary macro-orbit" href="{% url 'orders_growth_export_xlsx' %}?q={{ query|urlencode }}&period={{ selected_period|urlencode }}">Exportar XLSX</a>
+        </div>
+        <p class="og-note" style="margin-top:8px;">A exportacao usa os mesmos filtros da busca acima (loja/ID e periodo). Deixe o campo de busca vazio pra exportar todas as lojas do periodo escolhido.</p>
     </div>
 
     <div class="card og-table">

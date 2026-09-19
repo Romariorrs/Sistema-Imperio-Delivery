@@ -1,6 +1,7 @@
 import argparse
 import html
 import json
+import logging
 import os
 import threading
 import time
@@ -11,7 +12,9 @@ from urllib.parse import parse_qs, urlparse
 
 from contabilidade.macros.orders_growth_collector import build_driver, run_orders_growth
 
-VERSION = os.getenv("ORDERS_GROWTH_AGENT_VERSION", "2026.09.19-periodo-dia").strip()
+logging.basicConfig(level=logging.INFO, format="[%(asctime)s] %(message)s", datefmt="%H:%M:%S")
+
+VERSION = os.getenv("ORDERS_GROWTH_AGENT_VERSION", "2026.09.19-scroll-paciente").strip()
 
 
 STATE_LOCK = threading.Lock()

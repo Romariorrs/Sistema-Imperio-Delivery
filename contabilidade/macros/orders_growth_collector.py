@@ -195,14 +195,23 @@ def _row_key(row: Sequence[str]) -> str:
 def collect_orders_growth_rows(
     driver,
     *,
-    max_scroll_steps: int = 20000,
-    scroll_step_px: int = 900,
-    stall_limit: int = 6,
-    settle_seconds: float = 0.35,
+    max_scroll_steps: int = 40000,
+    scroll_step_px: int = 500,
+    stall_limit: int = 40,
+    settle_seconds: float = 0.6,
+    retry_wait_seconds: float = 1.5,
+    retries_per_stall: int = 3,
+    log_every: int = 50,
 ) -> Tuple[List[str], List[List[str]]]:
     """Rola a grade virtualizada capturando linhas ate nao aparecer nada novo
     por `stall_limit` tentativas seguidas (fim da tabela) ou bater o limite
     de passos de rolagem.
+
+    A tabela carrega em paginas via AJAX conforme rola (nao e so
+    virtualizacao local) - por isso, quando uma rolagem nao traz linha nova,
+    tentamos de novo `retries_per_stall` vezes com espera maior antes de
+    contar como "parou de verdade", e qualquer sinal de que a altura da
+    grade ainda esta crescendo (scrollHeight) zera o contador de estagnacao.
     """
     first = extract_visible(driver)
     if not first.get("ok"):
@@ -215,21 +224,41 @@ def collect_orders_growth_rows(
         if key:
             collected[key] = row
 
+    last_scroll_height = 0
+    scroll_info0 = first.get("scroll") or {}
+    if scroll_info0:
+        last_scroll_height = scroll_info0.get("scrollHeight") or 0
+
     stall_count = 0
     for step in range(max_scroll_steps):
         moved = scroll_table(driver, scroll_step_px)
         if not moved:
             break
-        time.sleep(settle_seconds)
-        snapshot = extract_visible(driver)
-        if not snapshot.get("ok"):
-            break
+
         new_rows = 0
-        for row in snapshot.get("rows") or []:
-            key = _row_key(row)
-            if key and key not in collected:
-                collected[key] = row
-                new_rows += 1
+        snapshot = None
+        for attempt in range(retries_per_stall + 1):
+            wait_time = settle_seconds if attempt == 0 else retry_wait_seconds
+            time.sleep(wait_time)
+            snapshot = extract_visible(driver)
+            if not snapshot.get("ok"):
+                break
+            attempt_new_rows = 0
+            for row in snapshot.get("rows") or []:
+                key = _row_key(row)
+                if key and key not in collected:
+                    collected[key] = row
+                    attempt_new_rows += 1
+            new_rows += attempt_new_rows
+            scroll_info = snapshot.get("scroll") or {}
+            scroll_height = scroll_info.get("scrollHeight") or 0
+            grid_still_growing = scroll_height > last_scroll_height
+            last_scroll_height = max(last_scroll_height, scroll_height)
+            if attempt_new_rows > 0 or grid_still_growing:
+                break
+
+        if not snapshot or not snapshot.get("ok"):
+            break
 
         scroll_info = snapshot.get("scroll") or {}
         at_bottom = False
@@ -245,11 +274,21 @@ def collect_orders_growth_rows(
         else:
             stall_count = 0
 
-        if at_bottom and stall_count >= 2:
+        if log_every and step % log_every == 0:
+            logger.info(
+                "Orders Growth: passo %s, linhas coletadas ate agora %s, estagnacao %s/%s",
+                step,
+                len(collected),
+                stall_count,
+                stall_limit,
+            )
+
+        if at_bottom and stall_count >= 3:
             break
         if stall_count >= stall_limit:
             break
 
+    logger.info("Orders Growth: coleta finalizada com %s linhas.", len(collected))
     return headers, list(collected.values())
 
 

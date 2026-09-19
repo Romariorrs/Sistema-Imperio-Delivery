@@ -14,7 +14,7 @@ from contabilidade.macros.orders_growth_collector import build_driver, run_order
 
 logging.basicConfig(level=logging.INFO, format="[%(asctime)s] %(message)s", datefmt="%H:%M:%S")
 
-VERSION = os.getenv("ORDERS_GROWTH_AGENT_VERSION", "2026.09.19-passo-menor").strip()
+VERSION = os.getenv("ORDERS_GROWTH_AGENT_VERSION", "2026.09.19-passo-lento-confiavel").strip()
 
 
 STATE_LOCK = threading.Lock()

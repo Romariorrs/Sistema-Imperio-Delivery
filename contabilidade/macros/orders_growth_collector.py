@@ -195,10 +195,10 @@ def _row_key(row: Sequence[str]) -> str:
 def collect_orders_growth_rows(
     driver,
     *,
-    max_scroll_steps: int = 80000,
-    scroll_step_px: int = 180,
+    max_scroll_steps: int = 200000,
+    scroll_step_px: int = 80,
     stall_limit: int = 40,
-    settle_seconds: float = 0.45,
+    settle_seconds: float = 0.9,
     retry_wait_seconds: float = 1.5,
     retries_per_stall: int = 3,
     log_every: int = 50,

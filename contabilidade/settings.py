@@ -182,7 +182,7 @@ ORDERS_GROWTH_TARGET_URL = os.getenv(
 ).strip()
 ORDERS_GROWTH_IMPORT_API_URL = os.getenv("ORDERS_GROWTH_IMPORT_API_URL", "").strip()
 ORDERS_GROWTH_LOCAL_AGENT_URL = os.getenv("ORDERS_GROWTH_LOCAL_AGENT_URL", "http://127.0.0.1:8766/").strip()
-ORDERS_GROWTH_AGENT_VERSION = os.getenv("ORDERS_GROWTH_AGENT_VERSION", "2026.09.19-passo-menor").strip()
+ORDERS_GROWTH_AGENT_VERSION = os.getenv("ORDERS_GROWTH_AGENT_VERSION", "2026.09.19-passo-lento-confiavel").strip()
 ORDERS_GROWTH_LOCAL_AGENT_EXE_PATH = os.getenv(
     "ORDERS_GROWTH_LOCAL_AGENT_EXE_PATH",
     str(BASE_DIR / "downloads" / "ColetorOrdersGrowth.exe"),

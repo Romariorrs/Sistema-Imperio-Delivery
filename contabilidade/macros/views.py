@@ -392,6 +392,17 @@ def _macro_agent_version_meta():
     return {"version": version, "build": build, "label": label}
 
 
+def _orders_growth_agent_version_meta():
+    version = (settings.ORDERS_GROWTH_AGENT_VERSION or "").strip() or "v0.0.0"
+    exe_path = Path(settings.ORDERS_GROWTH_LOCAL_AGENT_EXE_PATH)
+    build = ""
+    if exe_path.exists():
+        modified_at = datetime.fromtimestamp(exe_path.stat().st_mtime)
+        build = modified_at.strftime("%Y%m%d-%H%M")
+    label = f"{version}-{build}" if build else version
+    return {"version": version, "build": build, "label": label, "exe_available": exe_path.exists()}
+
+
 def _staff_or_token(request):
     if request.user.is_authenticated and _staff_access(request.user):
         return True
@@ -1457,6 +1468,8 @@ def orders_growth_search(request):
         results = list(results_qs.order_by("shop_name")[:200])
 
     last_run = OrdersGrowthRun.objects.filter(status="success").first()
+    version_meta = _orders_growth_agent_version_meta()
+    recent_runs = OrdersGrowthRun.objects.all()[:12]
 
     context = {
         "active_tab": "orders_growth",
@@ -1465,9 +1478,11 @@ def orders_growth_search(request):
         "selected_period": selected_period,
         "results": results,
         "last_run": last_run,
+        "recent_runs": recent_runs,
         "orders_growth_target_url": settings.ORDERS_GROWTH_TARGET_URL,
         "local_agent_url": settings.ORDERS_GROWTH_LOCAL_AGENT_URL,
-        "orders_growth_agent_version": settings.ORDERS_GROWTH_AGENT_VERSION,
+        "orders_growth_agent_label": version_meta["label"],
+        "local_agent_exe_available": version_meta["exe_available"],
         "api_import_url": request.build_absolute_uri(reverse("orders_growth_api_import")),
         "token_configured": bool(settings.MACRO_API_TOKEN),
     }

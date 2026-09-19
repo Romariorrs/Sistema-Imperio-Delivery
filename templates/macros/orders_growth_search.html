@@ -36,6 +36,36 @@
         max-height: 70vh;
         overflow: auto;
     }
+    .og-steps { display: grid; gap: 8px; margin: 12px 0; }
+    .og-step { display: flex; gap: 10px; align-items: center; color: var(--muted); }
+    .og-step b {
+        width: 22px; height: 22px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center;
+        background: rgba(43, 179, 227, 0.16); border: 1px solid rgba(43, 179, 227, 0.35); color: var(--text); font-size: 12px;
+    }
+    .og-main-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+    .version-alert {
+        border: 1px solid rgba(255, 195, 77, 0.45);
+        background: linear-gradient(120deg, rgba(255, 195, 77, 0.2), rgba(15, 23, 37, 0.95));
+        border-radius: 12px;
+        padding: 12px;
+        display: none;
+        gap: 10px;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+    }
+    .version-alert.show { display: flex; }
+    .version-alert strong { color: #ffd894; }
+    .version-alert p { margin: 0; color: #ffe7bf; }
+    .version-ok {
+        border: 1px solid rgba(75,214,176,0.35);
+        background: rgba(75,214,176,0.1);
+        border-radius: 12px;
+        padding: 10px 12px;
+        display: none;
+        color: #9df2dc;
+    }
+    .version-ok.show { display: block; }
 </style>
 {% endblock %}
 {% block content %}
@@ -53,6 +83,41 @@
             <a class="tab macro-orbit" href="{% url 'macro_collect' %}">Coleta local</a>
             <a class="tab macro-orbit active" href="{% url 'orders_growth_search' %}">Orders Growth</a>
         </div>
+    </div>
+
+    <div id="versionAlert" class="version-alert">
+        <p><strong>NOVA VERSAO DISPONIVEL:</strong> baixe novamente o Coletor Orders Growth (EXE) para usar a versao <b>{{ orders_growth_agent_label }}</b>.</p>
+        <button id="markVersionBtn" class="btn secondary macro-orbit" type="button">Ja baixei esta versao</button>
+    </div>
+    <div id="versionOk" class="version-ok">
+        Coletor Orders Growth atualizado para a versao {{ orders_growth_agent_label }} neste navegador.
+    </div>
+
+    <div class="card">
+        <h3 style="margin:0 0 8px;">Coleta local</h3>
+        <p class="og-note">Igual ao Coletor da Macro, mas roda em outra porta (8766) e grava numa tabela separada.</p>
+        <div class="og-steps">
+            <div class="og-step"><b>1</b><span>Baixe e execute o Coletor Orders Growth (EXE) no computador da coleta.</span></div>
+            <div class="og-step"><b>2</b><span>Clique em Abrir painel local e depois em Abrir pagina alvo. Faca login no BI.</span></div>
+            <div class="og-step"><b>3</b><span>Escolha o periodo na tela do BI, digite o mesmo periodo (AAAA-MM) no painel local e clique em Comecar coleta.</span></div>
+        </div>
+        <div class="og-main-actions">
+            <a class="btn macro-orbit" href="{{ local_agent_url }}?api_url={{ api_import_url|urlencode }}&target_url={{ orders_growth_target_url|urlencode }}" target="_blank" rel="noopener">Abrir painel local</a>
+            <a class="btn secondary macro-orbit js-download-agent" href="{% url 'orders_growth_download_local_agent_exe' %}">Baixar Coletor (EXE)</a>
+        </div>
+        <p style="margin:10px 0 0;color:var(--muted);">Versao do coletor: {{ orders_growth_agent_label }}</p>
+        {% if not local_agent_exe_available %}
+            <p style="margin:10px 0 0;color:#ffb86b;">EXE ainda nao disponivel neste servidor.</p>
+        {% endif %}
+        <details style="margin-top:12px;">
+            <summary style="cursor:pointer;color:var(--muted);">Mostrar detalhes tecnicos</summary>
+            <code style="display:block;word-break:break-all;margin-top:8px;">{{ api_import_url }}</code>
+            {% if token_configured %}
+                <p style="margin:8px 0 0;color:var(--muted);">Token de API configurado no sistema (mesmo token da Macro).</p>
+            {% else %}
+                <p style="margin:8px 0 0;color:#ff6b6b;">MACRO_API_TOKEN nao configurado no .env.</p>
+            {% endif %}
+        </details>
     </div>
 
     <div class="card">
@@ -110,5 +175,81 @@
             </table>
         </div>
     </div>
+
+    <div class="card">
+        <h3 style="margin:0 0 8px;">Historico de execucoes</h3>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Inicio</th>
+                        <th>Periodo</th>
+                        <th>Status</th>
+                        <th>Recebidos</th>
+                        <th>Inseridos</th>
+                        <th>Atualizados</th>
+                        <th>Invalidos</th>
+                        <th>IP</th>
+                        <th>Mensagem</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for run in recent_runs %}
+                    <tr>
+                        <td>{{ run.started_at|date:"d/m/Y H:i" }}</td>
+                        <td>{{ run.period|default:"-" }}</td>
+                        <td>{{ run.get_status_display }}</td>
+                        <td>{{ run.total_received }}</td>
+                        <td>{{ run.created_count }}</td>
+                        <td>{{ run.updated_count }}</td>
+                        <td>{{ run.invalid_count }}</td>
+                        <td>{{ run.request_ip|default:"-" }}</td>
+                        <td>{{ run.message|default:"-" }}</td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="9">Sem execucoes ainda.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
 </div>
+<script>
+(() => {
+    const currentVersion = "{{ orders_growth_agent_label|escapejs }}";
+    const storageKey = "orders_growth_agent_downloaded_version";
+    const versionAlert = document.getElementById("versionAlert");
+    const versionOk = document.getElementById("versionOk");
+    const markBtn = document.getElementById("markVersionBtn");
+    const downloadLinks = document.querySelectorAll(".js-download-agent");
+
+    if (!currentVersion) {
+        return;
+    }
+
+    const savedVersion = localStorage.getItem(storageKey) || "";
+    const needsDownload = savedVersion !== currentVersion;
+
+    if (needsDownload) {
+        versionAlert.classList.add("show");
+        versionOk.classList.remove("show");
+    } else {
+        versionOk.classList.add("show");
+        versionAlert.classList.remove("show");
+    }
+
+    const markCurrentVersion = () => {
+        localStorage.setItem(storageKey, currentVersion);
+        versionAlert.classList.remove("show");
+        versionOk.classList.add("show");
+    };
+
+    if (markBtn) {
+        markBtn.addEventListener("click", markCurrentVersion);
+    }
+    downloadLinks.forEach((link) => {
+        link.addEventListener("click", markCurrentVersion);
+    });
+})();
+</script>
 {% endblock %}

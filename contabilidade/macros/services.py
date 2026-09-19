@@ -2,12 +2,13 @@ import re
 import unicodedata
 import uuid
 from datetime import datetime, timezone as dt_timezone, timedelta
+from decimal import Decimal, InvalidOperation
 from typing import Any, Dict, Iterable, Mapping, Optional
 
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime, parse_date
 
-from .models import MacroLead
+from .models import MacroLead, OrdersGrowthRecord
 
 EXPORT_COLUMNS = (
     ("store_id", "ID da loja"),
@@ -262,4 +263,92 @@ def upsert_rows(rows: Iterable[Mapping[str, Any]], default_source: str = "gattar
         "ignored": ignored,
         "invalid": invalid,
         "processed": created + updated + ignored + invalid,
+    }
+
+
+ORDERS_GROWTH_UPDATE_FIELDS = [
+    "brand_id",
+    "shop_name",
+    "grupo_offline",
+    "brand_name",
+    "bdm_online",
+    "bd_username_offline",
+    "complete_orders",
+    "gmv",
+]
+
+
+def _parse_orders_growth_decimal(value):
+    if value in (None, ""):
+        return None
+    text = str(value).strip().replace(",", "")
+    try:
+        return Decimal(text)
+    except (InvalidOperation, ValueError):
+        return None
+
+
+def upsert_orders_growth_rows(rows: Iterable[Mapping[str, Any]], period: str) -> Dict[str, int]:
+    """Grava/atualiza o desempenho (pedidos/GMV) de cada loja pro periodo
+    informado. Loja+periodo repetido atualiza o registro existente em vez
+    de duplicar - cada coleta e um retrato atualizado do periodo escolhido.
+    """
+    created = 0
+    updated = 0
+    invalid = 0
+
+    parsed_rows: list[Dict[str, Any]] = []
+    shop_ids: list[str] = []
+    for raw in rows:
+        if not isinstance(raw, Mapping):
+            invalid += 1
+            continue
+        shop_id = str(raw.get("shop_id") or "").strip()
+        if not shop_id:
+            invalid += 1
+            continue
+        parsed_rows.append(
+            {
+                "shop_id": shop_id,
+                "brand_id": str(raw.get("brand_id") or "").strip(),
+                "shop_name": str(raw.get("shop_name") or "").strip(),
+                "grupo_offline": str(raw.get("grupo_offline") or "").strip(),
+                "brand_name": str(raw.get("brand_name") or "").strip(),
+                "bdm_online": str(raw.get("bdm_online") or "").strip(),
+                "bd_username_offline": str(raw.get("bd_username_offline") or "").strip(),
+                "complete_orders": _parse_orders_growth_decimal(raw.get("complete_orders")),
+                "gmv": _parse_orders_growth_decimal(raw.get("gmv")),
+            }
+        )
+        shop_ids.append(shop_id)
+
+    existentes = {
+        obj.shop_id: obj
+        for obj in OrdersGrowthRecord.objects.filter(period=period, shop_id__in=shop_ids)
+    }
+
+    to_create = []
+    to_update = []
+    for parsed in parsed_rows:
+        existente = existentes.get(parsed["shop_id"])
+        if existente is not None:
+            for campo, valor in parsed.items():
+                if campo != "shop_id":
+                    setattr(existente, campo, valor)
+            to_update.append(existente)
+            updated += 1
+        else:
+            to_create.append(OrdersGrowthRecord(period=period, **parsed))
+            created += 1
+
+    if to_create:
+        OrdersGrowthRecord.objects.bulk_create(to_create, batch_size=CREATE_BATCH_SIZE)
+    if to_update:
+        OrdersGrowthRecord.objects.bulk_update(to_update, ORDERS_GROWTH_UPDATE_FIELDS, batch_size=CREATE_BATCH_SIZE)
+
+    return {
+        "created": created,
+        "updated": updated,
+        "invalid": invalid,
+        "processed": created + updated + invalid,
     }

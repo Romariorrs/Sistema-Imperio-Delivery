@@ -24,6 +24,9 @@ from .views import (
     macro_city_report_csv,
     macro_city_report_xlsx,
     macro_list,
+    orders_growth_api_import,
+    orders_growth_download_local_agent_exe,
+    orders_growth_search,
 )
 
 urlpatterns = [
@@ -51,4 +54,11 @@ urlpatterns = [
     path("relatorios/cidades/", macro_city_report, name="macro_city_report"),
     path("relatorios/cidades.csv", macro_city_report_csv, name="macro_city_report_csv"),
     path("relatorios/cidades.xlsx", macro_city_report_xlsx, name="macro_city_report_xlsx"),
+    path("orders-growth/", orders_growth_search, name="orders_growth_search"),
+    path("orders-growth/api/import/", orders_growth_api_import, name="orders_growth_api_import"),
+    path(
+        "orders-growth/download/local-agent.exe",
+        orders_growth_download_local_agent_exe,
+        name="orders_growth_download_local_agent_exe",
+    ),
 ]

@@ -27,8 +27,8 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 
-from .models import BlockedCity, MacroLead, MacroRun, normalize_city_name
-from .services import EXPORT_COLUMNS, upsert_rows
+from .models import BlockedCity, MacroLead, MacroRun, OrdersGrowthRecord, OrdersGrowthRun, normalize_city_name
+from .services import EXPORT_COLUMNS, upsert_rows, upsert_orders_growth_rows
 
 MANYCHAT_EXPORT_COLUMNS = (
     ("store_id", "ID LOJA"),
@@ -1424,6 +1424,152 @@ def macro_download_local_agent_exe(request):
     response = HttpResponse(content, content_type="application/octet-stream")
     response["Content-Disposition"] = 'attachment; filename="ColetorMacro.exe"'
     return response
+
+
+@login_required
+@user_passes_test(_staff_access)
+def orders_growth_download_local_agent_exe(request):
+    exe_path = Path(settings.ORDERS_GROWTH_LOCAL_AGENT_EXE_PATH)
+    if not exe_path.exists():
+        return HttpResponse("Arquivo ColetorOrdersGrowth.exe nao encontrado.", status=404)
+    content = exe_path.read_bytes()
+    response = HttpResponse(content, content_type="application/octet-stream")
+    response["Content-Disposition"] = 'attachment; filename="ColetorOrdersGrowth.exe"'
+    return response
+
+
+@login_required
+@user_passes_test(_staff_access)
+def orders_growth_search(request):
+    query = (request.GET.get("q") or "").strip()
+    periods = list(
+        OrdersGrowthRecord.objects.values_list("period", flat=True).distinct().order_by("-period")
+    )
+    selected_period = (request.GET.get("period") or "").strip() or (periods[0] if periods else "")
+
+    results = []
+    if query:
+        results_qs = OrdersGrowthRecord.objects.filter(
+            Q(shop_id__icontains=query) | Q(shop_name__icontains=query)
+        )
+        if selected_period:
+            results_qs = results_qs.filter(period=selected_period)
+        results = list(results_qs.order_by("shop_name")[:200])
+
+    last_run = OrdersGrowthRun.objects.filter(status="success").first()
+
+    context = {
+        "active_tab": "orders_growth",
+        "query": query,
+        "periods": periods,
+        "selected_period": selected_period,
+        "results": results,
+        "last_run": last_run,
+        "orders_growth_target_url": settings.ORDERS_GROWTH_TARGET_URL,
+        "local_agent_url": settings.ORDERS_GROWTH_LOCAL_AGENT_URL,
+        "orders_growth_agent_version": settings.ORDERS_GROWTH_AGENT_VERSION,
+        "api_import_url": request.build_absolute_uri(reverse("orders_growth_api_import")),
+        "token_configured": bool(settings.MACRO_API_TOKEN),
+    }
+    return render(request, "macros/orders_growth_search.html", context)
+
+
+@csrf_exempt
+def orders_growth_api_import(request):
+    if request.method != "POST":
+        return JsonResponse({"ok": False, "detail": "Method not allowed"}, status=405)
+    if not _staff_or_token(request):
+        return JsonResponse({"ok": False, "detail": "Unauthorized"}, status=401)
+    if not _ip_allowed(request):
+        return JsonResponse({"ok": False, "detail": "IP not allowed"}, status=403)
+    if _rate_limited(request):
+        return JsonResponse({"ok": False, "detail": "Rate limit exceeded"}, status=429)
+
+    try:
+        payload = json.loads(request.body.decode("utf-8"))
+    except Exception:
+        return JsonResponse({"ok": False, "detail": "Invalid JSON"}, status=400)
+
+    period = str(payload.get("period") or "").strip() if isinstance(payload, dict) else ""
+    if not re.fullmatch(r"\d{4}-\d{2}", period or ""):
+        return JsonResponse({"ok": False, "detail": "Campo 'period' invalido (esperado AAAA-MM)"}, status=400)
+
+    meta = payload.get("meta") if isinstance(payload, dict) and isinstance(payload.get("meta"), dict) else {}
+    execution_id = str(meta.get("execution_id") or "").strip()
+    batch_index = _safe_int(meta.get("batch_index"), 0)
+    batch_total = _safe_int(meta.get("batch_total"), 0)
+    collected_total = _safe_int(meta.get("collected_total"), 0)
+    client_ip = _client_ip(request) or None
+
+    run_log = None
+    if execution_id:
+        run_log = (
+            OrdersGrowthRun.objects.filter(execution_id=execution_id).order_by("-started_at").first()
+        )
+    if run_log is None:
+        run_log = OrdersGrowthRun.objects.create(
+            status="running",
+            execution_id=execution_id,
+            period=period,
+            triggered_by=request.user if request.user.is_authenticated else None,
+            request_ip=client_ip,
+        )
+    elif run_log.status != "running":
+        run_log.status = "running"
+        run_log.finished_at = None
+        run_log.save(update_fields=["status", "finished_at"])
+
+    rows = _rows_from_json_payload(payload)
+    if not rows:
+        run_log.status = "error"
+        run_log.total_received = max(run_log.total_received, collected_total)
+        if client_ip:
+            run_log.request_ip = client_ip
+        run_log.message = "Payload sem linhas."
+        run_log.finished_at = timezone.now()
+        run_log.save(update_fields=["status", "message", "finished_at", "total_received", "request_ip"])
+        return JsonResponse({"ok": False, "detail": "Payload sem linhas"}, status=400)
+
+    try:
+        result = upsert_orders_growth_rows(rows, period=period)
+    except Exception:
+        logger.exception("Falha interna no import do Orders Growth")
+        run_log.status = "error"
+        run_log.finished_at = timezone.now()
+        run_log.total_received = max(run_log.total_received, collected_total, len(rows))
+        if client_ip:
+            run_log.request_ip = client_ip
+        run_log.message = "Erro interno ao processar lote da API."
+        run_log.save(update_fields=["status", "finished_at", "total_received", "request_ip", "message"])
+        return JsonResponse({"ok": False, "detail": "Internal processing error"}, status=500)
+
+    final_batch = batch_total <= 1 or (batch_index > 0 and batch_index >= batch_total)
+    message_parts = ["Importacao Orders Growth concluida." if final_batch else "Importacao Orders Growth em andamento."]
+    if batch_total > 1 and batch_index > 0:
+        message_parts.append(f"Lote {batch_index}/{batch_total}.")
+
+    run_log.status = "success" if final_batch else "running"
+    run_log.finished_at = timezone.now() if final_batch else None
+    run_log.total_received = max(run_log.total_received, collected_total, result["processed"])
+    run_log.created_count = run_log.created_count + result["created"]
+    run_log.updated_count = run_log.updated_count + result["updated"]
+    run_log.invalid_count = run_log.invalid_count + result["invalid"]
+    if client_ip:
+        run_log.request_ip = client_ip
+    run_log.message = " ".join(message_parts)
+    run_log.save(
+        update_fields=[
+            "status",
+            "finished_at",
+            "total_received",
+            "created_count",
+            "updated_count",
+            "invalid_count",
+            "request_ip",
+            "message",
+        ]
+    )
+    return JsonResponse({"ok": True, **result})
 
 
 @csrf_exempt

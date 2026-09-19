@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}Orders Growth - Busca{% endblock %}
+{% block extra_head %}
+<style>
+    .og-page {
+        display: grid;
+        gap: 14px;
+        width: min(1200px, calc(100vw - 24px));
+        margin-inline: auto;
+    }
+    .og-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+    .og-actions {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+    .og-note {
+        color: var(--muted);
+        font-size: 12px;
+        margin: 0;
+    }
+    .og-filters {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 10px;
+        align-items: end;
+    }
+    .og-table {
+        max-height: 70vh;
+        overflow: auto;
+    }
+</style>
+{% endblock %}
+{% block content %}
+<div class="og-page">
+    <div class="og-header">
+        <div>
+            <h2 style="margin:0;">Orders Growth - Busca de loja</h2>
+            <p class="og-note">
+                Desempenho de pedidos/GMV por loja, coletado separadamente do banco Macro (nao mistura com os leads do 99Food).
+                {% if last_run %}Ultima coleta com sucesso: {{ last_run.started_at|date:"d/m/Y H:i" }} (periodo {{ last_run.period }}).{% endif %}
+            </p>
+        </div>
+        <div class="og-actions">
+            <a class="tab macro-orbit" href="{% url 'macro_list' %}">Banco de dados</a>
+            <a class="tab macro-orbit" href="{% url 'macro_collect' %}">Coleta local</a>
+            <a class="tab macro-orbit active" href="{% url 'orders_growth_search' %}">Orders Growth</a>
+        </div>
+    </div>
+
+    <div class="card">
+        <form method="get" class="og-filters">
+            <div>
+                <label>ID da loja ou nome</label>
+                <input type="text" name="q" value="{{ query }}" placeholder="Ex: 123456 ou Restaurante XYZ">
+            </div>
+            <div>
+                <label>Periodo</label>
+                <select name="period">
+                    {% for period in periods %}
+                        <option value="{{ period }}" {% if period == selected_period %}selected{% endif %}>{{ period }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="macro-filter-actions">
+                <button class="btn macro-orbit" type="submit">Buscar</button>
+                <a class="btn secondary macro-orbit" href="{% url 'orders_growth_search' %}">Limpar</a>
+            </div>
+        </form>
+    </div>
+
+    <div class="card og-table">
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Shop ID</th>
+                        <th>Loja</th>
+                        <th>Marca</th>
+                        <th>Grupo offline</th>
+                        <th>BDM online</th>
+                        <th>BD offline</th>
+                        <th>Pedidos concluidos</th>
+                        <th>GMV</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for row in results %}
+                    <tr>
+                        <td>{{ row.shop_id }}</td>
+                        <td>{{ row.shop_name }}</td>
+                        <td>{{ row.brand_name }}</td>
+                        <td>{{ row.grupo_offline }}</td>
+                        <td>{{ row.bdm_online }}</td>
+                        <td>{{ row.bd_username_offline }}</td>
+                        <td>{{ row.complete_orders|default:"-" }}</td>
+                        <td>{{ row.gmv|default:"-" }}</td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="8">{% if query %}Nenhuma loja encontrada para essa busca/periodo.{% else %}Digite um ID de loja ou nome para buscar.{% endif %}</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

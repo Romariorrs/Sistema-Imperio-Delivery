@@ -104,3 +104,64 @@ class MacroRun(models.Model):
 
     def __str__(self):
         return f"{self.get_run_type_display()} - {self.get_status_display()} ({self.started_at:%d/%m %H:%M})"
+
+
+class OrdersGrowthRecord(models.Model):
+    """Desempenho de pedidos/GMV por loja, vindo do BI interno (BigData) -
+    banco totalmente separado do MacroLead, so reaproveita a infra do app.
+    """
+
+    shop_id = models.CharField(max_length=40, db_index=True)
+    brand_id = models.CharField(max_length=40, blank=True, db_index=True)
+    shop_name = models.CharField(max_length=255, blank=True, db_index=True)
+    grupo_offline = models.CharField(max_length=255, blank=True)
+    brand_name = models.CharField(max_length=255, blank=True)
+    bdm_online = models.CharField(max_length=120, blank=True)
+    bd_username_offline = models.CharField(max_length=120, blank=True)
+    period = models.CharField("periodo (AAAA-MM)", max_length=7, db_index=True)
+    complete_orders = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    gmv = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    first_seen_at = models.DateTimeField(auto_now_add=True)
+    last_seen_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-last_seen_at"]
+        constraints = [
+            models.UniqueConstraint(fields=["shop_id", "period"], name="unique_shop_period_orders_growth"),
+        ]
+
+    def __str__(self):
+        return f"{self.shop_name or self.shop_id} ({self.period})"
+
+
+class OrdersGrowthRun(models.Model):
+    STATUS_CHOICES = (
+        ("running", "Executando"),
+        ("success", "Sucesso"),
+        ("error", "Erro"),
+    )
+
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="running", db_index=True)
+    started_at = models.DateTimeField(auto_now_add=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    triggered_by = models.ForeignKey(
+        get_user_model(),
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="orders_growth_runs",
+    )
+    request_ip = models.GenericIPAddressField(null=True, blank=True)
+    execution_id = models.CharField(max_length=64, blank=True, db_index=True)
+    period = models.CharField(max_length=7, blank=True)
+    total_received = models.PositiveIntegerField(default=0)
+    created_count = models.PositiveIntegerField(default=0)
+    updated_count = models.PositiveIntegerField(default=0)
+    invalid_count = models.PositiveIntegerField(default=0)
+    message = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["-started_at"]
+
+    def __str__(self):
+        return f"Orders Growth - {self.get_status_display()} ({self.started_at:%d/%m %H:%M})"

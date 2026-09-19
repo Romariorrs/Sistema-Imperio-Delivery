@@ -172,3 +172,18 @@ try:
     MACRO_RUN_STALE_MINUTES = int(os.getenv("MACRO_RUN_STALE_MINUTES", "30"))
 except ValueError:
     MACRO_RUN_STALE_MINUTES = 30
+
+# Coletor separado do BI interno (BigData/Orders Growth) - reaproveita o mesmo
+# token/allowlist/rate-limit do Macro (MACRO_API_TOKEN), mas grava numa tabela
+# totalmente separada (OrdersGrowthRecord), sem misturar com o MacroLead.
+ORDERS_GROWTH_TARGET_URL = os.getenv(
+    "ORDERS_GROWTH_TARGET_URL",
+    "https://bigdata.intra.didiglobal.com/analysis_platform_static/board.html#/?type=reportView&reportId=231141&source=market&subReportId=377455",
+).strip()
+ORDERS_GROWTH_IMPORT_API_URL = os.getenv("ORDERS_GROWTH_IMPORT_API_URL", "").strip()
+ORDERS_GROWTH_LOCAL_AGENT_URL = os.getenv("ORDERS_GROWTH_LOCAL_AGENT_URL", "http://127.0.0.1:8766/").strip()
+ORDERS_GROWTH_AGENT_VERSION = os.getenv("ORDERS_GROWTH_AGENT_VERSION", "2026.09.19-inicial").strip()
+ORDERS_GROWTH_LOCAL_AGENT_EXE_PATH = os.getenv(
+    "ORDERS_GROWTH_LOCAL_AGENT_EXE_PATH",
+    str(BASE_DIR / "downloads" / "ColetorOrdersGrowth.exe"),
+).strip()

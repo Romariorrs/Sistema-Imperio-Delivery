@@ -13,8 +13,8 @@ from datetime import timedelta
 from selenium.webdriver import ChromeOptions
 
 from contabilidade.macros import collector
-from contabilidade.macros.models import BlockedCity, MacroLead, MacroRun
-from contabilidade.macros.services import upsert_rows
+from contabilidade.macros.models import BlockedCity, MacroLead, MacroRun, OrdersGrowthRecord, OrdersGrowthRun
+from contabilidade.macros.services import upsert_rows, upsert_orders_growth_rows
 
 
 class MacroServicesTests(TestCase):
@@ -265,6 +265,150 @@ class MacroApiImportTests(TestCase):
         self.assertEqual(run.total_sent, 475)
         self.assertEqual(run.pages_processed, 18)
         self.assertIn("Lote 2/2", run.message)
+
+
+class OrdersGrowthServicesTests(TestCase):
+    def test_upsert_creates_and_updates_by_shop_and_period(self):
+        row = {
+            "shop_id": "12345",
+            "brand_id": "b1",
+            "shop_name": "Loja Teste",
+            "grupo_offline": "Grupo A",
+            "brand_name": "Marca A",
+            "bdm_online": "bdm1",
+            "bd_username_offline": "bd1",
+            "complete_orders": "1,234.50",
+            "gmv": "65,025.27",
+        }
+        first = upsert_orders_growth_rows([row], period="2026-08")
+        self.assertEqual(first["created"], 1)
+        self.assertEqual(OrdersGrowthRecord.objects.count(), 1)
+        record = OrdersGrowthRecord.objects.get(shop_id="12345", period="2026-08")
+        self.assertEqual(str(record.complete_orders), "1234.50")
+        self.assertEqual(str(record.gmv), "65025.27")
+
+        row["shop_name"] = "Loja Teste Atualizada"
+        second = upsert_orders_growth_rows([row], period="2026-08")
+        self.assertEqual(second["updated"], 1)
+        self.assertEqual(OrdersGrowthRecord.objects.count(), 1)
+        record.refresh_from_db()
+        self.assertEqual(record.shop_name, "Loja Teste Atualizada")
+
+    def test_upsert_same_shop_different_period_creates_separate_record(self):
+        row = {"shop_id": "999", "shop_name": "Loja X"}
+        upsert_orders_growth_rows([row], period="2026-07")
+        upsert_orders_growth_rows([row], period="2026-08")
+        self.assertEqual(OrdersGrowthRecord.objects.filter(shop_id="999").count(), 2)
+
+    def test_upsert_ignores_rows_without_shop_id(self):
+        result = upsert_orders_growth_rows([{"shop_name": "Sem ID"}], period="2026-08")
+        self.assertEqual(result["invalid"], 1)
+        self.assertEqual(OrdersGrowthRecord.objects.count(), 0)
+
+
+@override_settings(
+    MACRO_API_TOKEN="token123",
+    MACRO_API_ALLOWED_IPS=[],
+    MACRO_API_RATE_LIMIT_PER_MINUTE=100,
+)
+class OrdersGrowthApiImportTests(TestCase):
+    def setUp(self):
+        cache.clear()
+        self.client = Client()
+        self.url = reverse("orders_growth_api_import")
+
+    def test_api_import_with_token(self):
+        payload = {"rows": [{"shop_id": "1", "shop_name": "Loja API"}], "period": "2026-08"}
+        resp = self.client.post(
+            self.url,
+            data=json.dumps(payload),
+            content_type="application/json",
+            HTTP_AUTHORIZATION="Bearer token123",
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(OrdersGrowthRecord.objects.filter(shop_id="1", period="2026-08").count(), 1)
+
+    def test_api_import_without_token_returns_401(self):
+        payload = {"rows": [{"shop_id": "1", "shop_name": "Loja API"}], "period": "2026-08"}
+        resp = self.client.post(self.url, data=json.dumps(payload), content_type="application/json")
+        self.assertEqual(resp.status_code, 401)
+
+    def test_api_import_rejects_invalid_period(self):
+        payload = {"rows": [{"shop_id": "1", "shop_name": "Loja API"}], "period": "agosto/2026"}
+        resp = self.client.post(
+            self.url,
+            data=json.dumps(payload),
+            content_type="application/json",
+            HTTP_AUTHORIZATION="Bearer token123",
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(OrdersGrowthRecord.objects.count(), 0)
+
+    def test_api_import_marks_error_if_processing_fails(self):
+        payload = {"rows": [{"shop_id": "1", "shop_name": "Loja API"}], "period": "2026-08"}
+        with patch("contabilidade.macros.views.upsert_orders_growth_rows", side_effect=RuntimeError("boom")):
+            resp = self.client.post(
+                self.url,
+                data=json.dumps(payload),
+                content_type="application/json",
+                HTTP_AUTHORIZATION="Bearer token123",
+            )
+        self.assertEqual(resp.status_code, 500)
+        run = OrdersGrowthRun.objects.first()
+        self.assertIsNotNone(run)
+        self.assertEqual(run.status, "error")
+
+    def test_api_import_consolidates_batches_by_execution_id(self):
+        headers = {"content_type": "application/json", "HTTP_AUTHORIZATION": "Bearer token123"}
+        first_payload = {
+            "rows": [{"shop_id": "1", "shop_name": "Loja 1"}],
+            "period": "2026-08",
+            "meta": {"execution_id": "og-exec-1", "batch_index": 1, "batch_total": 2, "collected_total": 2},
+        }
+        second_payload = {
+            "rows": [{"shop_id": "2", "shop_name": "Loja 2"}],
+            "period": "2026-08",
+            "meta": {"execution_id": "og-exec-1", "batch_index": 2, "batch_total": 2, "collected_total": 2},
+        }
+        first_resp = self.client.post(self.url, data=json.dumps(first_payload), **headers)
+        second_resp = self.client.post(self.url, data=json.dumps(second_payload), **headers)
+        self.assertEqual(first_resp.status_code, 200)
+        self.assertEqual(second_resp.status_code, 200)
+
+        runs = OrdersGrowthRun.objects.filter(execution_id="og-exec-1")
+        self.assertEqual(runs.count(), 1)
+        run = runs.first()
+        self.assertEqual(run.status, "success")
+        self.assertEqual(run.created_count, 2)
+        self.assertIn("Lote 2/2", run.message)
+
+
+class OrdersGrowthSearchViewTests(TestCase):
+    def setUp(self):
+        self.client = Client()
+        self.staff = User.objects.create_user(username="staff", password="pass123", is_staff=True)
+        self.client.force_login(self.staff)
+        OrdersGrowthRecord.objects.create(shop_id="555", shop_name="Restaurante Buscavel", period="2026-08")
+
+    def test_search_by_shop_id_returns_match(self):
+        resp = self.client.get(reverse("orders_growth_search"), {"q": "555", "period": "2026-08"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Restaurante Buscavel")
+
+    def test_search_by_shop_name_returns_match(self):
+        resp = self.client.get(reverse("orders_growth_search"), {"q": "Buscavel", "period": "2026-08"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "555")
+
+    def test_search_without_query_returns_no_results(self):
+        resp = self.client.get(reverse("orders_growth_search"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertNotContains(resp, "Restaurante Buscavel")
+
+    def test_requires_staff_login(self):
+        self.client.logout()
+        resp = self.client.get(reverse("orders_growth_search"))
+        self.assertNotEqual(resp.status_code, 200)
 
 
 class MacroScreenTests(TestCase):

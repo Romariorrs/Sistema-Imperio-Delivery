@@ -1552,6 +1552,39 @@ def orders_growth_export_xlsx(request):
 
 
 @csrf_exempt
+def orders_growth_lookup(request):
+    if request.method != "GET":
+        return JsonResponse({"ok": False, "detail": "Method not allowed"}, status=405)
+    if not _staff_or_token(request):
+        return JsonResponse({"ok": False, "detail": "Unauthorized"}, status=401)
+    if not _ip_allowed(request):
+        return JsonResponse({"ok": False, "detail": "IP not allowed"}, status=403)
+    if _rate_limited(request):
+        return JsonResponse({"ok": False, "detail": "Rate limit exceeded"}, status=429)
+
+    shop_id = (request.GET.get("shop_id") or "").strip()
+    if not shop_id:
+        return JsonResponse({"ok": False, "detail": "Informe shop_id"}, status=400)
+
+    record = OrdersGrowthRecord.objects.filter(shop_id=shop_id).order_by("-period").first()
+    if record is None:
+        return JsonResponse({"ok": True, "found": False})
+
+    return JsonResponse(
+        {
+            "ok": True,
+            "found": True,
+            "shop_id": record.shop_id,
+            "shop_name": record.shop_name,
+            "period": record.period,
+            "complete_orders": str(record.complete_orders) if record.complete_orders is not None else None,
+            "gmv": str(record.gmv) if record.gmv is not None else None,
+            "last_seen_at": record.last_seen_at.isoformat(),
+        }
+    )
+
+
+@csrf_exempt
 def orders_growth_api_import(request):
     if request.method != "POST":
         return JsonResponse({"ok": False, "detail": "Method not allowed"}, status=405)

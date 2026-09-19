@@ -449,6 +449,47 @@ class OrdersGrowthExportTests(TestCase):
         self.assertNotEqual(resp.status_code, 200)
 
 
+@override_settings(
+    MACRO_API_TOKEN="token123",
+    MACRO_API_ALLOWED_IPS=[],
+    MACRO_API_RATE_LIMIT_PER_MINUTE=100,
+)
+class OrdersGrowthLookupTests(TestCase):
+    def setUp(self):
+        cache.clear()
+        self.client = Client()
+        self.url = reverse("orders_growth_lookup")
+        OrdersGrowthRecord.objects.create(
+            shop_id="777", shop_name="Loja Antiga", period="2026-07-20", complete_orders=3
+        )
+        OrdersGrowthRecord.objects.create(
+            shop_id="777", shop_name="Loja Recente", period="2026-08-15", complete_orders=6
+        )
+
+    def test_lookup_returns_most_recent_period_for_shop(self):
+        resp = self.client.get(self.url, {"shop_id": "777"}, HTTP_AUTHORIZATION="Bearer token123")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data["found"])
+        self.assertEqual(data["period"], "2026-08-15")
+        self.assertEqual(data["complete_orders"], "6.00")
+
+    def test_lookup_unknown_shop_returns_not_found(self):
+        resp = self.client.get(self.url, {"shop_id": "999"}, HTTP_AUTHORIZATION="Bearer token123")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data["ok"])
+        self.assertFalse(data["found"])
+
+    def test_lookup_without_shop_id_returns_400(self):
+        resp = self.client.get(self.url, HTTP_AUTHORIZATION="Bearer token123")
+        self.assertEqual(resp.status_code, 400)
+
+    def test_lookup_without_token_returns_401(self):
+        resp = self.client.get(self.url, {"shop_id": "777"})
+        self.assertEqual(resp.status_code, 401)
+
+
 class MacroScreenTests(TestCase):
     def setUp(self):
         # A lista de bloqueio vem populada por uma data migration com cidades

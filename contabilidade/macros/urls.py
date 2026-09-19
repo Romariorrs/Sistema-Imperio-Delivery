@@ -28,6 +28,7 @@ from .views import (
     orders_growth_download_local_agent_exe,
     orders_growth_export_csv,
     orders_growth_export_xlsx,
+    orders_growth_lookup,
     orders_growth_search,
 )
 
@@ -60,6 +61,7 @@ urlpatterns = [
     path("orders-growth/export/", orders_growth_export_csv, name="orders_growth_export_csv"),
     path("orders-growth/export/xlsx/", orders_growth_export_xlsx, name="orders_growth_export_xlsx"),
     path("orders-growth/api/import/", orders_growth_api_import, name="orders_growth_api_import"),
+    path("orders-growth/api/lookup/", orders_growth_lookup, name="orders_growth_lookup"),
     path(
         "orders-growth/download/local-agent.exe",
         orders_growth_download_local_agent_exe,

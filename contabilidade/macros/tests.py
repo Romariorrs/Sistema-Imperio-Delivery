@@ -449,6 +449,57 @@ class OrdersGrowthExportTests(TestCase):
         self.assertNotEqual(resp.status_code, 200)
 
 
+class OrdersGrowthCleanupTests(TestCase):
+    def setUp(self):
+        self.client = Client()
+        self.staff = User.objects.create_user(username="staff", password="pass123", is_staff=True)
+        self.client.force_login(self.staff)
+        OrdersGrowthRun.objects.create(status="success", period="2026-08-15", total_received=10)
+        OrdersGrowthRun.objects.create(status="success", period="2026-07-20", total_received=5)
+        OrdersGrowthRecord.objects.create(shop_id="555", shop_name="Loja A", period="2026-08-15")
+        OrdersGrowthRecord.objects.create(shop_id="556", shop_name="Loja B", period="2026-07-20")
+
+    def test_delete_runs_requires_confirm_text(self):
+        resp = self.client.post(reverse("orders_growth_delete_runs"), {"confirm_text": "errado"})
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(OrdersGrowthRun.objects.count(), 2)
+
+    def test_delete_runs_clears_history(self):
+        resp = self.client.post(reverse("orders_growth_delete_runs"), {"confirm_text": "LIMPAR HISTORICO"})
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(OrdersGrowthRun.objects.count(), 0)
+        self.assertEqual(OrdersGrowthRecord.objects.count(), 2, "nao deve mexer nas lojas coletadas")
+
+    def test_delete_run_item_removes_single_run(self):
+        run = OrdersGrowthRun.objects.first()
+        resp = self.client.post(reverse("orders_growth_delete_run_item", kwargs={"run_id": run.id}))
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(OrdersGrowthRun.objects.count(), 1)
+
+    def test_delete_period_requires_confirm_text(self):
+        resp = self.client.post(
+            reverse("orders_growth_delete_period"),
+            {"delete_period": "2026-07-20", "confirm_text": "errado"},
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(OrdersGrowthRecord.objects.count(), 2)
+
+    def test_delete_period_removes_only_that_period(self):
+        resp = self.client.post(
+            reverse("orders_growth_delete_period"),
+            {"delete_period": "2026-07-20", "confirm_text": "EXCLUIR PERIODO"},
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertFalse(OrdersGrowthRecord.objects.filter(period="2026-07-20").exists())
+        self.assertTrue(OrdersGrowthRecord.objects.filter(period="2026-08-15").exists())
+
+    def test_delete_actions_require_staff_login(self):
+        self.client.logout()
+        resp = self.client.post(reverse("orders_growth_delete_runs"), {"confirm_text": "LIMPAR HISTORICO"})
+        self.assertNotEqual(resp.status_code, 200)
+        self.assertEqual(OrdersGrowthRun.objects.count(), 2)
+
+
 @override_settings(
     MACRO_API_TOKEN="token123",
     MACRO_API_ALLOWED_IPS=[],

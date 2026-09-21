@@ -1514,6 +1514,60 @@ def orders_growth_search(request):
     return render(request, "macros/orders_growth_search.html", context)
 
 
+def _orders_growth_redirect(post_data):
+    period = (post_data.get("period") or "").strip()
+    base = reverse("orders_growth_search")
+    if period:
+        return redirect(f"{base}?period={period}")
+    return redirect(base)
+
+
+@login_required
+@user_passes_test(_staff_access)
+def orders_growth_delete_runs(request):
+    if request.method != "POST":
+        return redirect("orders_growth_search")
+    if (request.POST.get("confirm_text") or "").strip().upper() != "LIMPAR HISTORICO":
+        messages.error(request, 'Para limpar o historico, digite "LIMPAR HISTORICO".')
+        return _orders_growth_redirect(request.POST)
+
+    deleted_count, _ = OrdersGrowthRun.objects.all().delete()
+    messages.success(request, f"Historico limpo. {deleted_count} execucao(oes) removida(s).")
+    return _orders_growth_redirect(request.POST)
+
+
+@login_required
+@user_passes_test(_staff_access)
+def orders_growth_delete_run_item(request, run_id: int):
+    if request.method != "POST":
+        return redirect("orders_growth_search")
+    deleted_count, _ = OrdersGrowthRun.objects.filter(id=run_id).delete()
+    if deleted_count:
+        messages.success(request, "Execucao removida do historico.")
+    else:
+        messages.error(request, "Execucao nao encontrada.")
+    return _orders_growth_redirect(request.POST)
+
+
+@login_required
+@user_passes_test(_staff_access)
+def orders_growth_delete_period(request):
+    if request.method != "POST":
+        return redirect("orders_growth_search")
+    if (request.POST.get("confirm_text") or "").strip().upper() != "EXCLUIR PERIODO":
+        messages.error(request, 'Para excluir um periodo, digite "EXCLUIR PERIODO".')
+        return _orders_growth_redirect(request.POST)
+
+    period = (request.POST.get("delete_period") or "").strip()
+    if not period:
+        messages.error(request, "Selecione o periodo que deseja excluir.")
+        return _orders_growth_redirect(request.POST)
+
+    deleted_count, _ = OrdersGrowthRecord.objects.filter(period=period).delete()
+    messages.success(request, f"Dados do periodo {period} removidos. {deleted_count} loja(s) excluida(s).")
+    return _orders_growth_redirect(request.POST)
+
+
 @login_required
 @user_passes_test(_staff_access)
 def orders_growth_export_csv(request):

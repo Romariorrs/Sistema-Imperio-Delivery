@@ -43,6 +43,11 @@
         background: rgba(43, 179, 227, 0.16); border: 1px solid rgba(43, 179, 227, 0.35); color: var(--text); font-size: 12px;
     }
     .og-main-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+    .og-danger-box { border: 1px dashed rgba(255, 107, 107, 0.45); border-radius: 12px; padding: 10px; }
+    .og-danger-title { margin: 0 0 6px; color: #ffb3b3; font-size: 13px; font-weight: 600; }
+    .og-danger-help { margin: 0 0 8px; color: var(--muted); font-size: 12px; }
+    .og-inline-form { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .og-inline-form input { width: auto; min-width: 150px; }
     .version-alert {
         border: 1px solid rgba(255, 195, 77, 0.45);
         background: linear-gradient(120deg, rgba(255, 195, 77, 0.2), rgba(15, 23, 37, 0.95));
@@ -182,6 +187,35 @@
     </div>
 
     <div class="card">
+        <h3 style="margin:0 0 8px;">Limpeza rapida</h3>
+        <div class="og-danger-box">
+            <div class="og-danger-title">Limpar historico de execucoes</div>
+            <p class="og-danger-help">Digite <b>LIMPAR HISTORICO</b> para apagar os logs antigos. Nao mexe nas lojas ja coletadas, so no historico de execucoes.</p>
+            <form method="post" action="{% url 'orders_growth_delete_runs' %}" class="og-inline-form">
+                {% csrf_token %}
+                <input type="hidden" name="period" value="{{ selected_period }}">
+                <input type="text" name="confirm_text" placeholder="LIMPAR HISTORICO" required>
+                <button class="btn danger" type="submit" onclick="return confirm('Limpar historico de execucoes agora?')">Limpar historico</button>
+            </form>
+        </div>
+        <div class="og-danger-box" style="margin-top:10px;">
+            <div class="og-danger-title">Excluir dados de um periodo especifico</div>
+            <p class="og-danger-help">Util pra apagar uma coleta incompleta/antiga (ex: interrompida antes das correcoes de rolagem) sem mexer nos outros periodos. Digite <b>EXCLUIR PERIODO</b>.</p>
+            <form method="post" action="{% url 'orders_growth_delete_period' %}" class="og-inline-form">
+                {% csrf_token %}
+                <select name="delete_period" required style="width:auto;min-width:140px;">
+                    <option value="">Periodo</option>
+                    {% for period in periods %}
+                        <option value="{{ period }}">{{ period }}</option>
+                    {% endfor %}
+                </select>
+                <input type="text" name="confirm_text" placeholder="EXCLUIR PERIODO" required>
+                <button class="btn danger" type="submit" onclick="return confirm('Excluir todos os dados desse periodo?')">Excluir periodo</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="card">
         <h3 style="margin:0 0 8px;">Historico de execucoes</h3>
         <div class="table-wrap">
             <table>
@@ -196,6 +230,7 @@
                         <th>Invalidos</th>
                         <th>IP</th>
                         <th>Mensagem</th>
+                        <th>Acoes</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -210,9 +245,16 @@
                         <td>{{ run.invalid_count }}</td>
                         <td>{{ run.request_ip|default:"-" }}</td>
                         <td>{{ run.message|default:"-" }}</td>
+                        <td>
+                            <form method="post" action="{% url 'orders_growth_delete_run_item' run.id %}">
+                                {% csrf_token %}
+                                <input type="hidden" name="period" value="{{ selected_period }}">
+                                <button class="btn danger" type="submit" onclick="return confirm('Excluir esta execucao do historico?')">Excluir</button>
+                            </form>
+                        </td>
                     </tr>
                 {% empty %}
-                    <tr><td colspan="9">Sem execucoes ainda.</td></tr>
+                    <tr><td colspan="10">Sem execucoes ainda.</td></tr>
                 {% endfor %}
                 </tbody>
             </table>

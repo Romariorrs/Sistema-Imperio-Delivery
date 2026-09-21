@@ -47,6 +47,29 @@ class MacroServicesTests(TestCase):
             ["Ativo", "Pendente"],
         )
 
+    def test_upsert_sets_import_run_when_given(self):
+        run = MacroRun.objects.create(run_type="api", status="running", source="api")
+        row = {
+            "ID da loja": "2001",
+            "Cidade": "Sao Paulo",
+            "Nome do estabelecimento": "Loja Run",
+            "Telefone do representante do estabelecimento": "11999990000",
+        }
+        upsert_rows([row], default_source="api", import_run=run)
+        lead = MacroLead.objects.get(store_id="2001")
+        self.assertEqual(lead.import_run_id, run.id)
+
+    def test_upsert_leaves_import_run_null_by_default(self):
+        row = {
+            "ID da loja": "2002",
+            "Cidade": "Sao Paulo",
+            "Nome do estabelecimento": "Loja Sem Run",
+            "Telefone do representante do estabelecimento": "11999990000",
+        }
+        upsert_rows([row], default_source="api")
+        lead = MacroLead.objects.get(store_id="2002")
+        self.assertIsNone(lead.import_run_id)
+
     def test_upsert_parses_lead_created_at(self):
         row = {
             "ID da loja": "1002",
@@ -158,6 +181,19 @@ class MacroApiImportTests(TestCase):
         )
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(MacroLead.objects.filter(establishment_name="Loja API").count(), 1)
+
+    def test_api_import_links_lead_to_run(self):
+        payload = [{"Cidade": "Rio", "Nome do estabelecimento": "Loja Vinculada"}]
+        resp = self.client.post(
+            self.url,
+            data=json.dumps(payload),
+            content_type="application/json",
+            HTTP_AUTHORIZATION="Bearer token123",
+        )
+        self.assertEqual(resp.status_code, 200)
+        lead = MacroLead.objects.get(establishment_name="Loja Vinculada")
+        run = MacroRun.objects.get(run_type="api")
+        self.assertEqual(lead.import_run_id, run.id)
 
     def test_api_import_marks_error_if_processing_fails(self):
         payload = [{"Cidade": "Rio", "Nome do estabelecimento": "Loja API"}]
@@ -592,6 +628,39 @@ class MacroScreenTests(TestCase):
         self.assertEqual(inactive_stats["total"], 2)
         self.assertEqual(inactive_stats["since"], first_date)
         self.assertEqual(inactive_stats["date_source"], "Horario lead")
+
+    def test_macro_list_filters_by_import_run_id(self):
+        run_a = MacroRun.objects.create(run_type="api", status="success", source="api")
+        run_b = MacroRun.objects.create(run_type="api", status="success", source="api")
+        MacroLead.objects.create(
+            source="api", city="Sao Paulo", establishment_name="Loja Run A",
+            unique_key="run-a-1", import_run=run_a,
+        )
+        MacroLead.objects.create(
+            source="api", city="Sao Paulo", establishment_name="Loja Run B",
+            unique_key="run-b-1", import_run=run_b,
+        )
+
+        resp = self.client.get(reverse("macro_list"), {"import_run_id": run_a.id})
+        self.assertContains(resp, "Loja Run A")
+        self.assertNotContains(resp, "Loja Run B")
+
+    def test_macro_export_csv_filters_by_import_run_id(self):
+        run_a = MacroRun.objects.create(run_type="api", status="success", source="api")
+        run_b = MacroRun.objects.create(run_type="api", status="success", source="api")
+        MacroLead.objects.create(
+            source="api", city="Sao Paulo", establishment_name="Loja Export Run A",
+            unique_key="export-run-a-1", import_run=run_a,
+        )
+        MacroLead.objects.create(
+            source="api", city="Sao Paulo", establishment_name="Loja Export Run B",
+            unique_key="export-run-b-1", import_run=run_b,
+        )
+
+        resp = self.client.get(reverse("macro_export_csv"), {"import_run_id": run_a.id})
+        content = resp.content.decode("utf-8")
+        self.assertIn("Loja Export Run A", content)
+        self.assertNotIn("Loja Export Run B", content)
 
     def test_macro_pages_open_when_optional_columns_are_unavailable(self):
         lead_columns = {

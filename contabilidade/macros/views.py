@@ -231,6 +231,7 @@ def _apply_filters(request=None, queryset=None, params=None):
     captured_date_from, captured_date_to = _coerce_date_range(captured_date_from, captured_date_to)
     rtbo_contains = (params.get("rtbo_contains") or "").strip()
     rtbo_match = (params.get("rtbo_match") or "").strip().lower()
+    import_run_id = (params.get("import_run_id") or "").strip()
     rtbo_enabled = _macrolead_has_columns("rtbo_pending_checklist")
     phone_norm_enabled = _macrolead_has_columns("representative_phone_norm")
     blocked_enabled = _macrolead_has_columns("is_blocked_number")
@@ -331,6 +332,8 @@ def _apply_filters(request=None, queryset=None, params=None):
             queryset = queryset.filter(rtbo_pending_checklist__iexact=rtbo_contains)
         else:
             queryset = queryset.filter(rtbo_pending_checklist__icontains=rtbo_contains)
+    if import_run_id:
+        queryset = queryset.filter(import_run_id=import_run_id)
     return queryset.order_by("-last_seen_at", "-id")
 
 
@@ -1146,7 +1149,7 @@ def macro_import_csv(request):
         messages.error(request, "CSV sem cabecalho.")
         return redirect("macro_list")
 
-    result = upsert_rows(reader, default_source="csv")
+    result = upsert_rows(reader, default_source="csv", import_run=run_log)
     run_log.status = "success"
     run_log.finished_at = timezone.now()
     run_log.total_collected = result["processed"]
@@ -1811,7 +1814,7 @@ def macro_api_import(request):
         return JsonResponse({"ok": False, "detail": "Payload sem linhas"}, status=400)
 
     try:
-        result = upsert_rows(rows, default_source="api")
+        result = upsert_rows(rows, default_source="api", import_run=run_log)
     except Exception:
         logger.exception("Falha interna no import da macro API")
         run_log.status = "error"

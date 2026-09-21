@@ -291,6 +291,7 @@
                     <td>{{ run.request_ip|default:"-" }}</td>
                     <td>{{ run.message|default:"-" }}</td>
                     <td>
+                        <a class="btn secondary macro-orbit" href="{% url 'macro_list' %}?import_run_id={{ run.id }}">Baixar leads</a>
                         <form method="post" action="{% url 'macro_delete_run_item' run.id %}">
                             {% csrf_token %}
                             <input type="hidden" name="next" value="collect">

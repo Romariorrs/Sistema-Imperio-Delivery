@@ -770,6 +770,17 @@
                     <input type="text" name="rtbo_contains" value="{{ request.GET.rtbo_contains }}" placeholder="Informações da liquidação">
                 </div>
             {% endif %}
+            <div>
+                <label>Execucao (lote de importacao)</label>
+                <select name="import_run_id">
+                    <option value="">Todas</option>
+                    {% for run in recent_runs %}
+                        <option value="{{ run.id }}" {% if request.GET.import_run_id == run.id|stringformat:"s" %}selected{% endif %}>
+                            {{ run.started_at|date:"d/m/Y H:i" }} - {{ run.get_run_type_display }} - {{ run.created_count }} lead(s)
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
             <div class="macro-filter-actions">
                 <button class="btn macro-orbit" type="submit">Filtrar</button>
                 <a class="btn secondary macro-orbit" href="{% url 'macro_list' %}">Limpar</a>

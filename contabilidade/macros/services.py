@@ -198,7 +198,7 @@ def normalize_row(raw_row: Mapping[str, Any], default_source: str = "gattaran") 
     return parsed
 
 
-def upsert_rows(rows: Iterable[Mapping[str, Any]], default_source: str = "gattaran") -> Dict[str, int]:
+def upsert_rows(rows: Iterable[Mapping[str, Any]], default_source: str = "gattaran", import_run=None) -> Dict[str, int]:
     created = 0
     updated = 0
     ignored = 0
@@ -250,6 +250,7 @@ def upsert_rows(rows: Iterable[Mapping[str, Any]], default_source: str = "gattar
             company_category=parsed["company_category"],
             address=parsed["address"],
             rtbo_pending_checklist=parsed["rtbo_pending_checklist"],
+            import_run=import_run,
         )
         leads_to_create.append(lead)
 

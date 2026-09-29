@@ -971,7 +971,20 @@ def macro_export_xlsx(request):
 @login_required
 @user_passes_test(_staff_access)
 def macro_export_manychat(request):
-    queryset = _exclude_blocked_cities(_apply_filters(request))
+    # "Status de exportacao" e um filtro compartilhado com CSV/XLSX, que marcam
+    # exported_at independente do canal. Se usassemos ele aqui do jeito generico,
+    # um lead ja baixado em CSV nunca apareceria como "nao exportado" pro
+    # ManyChat, mesmo nunca tendo ido pra la. Por isso tratamos "nao exportado"
+    # aqui como "ainda nao exportado especificamente pelo canal manychat".
+    params = request.GET.copy()
+    export_status = (params.get("export_status") or "").strip().lower()
+    params.pop("export_status", None)
+    queryset = _exclude_blocked_cities(_apply_filters(params=params))
+    if _export_tracking_enabled():
+        if export_status == "not_exported":
+            queryset = queryset.exclude(export_channel="manychat")
+        elif export_status == "exported":
+            queryset = queryset.filter(export_channel="manychat")
     if _macrolead_has_columns("representative_phone_norm"):
         # Sem telefone o ManyChat nao consegue criar/atualizar o contato (ele
         # so ignora a linha) - nao faz sentido gastar cota de importacao com isso.

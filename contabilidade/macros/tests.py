@@ -1681,6 +1681,39 @@ class MacroScreenTests(TestCase):
             ["12345", "5581999998888", "Loja ManyChat", "Rua Teste, 100", "Foto da fachada,Numero de itens"],
         )
 
+    def test_export_manychat_not_exported_filter_is_channel_specific(self):
+        # Lead ja baixado em CSV comum (export_channel="csv") continua contando
+        # como "nao exportado" para o ManyChat, ja que nunca foi enviado la.
+        already_csv = MacroLead.objects.create(
+            source="api",
+            store_id="1",
+            city="Recife",
+            establishment_name="Loja Ja CSV",
+            representative_phone_norm="5581999998888",
+            rtbo_pending_checklist="Foto da fachada",
+            unique_key="mc-csv",
+        )
+        MacroLead.objects.filter(id=already_csv.id).update(
+            exported_at=timezone.now(), export_channel="csv"
+        )
+        already_manychat = MacroLead.objects.create(
+            source="api",
+            store_id="2",
+            city="Recife",
+            establishment_name="Loja Ja ManyChat",
+            representative_phone_norm="5581999997777",
+            rtbo_pending_checklist="Foto da fachada",
+            unique_key="mc-manychat",
+        )
+        MacroLead.objects.filter(id=already_manychat.id).update(
+            exported_at=timezone.now(), export_channel="manychat"
+        )
+
+        resp = self.client.get(reverse("macro_export_manychat"), data={"export_status": "not_exported"})
+        body = resp.content.decode("utf-8")
+        self.assertIn("Loja Ja CSV", body)
+        self.assertNotIn("Loja Ja ManyChat", body)
+
     def test_export_manychat_pula_leads_sem_telefone(self):
         MacroLead.objects.create(
             source="api",

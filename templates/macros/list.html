@@ -351,8 +351,8 @@
     </div>
 
     <div class="macro-actions">
-        <a class="btn secondary macro-orbit" href="{% url 'macro_export_csv' %}?{% if filter_querystring %}{{ filter_querystring }}&{% endif %}{% if export_tracking_enabled %}mark_exported=1{% endif %}">Exportar CSV</a>
-        <a class="btn secondary macro-orbit" href="{% url 'macro_export_xlsx' %}?{% if filter_querystring %}{{ filter_querystring }}&{% endif %}{% if export_tracking_enabled %}mark_exported=1{% endif %}">Exportar XLSX</a>
+        <a class="btn secondary macro-orbit" href="{% url 'macro_export_csv' %}{% if filter_querystring %}?{{ filter_querystring }}{% endif %}" title="Baixa sem marcar como exportado">Exportar CSV</a>
+        <a class="btn secondary macro-orbit" href="{% url 'macro_export_xlsx' %}{% if filter_querystring %}?{{ filter_querystring }}{% endif %}" title="Baixa sem marcar como exportado">Exportar XLSX</a>
         <form method="post" action="{% url 'macro_import_csv' %}" enctype="multipart/form-data" style="display:flex;gap:8px;align-items:center;">
             {% csrf_token %}
             <input type="file" name="file" accept=".csv" required style="max-width:180px;">
@@ -817,8 +817,8 @@
                             Marcar como exportado ao baixar
                         </label>
                     {% endif %}
-                    <button class="btn secondary macro-orbit" type="submit" formaction="{% url 'macro_export_csv' %}">Exportar consulta CSV</button>
-                    <button class="btn secondary macro-orbit" type="submit" formaction="{% url 'macro_export_xlsx' %}">Exportar consulta XLSX</button>
+                    <button class="btn secondary macro-orbit macro-export-submit" type="submit" formaction="{% url 'macro_export_csv' %}">Exportar consulta CSV</button>
+                    <button class="btn secondary macro-orbit macro-export-submit" type="submit" formaction="{% url 'macro_export_xlsx' %}">Exportar consulta XLSX</button>
                 </div>
             </div>
         </form>
@@ -1079,6 +1079,26 @@
 
     initCollapse("macroDataTools", "macroDataToolsBtn", "macro_data_tools_open");
     initCollapse("macroRunHistory", "macroRunHistoryBtn", "macro_run_history_open");
+
+    const consultaForm = document.getElementById("macroConsultaForm");
+    const markCheckbox = consultaForm ? consultaForm.querySelector('input[name="mark_exported"]') : null;
+    const filteredCount = {{ filtered_count|default:0 }};
+    const CONFIRM_THRESHOLD = 5000;
+
+    document.querySelectorAll(".macro-export-submit").forEach((btn) => {
+        btn.addEventListener("click", (event) => {
+            if (!markCheckbox || !markCheckbox.checked) return;
+            const limitInput = consultaForm.querySelector('input[name="export_limit"]');
+            const limitValue = limitInput && limitInput.value ? parseInt(limitInput.value, 10) : null;
+            const affected = limitValue || filteredCount;
+            if (affected >= CONFIRM_THRESHOLD) {
+                const ok = window.confirm(
+                    `Isso vai marcar ${affected} lead(s) como exportado(s) e eles somem da lista de "nao exportados". Tem certeza?`
+                );
+                if (!ok) event.preventDefault();
+            }
+        });
+    });
 })();
 </script>
 {% endblock %}

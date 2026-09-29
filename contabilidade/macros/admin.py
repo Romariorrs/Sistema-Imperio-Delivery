@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import MacroLead, MacroRun
+from .models import MacroExportLog, MacroLead, MacroRun
 
 
 @admin.register(MacroLead)
@@ -26,6 +26,26 @@ class MacroLeadAdmin(admin.ModelAdmin):
         "representative_phone_norm",
         "address",
     )
+
+
+@admin.register(MacroExportLog)
+class MacroExportLogAdmin(admin.ModelAdmin):
+    list_display = (
+        "created_at",
+        "user",
+        "channel",
+        "lead_count",
+        "marked_as_exported",
+    )
+    list_filter = ("channel", "marked_as_exported")
+    search_fields = ("user__username", "user__email", "filter_querystring")
+    readonly_fields = ("created_at",)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(MacroRun)

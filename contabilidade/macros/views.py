@@ -27,7 +27,15 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 
-from .models import BlockedCity, MacroLead, MacroRun, OrdersGrowthRecord, OrdersGrowthRun, normalize_city_name
+from .models import (
+    BlockedCity,
+    MacroExportLog,
+    MacroLead,
+    MacroRun,
+    OrdersGrowthRecord,
+    OrdersGrowthRun,
+    normalize_city_name,
+)
 from .services import EXPORT_COLUMNS, upsert_rows, upsert_orders_growth_rows
 
 MANYCHAT_EXPORT_COLUMNS = (
@@ -523,6 +531,16 @@ def _parse_export_limit(params) -> int | None:
     return min(value, MAX_EXPORT_LIMIT)
 
 
+def _log_macro_export(request, channel: str, lead_count: int, marked_as_exported: bool) -> None:
+    MacroExportLog.objects.create(
+        user=request.user if request.user.is_authenticated else None,
+        channel=channel,
+        lead_count=lead_count,
+        marked_as_exported=marked_as_exported,
+        filter_querystring=request.GET.urlencode(),
+    )
+
+
 def _parse_mark_exported(params) -> bool:
     raw = (params.get("mark_exported") or "").strip().lower() if hasattr(params, "get") else ""
     return raw in {"1", "true", "yes", "on"}
@@ -825,7 +843,7 @@ def macro_list(request):
         "selected_export_fields": _parse_export_fields(request.GET),
         "selected_export_limit": request.GET.get("export_limit", "").strip(),
         "selected_export_status": (request.GET.get("export_status") or "").strip().lower(),
-        "selected_mark_exported": (_parse_mark_exported(request.GET) if "mark_exported" in request.GET else True) and export_tracking_enabled,
+        "selected_mark_exported": _parse_mark_exported(request.GET) and export_tracking_enabled,
         "selected_lead_date_from": selected_lead_date_from,
         "selected_lead_date_to": selected_lead_date_to,
         "selected_captured_date_from": selected_captured_date_from,
@@ -919,6 +937,8 @@ def macro_export_csv(request):
             item.export_batch_id = batch_id
             item.export_channel = "csv"
 
+    _log_macro_export(request, "csv", len(rows), mark_exported and bool(rows) and _export_tracking_enabled())
+
     response = HttpResponse(content_type="text/csv")
     response["Content-Disposition"] = 'attachment; filename="macro_leads.csv"'
 
@@ -951,6 +971,8 @@ def macro_export_xlsx(request):
             item.exported_at = now
             item.export_batch_id = batch_id
             item.export_channel = "xlsx"
+
+    _log_macro_export(request, "xlsx", len(rows), mark_exported and bool(rows) and _export_tracking_enabled())
 
     response = HttpResponse(
         content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -1010,6 +1032,8 @@ def macro_export_manychat(request):
             item.exported_at = now
             item.export_batch_id = batch_id
             item.export_channel = "manychat"
+
+    _log_macro_export(request, "manychat", len(rows), mark_exported and bool(rows) and _export_tracking_enabled())
 
     response = HttpResponse(content_type="text/csv")
     response["Content-Disposition"] = 'attachment; filename="macro_leads_manychat.csv"'

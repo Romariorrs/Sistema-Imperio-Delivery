@@ -21,6 +21,7 @@
     }
     .macro-title-wrap { display: flex; align-items: center; gap: 8px; }
     .macro-tag { font-size: 11px; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 3px 8px; }
+    .macro-tag-green { color: #5fd88a; border-color: rgba(95, 216, 138, 0.45); background: rgba(95, 216, 138, 0.12); }
     .macro-nav { display: flex; gap: 8px; flex-wrap: wrap; }
     .macro-nav .tab {
         border: 1px solid var(--border);
@@ -959,6 +960,7 @@
                 <h3 style="margin:0;">Resultados filtrados: {{ filtered_count }}</h3>
                 {% if export_tracking_enabled %}
                     <span class="macro-tag" title="Quantos desses resultados ja foram exportados para o ManyChat">Ja no ManyChat: {{ filtered_manychat_exported_count }}</span>
+                    <span class="macro-tag macro-tag-green" title="Quantos desses resultados estao fora das cidades bloqueadas do ManyChat e podem ser baixados">Podem ser baixados: {{ filtered_manychat_downloadable_count }}</span>
                 {% endif %}
             </div>
             <div style="color:#9fb2d7;">Pagina {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</div>

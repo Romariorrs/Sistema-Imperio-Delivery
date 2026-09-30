@@ -761,6 +761,7 @@ def macro_list(request):
             if _export_tracking_enabled()
             else 0
         )
+        filtered_manychat_downloadable_count = _exclude_blocked_cities(filtered_queryset).count()
         cities = _base_macrolead_queryset().exclude(city="").values_list("city", flat=True).distinct().order_by("city")
         contract_statuses = (
             _base_macrolead_queryset().exclude(contract_status="")
@@ -790,6 +791,7 @@ def macro_list(request):
         last_capture_at = None
         filtered_count = 0
         filtered_manychat_exported_count = 0
+        filtered_manychat_downloadable_count = 0
         cities = []
         contract_statuses = []
         categories = []
@@ -814,6 +816,7 @@ def macro_list(request):
         "page_obj": page_obj,
         "filtered_count": filtered_count,
         "filtered_manychat_exported_count": filtered_manychat_exported_count,
+        "filtered_manychat_downloadable_count": filtered_manychat_downloadable_count,
         "cities": cities,
         "contract_statuses": contract_statuses,
         "business_99_statuses": business_99_statuses,

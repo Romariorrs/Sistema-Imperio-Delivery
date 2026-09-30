@@ -531,10 +531,11 @@ def _parse_export_limit(params) -> int | None:
     return min(value, MAX_EXPORT_LIMIT)
 
 
-def _log_macro_export(request, channel: str, lead_count: int, marked_as_exported: bool) -> None:
+def _log_macro_export(request, channel: str, lead_count: int, marked_as_exported: bool, title: str = "") -> None:
     MacroExportLog.objects.create(
         user=request.user if request.user.is_authenticated else None,
         channel=channel,
+        title=title,
         lead_count=lead_count,
         marked_as_exported=marked_as_exported,
         filter_querystring=request.GET.urlencode(),
@@ -823,6 +824,7 @@ def macro_list(request):
         "token_configured": bool(settings.MACRO_API_TOKEN),
         "filter_querystring": query_params.urlencode(),
         "recent_runs": recent_runs,
+        "manychat_export_logs": MacroExportLog.objects.filter(channel="manychat").select_related("user")[:30],
         "local_agent_url": settings.MACRO_LOCAL_AGENT_URL,
         "macro_agent_version": version_meta["version"],
         "macro_agent_build": version_meta["build"],
@@ -998,6 +1000,11 @@ def macro_export_manychat(request):
     # um lead ja baixado em CSV nunca apareceria como "nao exportado" pro
     # ManyChat, mesmo nunca tendo ido pra la. Por isso tratamos "nao exportado"
     # aqui como "ainda nao exportado especificamente pelo canal manychat".
+    manychat_title = (request.GET.get("manychat_title") or "").strip()
+    if not manychat_title:
+        messages.error(request, "Informe um titulo antes de exportar para o ManyChat, para identificar depois o que foi enviado.")
+        return redirect(f"{reverse('macro_list')}?{request.GET.urlencode()}")
+
     params = request.GET.copy()
     export_status = (params.get("export_status") or "").strip().lower()
     params.pop("export_status", None)
@@ -1033,10 +1040,17 @@ def macro_export_manychat(request):
             item.export_batch_id = batch_id
             item.export_channel = "manychat"
 
-    _log_macro_export(request, "manychat", len(rows), mark_exported and bool(rows) and _export_tracking_enabled())
+    _log_macro_export(
+        request,
+        "manychat",
+        len(rows),
+        mark_exported and bool(rows) and _export_tracking_enabled(),
+        title=manychat_title,
+    )
 
+    filename_slug = re.sub(r"[^a-zA-Z0-9_-]+", "_", manychat_title).strip("_") or "manychat"
     response = HttpResponse(content_type="text/csv")
-    response["Content-Disposition"] = 'attachment; filename="macro_leads_manychat.csv"'
+    response["Content-Disposition"] = f'attachment; filename="macro_leads_manychat_{filename_slug}.csv"'
 
     writer = csv.writer(response)
     writer.writerow([label for _, label in MANYCHAT_EXPORT_COLUMNS])

@@ -84,6 +84,7 @@ class MacroExportLog(models.Model):
         related_name="macro_export_logs",
     )
     channel = models.CharField(max_length=20, choices=CHANNEL_CHOICES, db_index=True)
+    title = models.CharField(max_length=255, blank=True)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     lead_count = models.PositiveIntegerField(default=0)
     marked_as_exported = models.BooleanField(default=False)
@@ -94,7 +95,8 @@ class MacroExportLog(models.Model):
 
     def __str__(self):
         who = self.user.get_username() if self.user else "desconhecido"
-        return f"{who} - {self.get_channel_display()} - {self.lead_count} lead(s) ({self.created_at:%d/%m %H:%M})"
+        label = self.title or self.get_channel_display()
+        return f"{who} - {label} - {self.lead_count} lead(s) ({self.created_at:%d/%m %H:%M})"
 
 
 class MacroRun(models.Model):

@@ -32,13 +32,14 @@ class MacroLeadAdmin(admin.ModelAdmin):
 class MacroExportLogAdmin(admin.ModelAdmin):
     list_display = (
         "created_at",
+        "title",
         "user",
         "channel",
         "lead_count",
         "marked_as_exported",
     )
     list_filter = ("channel", "marked_as_exported")
-    search_fields = ("user__username", "user__email", "filter_querystring")
+    search_fields = ("title", "user__username", "user__email", "filter_querystring")
     readonly_fields = ("created_at",)
 
     def has_add_permission(self, request):

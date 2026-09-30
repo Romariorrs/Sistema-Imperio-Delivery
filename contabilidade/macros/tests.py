@@ -13,7 +13,14 @@ from datetime import timedelta
 from selenium.webdriver import ChromeOptions
 
 from contabilidade.macros import collector
-from contabilidade.macros.models import BlockedCity, MacroLead, MacroRun, OrdersGrowthRecord, OrdersGrowthRun
+from contabilidade.macros.models import (
+    BlockedCity,
+    MacroExportLog,
+    MacroLead,
+    MacroRun,
+    OrdersGrowthRecord,
+    OrdersGrowthRun,
+)
 from contabilidade.macros.services import upsert_rows, upsert_orders_growth_rows
 
 
@@ -953,7 +960,7 @@ class MacroScreenTests(TestCase):
         )
         resp = self.client.get(
             reverse("macro_export_manychat"),
-            data={"q": "Loja Manychat Canal", "mark_exported": "1"},
+            data={"q": "Loja Manychat Canal", "mark_exported": "1", "manychat_title": "Teste"},
         )
         self.assertEqual(resp.status_code, 200)
         lead.refresh_from_db()
@@ -1606,7 +1613,7 @@ class MacroScreenTests(TestCase):
         self.assertIn("Loja Bloqueada", export_body)
 
         # So a exportacao ManyChat exclui a cidade bloqueada.
-        manychat_resp = self.client.get(reverse("macro_export_manychat"))
+        manychat_resp = self.client.get(reverse("macro_export_manychat"), data={"manychat_title": "Teste"})
         manychat_body = manychat_resp.content.decode("utf-8")
         self.assertIn("Loja Liberada", manychat_body)
         self.assertNotIn("Loja Bloqueada", manychat_body)
@@ -1656,7 +1663,7 @@ class MacroScreenTests(TestCase):
         csv_resp = self.client.get(reverse("macro_export_csv"))
         self.assertNotIn(b"Test-1788937355", csv_resp.content)
 
-        manychat_resp = self.client.get(reverse("macro_export_manychat"))
+        manychat_resp = self.client.get(reverse("macro_export_manychat"), data={"manychat_title": "Teste"})
         self.assertNotIn(b"Test-1788937355", manychat_resp.content)
         self.assertIn(b"Loja Real", manychat_resp.content)
 
@@ -1671,7 +1678,7 @@ class MacroScreenTests(TestCase):
             representative_phone_norm="5581999998888",
             rtbo_pending_checklist="Foto da fachada,Numero de itens",
         )
-        resp = self.client.get(reverse("macro_export_manychat"))
+        resp = self.client.get(reverse("macro_export_manychat"), data={"manychat_title": "Teste"})
         self.assertEqual(resp.status_code, 200)
         reader = csv_reader.reader(resp.content.decode("utf-8").splitlines())
         rows = list(reader)
@@ -1680,6 +1687,37 @@ class MacroScreenTests(TestCase):
             rows[1],
             ["12345", "5581999998888", "Loja ManyChat", "Rua Teste, 100", "Foto da fachada,Numero de itens"],
         )
+
+    def test_export_manychat_requer_titulo(self):
+        MacroLead.objects.create(
+            source="api",
+            store_id="99999",
+            city="Recife",
+            establishment_name="Loja Sem Titulo",
+            representative_phone_norm="5581999998888",
+            rtbo_pending_checklist="Foto da fachada",
+        )
+        resp = self.client.get(reverse("macro_export_manychat"))
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(MacroExportLog.objects.filter(channel="manychat").count(), 0)
+
+    def test_export_manychat_registra_log_com_titulo(self):
+        MacroLead.objects.create(
+            source="api",
+            store_id="88888",
+            city="Recife",
+            establishment_name="Loja Com Titulo",
+            representative_phone_norm="5581999998888",
+            rtbo_pending_checklist="Foto da fachada",
+        )
+        resp = self.client.get(
+            reverse("macro_export_manychat"),
+            data={"manychat_title": "Recusados SP Setembro"},
+        )
+        self.assertEqual(resp.status_code, 200)
+        log = MacroExportLog.objects.filter(channel="manychat").latest("created_at")
+        self.assertEqual(log.title, "Recusados SP Setembro")
+        self.assertEqual(log.lead_count, 1)
 
     def test_export_manychat_not_exported_filter_is_channel_specific(self):
         # Lead ja baixado em CSV comum (export_channel="csv") continua contando
@@ -1709,7 +1747,10 @@ class MacroScreenTests(TestCase):
             exported_at=timezone.now(), export_channel="manychat"
         )
 
-        resp = self.client.get(reverse("macro_export_manychat"), data={"export_status": "not_exported"})
+        resp = self.client.get(
+            reverse("macro_export_manychat"),
+            data={"export_status": "not_exported", "manychat_title": "Teste"},
+        )
         body = resp.content.decode("utf-8")
         self.assertIn("Loja Ja CSV", body)
         self.assertNotIn("Loja Ja ManyChat", body)
@@ -1733,7 +1774,7 @@ class MacroScreenTests(TestCase):
             unique_key="sem-telefone-1",
         )
 
-        resp = self.client.get(reverse("macro_export_manychat"))
+        resp = self.client.get(reverse("macro_export_manychat"), data={"manychat_title": "Teste"})
         self.assertEqual(resp.status_code, 200)
         self.assertIn(b"Loja Com Telefone", resp.content)
         self.assertNotIn(b"Loja Sem Telefone", resp.content)
@@ -1767,7 +1808,7 @@ class MacroScreenTests(TestCase):
             unique_key="sem-pendencia-vazia-1",
         )
 
-        resp = self.client.get(reverse("macro_export_manychat"))
+        resp = self.client.get(reverse("macro_export_manychat"), data={"manychat_title": "Teste"})
         self.assertEqual(resp.status_code, 200)
         self.assertIn(b"Loja Com Pendencia", resp.content)
         self.assertNotIn(b"Loja Sem Pendencia Traco", resp.content)
@@ -1795,7 +1836,7 @@ class MacroScreenTests(TestCase):
             unique_key="contrato-recusado-1",
         )
 
-        resp = self.client.get(reverse("macro_export_manychat"))
+        resp = self.client.get(reverse("macro_export_manychat"), data={"manychat_title": "Teste"})
         self.assertEqual(resp.status_code, 200)
         self.assertIn(b"Loja Contrato Assinado", resp.content)
         self.assertNotIn(b"Loja Contrato Recusado", resp.content)

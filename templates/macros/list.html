@@ -294,6 +294,21 @@
         color: #ffd894;
         background: rgba(255, 195, 77, 0.16);
     }
+    .macro-manychat-title-wrap {
+        margin: 14px 0;
+        max-width: 480px;
+    }
+    .macro-manychat-title-wrap label {
+        display: block;
+        margin-bottom: 4px;
+        font-size: 12px;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+    .macro-manychat-title-wrap input {
+        width: 100%;
+    }
     .macro-blocked-cities {
         border: 1px dashed rgba(255, 107, 107, 0.35);
         border-radius: 12px;
@@ -887,7 +902,55 @@
             </form>
         </div>
 
-        <button class="btn macro-orbit" type="submit" form="macroConsultaForm" formaction="{% url 'macro_export_manychat' %}">Exportar para ManyChat</button>
+        <div class="macro-manychat-title-wrap">
+            <label for="manychatTitleInput">Titulo deste envio</label>
+            <input type="text" id="manychatTitleInput" name="manychat_title" form="macroConsultaForm" maxlength="255"
+                   placeholder="Ex: Recusados SP Setembro, RTBO pendente Norte..."
+                   value="{{ request.GET.manychat_title }}">
+            <p class="macro-export-note" style="margin:4px 0 0;">
+                Obrigatorio. Identifica esse envio no historico abaixo - usamos porque mandamos varios
+                tipos de leads diferentes pro ManyChat.
+            </p>
+        </div>
+
+        <button class="btn macro-orbit" type="submit" id="manychatExportBtn" form="macroConsultaForm" formaction="{% url 'macro_export_manychat' %}">Exportar para ManyChat</button>
+    </div>
+
+    <div class="card macro-collapsible-card" id="macroManychatHistory">
+        <div class="macro-collapse-head">
+            <h3>Historico de exportacoes ManyChat</h3>
+            <button class="macro-collapse-toggle" type="button" id="macroManychatHistoryBtn" aria-expanded="false" aria-controls="macroManychatHistoryContent" title="Mostrar/ocultar historico de exportacoes ManyChat">
+                <span class="macro-collapse-icon" aria-hidden="true"></span>
+            </button>
+        </div>
+        <div class="macro-collapsible-content" id="macroManychatHistoryContent">
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Data/hora</th>
+                        <th>Titulo</th>
+                        <th>Leads</th>
+                        <th>Marcou como exportado</th>
+                        <th>Usuario</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for log in manychat_export_logs %}
+                    <tr>
+                        <td>{{ log.created_at|date:"d/m/Y H:i" }}</td>
+                        <td>{{ log.title|default:"-" }}</td>
+                        <td>{{ log.lead_count }}</td>
+                        <td>{% if log.marked_as_exported %}Sim{% else %}Nao{% endif %}</td>
+                        <td>{{ log.user.get_username|default:"-" }}</td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="5">Nenhuma exportacao pro ManyChat registrada ainda.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        </div>
     </div>
 
     <div class="card">
@@ -1079,6 +1142,19 @@
 
     initCollapse("macroDataTools", "macroDataToolsBtn", "macro_data_tools_open");
     initCollapse("macroRunHistory", "macroRunHistoryBtn", "macro_run_history_open");
+    initCollapse("macroManychatHistory", "macroManychatHistoryBtn", "macro_manychat_history_open");
+
+    const manychatBtn = document.getElementById("manychatExportBtn");
+    const manychatTitleInput = document.getElementById("manychatTitleInput");
+    if (manychatBtn && manychatTitleInput) {
+        manychatBtn.addEventListener("click", (event) => {
+            if (!manychatTitleInput.value.trim()) {
+                event.preventDefault();
+                manychatTitleInput.focus();
+                window.alert("Preencha o titulo desse envio antes de exportar para o ManyChat.");
+            }
+        });
+    }
 
     const consultaForm = document.getElementById("macroConsultaForm");
     const markCheckbox = consultaForm ? consultaForm.querySelector('input[name="mark_exported"]') : null;
